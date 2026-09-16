@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 import urllib.parse
@@ -24,6 +25,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
+
+from commute import load_env_file
 
 BACKEND_DIR = Path(__file__).parent
 POI_CACHE_FILE = BACKEND_DIR / ".poi_cache.json"
@@ -129,10 +132,7 @@ class POIAligner:
     """别名 → 高德 POI 对齐器。"""
 
     def __init__(self, amap_key: str | None = None):
-        env = None
-        from commute import load_env_file
         env = load_env_file()
-        import os
         self.key = amap_key or env.get("AMAP_KEY") or os.environ.get("AMAP_KEY")
         self.cache: dict[str, dict] = {}
         self._last_call = 0.0
