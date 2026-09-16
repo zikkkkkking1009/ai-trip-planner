@@ -1,5 +1,10 @@
 # AI 行程规划系统 v0.3
 
+[![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Tests](https://img.shields.io/badge/tests-17%20passed-brightgreen)
+
 > 简历项目「AI 行程规划」的后端内核：LLM 抽取 → 实体对齐 → OPTW 排期求解 → 约束校验。
 
 ## 架构一句话
@@ -83,6 +88,15 @@ uvicorn main:app --reload --port 8000
 - [ ] **对话改行程**：function calling 实现「明天下午加个附近的咖啡馆」
 - [ ] **前端**：地图打点连线 + 逐日卡片（高德 JS API）+ 长图导出
 - [ ] L2 对比实验：OR-Tools CP-SAT 最优解 vs 本启发式，报 gap
+
+## 更新日志
+
+- **v0.4** 工程化：17 个单元测试（求解器/校验器/对齐打分）+ GitHub Actions CI + MIT License；aligner 清理冗余导入
+- **v0.3** 硬菜三：三方评估实验（朴素基线 / 真 LLM / 求解器，50 组场景），预算违规 18% → 0，支撑「LLM 做理解、算法做决策」的架构决策
+- **v0.3** 硬菜二：地理实体对齐管线，20 条标注集 F1 80% → 85% → 90% 三轮迭代（类型先验 / 硬过滤 / 后缀扩展）
+- **v0.2** 硬菜一配套：高德通勤矩阵（真实驾车时长 + 三级缓存 + 限频节流），重复求解 API 调用降为 0
+- **v0.2** 预算改为求解期硬约束（修复「排完才发现超支」），放弃景点带原因
+- **v0.1** OPTW 启发式求解器（贪心 + 2-opt + 跨日搬运）+ 约束校验器 + LLM 抽取模块
 
 ## 面试一句话
 
