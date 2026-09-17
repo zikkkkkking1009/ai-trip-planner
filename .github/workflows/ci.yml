@@ -22,7 +22,13 @@ jobs:
 
       - name: Run unit tests
         working-directory: backend
-        run: pytest tests/ -q
+        run: |
+          pytest tests/ -q --tb=short > pytest_output.txt 2>&1 || {
+            echo "PYTEST FAILED, dumping tail to annotation..."
+            python -c "import urllib.parse; print('::error::' + urllib.parse.quote(open('pytest_output.txt', encoding='utf-8', errors='ignore').read()[-1500:]))"
+            exit 1
+          }
+          tail -n 5 pytest_output.txt
 
       - name: Smoke test solver demo (no API key needed)
         working-directory: backend

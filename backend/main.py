@@ -108,6 +108,22 @@ def demo_spots() -> dict:
     return {"city": "西安", "spots": [s.model_dump() for s in XI_AN_SPOTS]}
 
 
+@app.get("/demo/config")
+def demo_config() -> dict:
+    """前端地图底图配置。TILE_PROVIDER=osm 切换 OSM（需前端做 GCJ→WGS84 转换）。
+
+    默认高德栅格瓦片仅建议本地开发/演示使用；合规生产用法是官方 JS API（Web端 Key）。
+    """
+    env = load_env_file()
+    provider = env.get("TILE_PROVIDER", os.environ.get("TILE_PROVIDER", "amap"))
+    if provider == "osm":
+        return {"tile_url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "subdomains": "abc", "attribution": "© OpenStreetMap",
+                "gcj": False}
+    return {"tile_url": "https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}",
+            "subdomains": "1234", "attribution": "© 高德地图", "gcj": True}
+
+
 @app.post("/plan/async")
 async def create_async_plan(req: PlanRequest) -> dict:
     """异步排期：立即返回 task_id，后台跑完整流水线（不再被网关 504）。"""
