@@ -154,8 +154,16 @@ class Solver:
         return sum(d.commute_total(self.req) for d in self.days)
 
     # ---------- 主入口 ----------
-    def solve(self) -> tuple[list[DayPlan], list[UnplannedSpot], float, float]:
+    def solve(self, progress_cb: Callable[[str, dict], None] | None = None
+              ) -> tuple[list[DayPlan], list[UnplannedSpot], float, float]:
+        """progress_cb(stage, info)：阶段回调，供异步任务系统推送进度。
+
+        stage ∈ {构造, 优化, 完成}；不传则静默（同步调用方式不变）。
+        """
+        progress_cb = progress_cb or (lambda stage, info: None)
+
         # 1) 按 score 降序贪心插入；预算是构造阶段的硬约束
+        progress_cb("构造", {"msg": f"贪心插入 {len(self.req.spots)} 个景点（预算硬约束生效）..."})
         unplanned: list[UnplannedSpot] = []
         spent = 0.0
         for s in sorted(self.req.spots, key=lambda x: -x.score):
@@ -168,13 +176,18 @@ class Solver:
                 else:
                     reason = "时间窗装不下"
                 unplanned.append(UnplannedSpot(name=s.name, reason=reason))
+        progress_cb("构造", {"msg": f"已排入 {len(self.req.spots) - len(unplanned)} 个，"
+                                    f"放弃 {len(unplanned)} 个"})
 
         # 2) 局部优化：2-opt 压通勤 + 跨日搬运，迭代至收敛（最多 3 轮）
-        for _ in range(3):
+        for rd in range(3):
             changed = any(self._intra_2opt(di) for di in range(len(self.days)))
             changed |= self._relocate()
+            progress_cb("优化", {"msg": f"第 {rd + 1} 轮优化（2-opt + 跨日搬运），"
+                                        f"当前总通勤 {self._global_commute():.0f} 分钟"})
             if not changed:
                 break
+        progress_cb("完成", {"msg": "求解完成"})
 
         # 3) 输出结构化结果
         day_plans: list[DayPlan] = []

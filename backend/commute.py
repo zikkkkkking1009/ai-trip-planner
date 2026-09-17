@@ -140,3 +140,30 @@ class CommuteMatrix:
     def hit_rate(self) -> float:
         total = self.stats["cache_hits"] + self.stats["api_calls"]
         return self.stats["cache_hits"] / total if total else 0.0
+
+    # ---- 批量预计算（异步任务的进度展示用）----
+    def precompute(self, spots: list[Spot],
+                   progress_cb=None) -> int:
+        """把所有景点两两之间的通勤提前算好（命中缓存则零开销）。
+
+        N 个景点是 N(N-1)/2 对；首次会集中调高德 API（受 QPS 节流），
+        之后全部走缓存。progress_cb(done, total) 供进度推送。
+        返回真实发起的 API 调用次数。
+        """
+        uniq: list[Spot] = []
+        seen: set[tuple[float, float]] = set()
+        for s in spots:
+            key = (s.lat, s.lon)
+            if key not in seen:
+                seen.add(key)
+                uniq.append(s)
+
+        pairs = [(uniq[i], uniq[j])
+                 for i in range(len(uniq)) for j in range(i + 1, len(uniq))]
+        before = self.stats["api_calls"]
+        for idx, (a, b) in enumerate(pairs):
+            self.minutes(a, b)  # 同时缓存正反两个方向
+            self.minutes(b, a)
+            if progress_cb and (idx % 5 == 0 or idx == len(pairs) - 1):
+                progress_cb(idx + 1, len(pairs))
+        return self.stats["api_calls"] - before
