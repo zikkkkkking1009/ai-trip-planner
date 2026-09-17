@@ -216,26 +216,35 @@ $('go').onclick = async () => {
 // 对话式修改：以当前行程为基准发起新的异步任务
 function sendEdit() {
   const text = $('chatInput').value.trim();
-  if (!text || !lastTaskId) return;
+  if (!text) { log('提示', '先输入想怎么改'); return; }
+  if (!lastTaskId) { log('提示', '还没有行程——先点「开始规划」生成一份'); return; }
   $('chatSend').disabled = true; $('chatInput').value = '';
   $('log').textContent = ''; log('编辑', `收到指令：${text}`);
   fetch('/plan/edit', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({task_id: lastTaskId, instruction: text})})
-    .then(r => r.json()).then(({task_id, ws_url}) => {
+    .then(async r => {
+      const d = await r.json();
+      if (!r.ok) {   // 404=服务太旧没这个接口 / 503=没配 LLM Key / 400=参数缺失
+        log('错误', `HTTP ${r.status}: ${d.detail || '未知错误'}（如果是 404，请重启后端服务）`);
+        $('chatSend').disabled = false;
+        return;
+      }
       const proto = location.protocol==='https:'?'wss':'ws';
-      const ws = new WebSocket(`${proto}://${location.host}${ws_url}`);
-      ws.onmessage = e => { const d = JSON.parse(e.data);
-        (d.progress||[]).forEach(p => log(p.stage, p.msg));
-        if (d.status==='completed') {
-          if (d.result.days) { plan = d.result; lastTaskId = task_id; render(); }
-          else log('回复', d.result.reply || '没有识别到可执行的修改');
+      const ws = new WebSocket(`${proto}://${location.host}${d.ws_url}`);
+      ws.onmessage = e => { const d2 = JSON.parse(e.data);
+        (d2.progress||[]).forEach(p => log(p.stage, p.msg));
+        if (d2.status==='completed') {
+          if (d2.result.days) { plan = d2.result; lastTaskId = d.task_id; render(); }
+          else log('回复', d2.result.reply || '没有识别到可执行的修改');
           ws.close(); $('chatSend').disabled = false; }
-        if (d.status==='failed') { log('失败', d.error); ws.close(); $('chatSend').disabled=false; } };
+        if (d2.status==='failed') { log('失败', d2.error); ws.close(); $('chatSend').disabled=false; } };
       ws.onerror = () => { log('错误', '连接断开'); $('chatSend').disabled = false; };
-    });
+    })
+    .catch(err => { log('错误', String(err)); $('chatSend').disabled = false; });
 }
 
 function log(stage, msg) {
+  document.querySelector('details').open = true;  // 有动静就把日志展开
   const div = document.createElement('div');
   div.innerHTML = `<span class="st">[${stage}]</span>${msg}`;
   $('log').appendChild(div); $('log').scrollTop = 1e9;

@@ -47,7 +47,11 @@ ops 支持四种操作：
 
 
 def parse_instruction(instruction: str, plan_summary: str) -> dict:
-    """调 LLM 把自然语言指令解析成结构化操作。需要 LLM_API_KEY。"""
+    """调 LLM 把自然语言指令解析成结构化操作。需要 LLM_API_KEY。
+
+    返回 {"ops": [...], "reply": "...", "_raw": 模型原始输出(截断)}，
+    _raw 用于调试「模型到底返回了什么」。
+    """
     from extractor import _tolerant_json_parse
     from openai import OpenAI
 
@@ -65,7 +69,13 @@ def parse_instruction(instruction: str, plan_summary: str) -> dict:
         ],
         temperature=0.1,
     )
-    return _tolerant_json_parse(resp.choices[0].message.content or "")
+    raw = resp.choices[0].message.content or ""
+    try:
+        parsed = _tolerant_json_parse(raw)
+    except Exception:
+        parsed = {"ops": [], "reply": "没听懂，换个说法试试"}
+    parsed["_raw"] = raw[:300]
+    return parsed
 
 
 # ---- 高德周边搜索（加点用）----
@@ -146,9 +156,13 @@ def pick_poi(candidates: list[dict]) -> dict | None:
 
 
 def make_spot(poi: dict, stay_min: int = 60) -> Spot:
-    """POI → 求解器可用的 Spot（默认 1 小时、免费、营业到22点）。"""
+    """POI → 求解器可用的 Spot。
+
+    score 给到最高档：用户点名要加的地点是「必去项」，
+    求解器必须优先安置（否则会被当低分景点第一个放弃）。
+    """
     return Spot(source_id=0, name=poi["name"], lat=poi["lat"], lon=poi["lon"],
-                stay_min=stay_min, score=6.5, ticket=0, open_h=9.0, close_h=22.0,
+                stay_min=stay_min, score=9.9, ticket=0, open_h=9.0, close_h=22.0,
                 desc=f"新增：{poi.get('type_str', '').split(';')[0]}")
 
 

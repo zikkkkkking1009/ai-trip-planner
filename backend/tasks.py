@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -143,6 +144,9 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
             return editor.parse_instruction(instruction, plan_summary)
         parsed = await asyncio.to_thread(work_parse)
         ops, reply = parsed.get("ops", []), parsed.get("reply", "")
+        # 调试可见性：把模型原始输出暴露到进度日志（排查「不聪明」问题的第一现场）
+        if parsed.get("_raw"):
+            MANAGER.say(task, "调试", "模型原始输出: " + str(parsed["_raw"])[:200])
         # ops 去重：LLM 偶尔把同一操作按天数重复输出多份
         seen, dedup = set(), []
         for o in ops:
@@ -161,8 +165,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
             task.version += 1
             return
         for op in ops:
-            MANAGER.say(task, "理解", f"识别到操作：{op.get('op')} "
-                                      f"{op.get('name') or op.get('old') or op.get('query', '')}")
+            MANAGER.say(task, "理解", f"识别到操作: {json.dumps(op, ensure_ascii=False)}")
 
         # 阶段 2/3：两条执行路径
         # A) 全部是 pin_add（定点插入酒店/自定义地点）→ 只改目标天，其他天保持不变
@@ -316,6 +319,15 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         report["stats"]["cache_hit_rate"] = round(cm.hit_rate(), 3)
         MANAGER.say(task, "校验", "约束校验通过 ✅" if report["passed"]
                     else f"发现违规：{'; '.join(report['violations'])}")
+
+        # 新增/替换的点最终落在哪天，明确告知用户（全局重排可能挪动原计划）
+        for np in new_spots:
+            for d in day_plans:
+                if any(v.name == np.name for v in d.spots):
+                    changes.append(f"「{np.name}」已安排在 Day{d.day}")
+                    break
+            else:
+                changes.append(f"「{np.name}」时间窗装不下，未排入")
 
         task.result = {
             "city": new_req.city, "days": [d.model_dump() for d in day_plans],
