@@ -197,6 +197,7 @@ function render() {
       document.querySelectorAll('.daytabs .tab').forEach(x=>x.classList.remove('active'));
       t.classList.add('active'); renderItin(); if (map) renderMap(); });
   $('daytabs').firstChild.classList.add('active');
+  renderItin();          // 修复：规划完成立即渲染总览，否则 #view 是空的
   switchView('itin');
 }
 
@@ -245,7 +246,11 @@ function renderMap() {
     return `<div id="lg${i}" onclick="toggleDay(${i})"><i style="background:${c}"></i>Day${i+1}</div>`;
   }).join('');
   const all = [];
-  plan.days.forEach((d, i) => {
+  // 只画当前选中天（总览=全部）——修复「每天路线和总览一样」
+  const toDraw = currentDay === 0
+    ? plan.days.map((d, i) => [d, i])
+    : [[plan.days[currentDay - 1], currentDay - 1]];
+  toDraw.forEach(([d, i]) => {
     const color = DAY_COLORS[i % DAY_COLORS.length];
     const latlngs = d.spots.map(v => {
       const s = spots.find(s => s.name === v.name) || spots[0];
