@@ -287,6 +287,10 @@ function renderItin() {
     const blk = document.createElement('div'); blk.className='dayblock';
     blk.innerHTML = `<div class="dayhead"><div class="daytitle">${dateOf(dayIdx)}</div>
       <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟</div></div>`
+      + (plan.hotel ? `<div class="entry"><div class="bar" style="background:#7048e8"></div>
+          <div class="body"><div><span class="tag" style="color:#7048e8">住宿</span>
+          <span class="name">🏨 ${plan.hotel.name}</span></div>
+          <div class="desc">每天从这里出发、傍晚回到这里（往返通勤已计入上方数字）</div></div></div>` : '')
       + d.spots.map(v => {
         const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
         return `<div class="entry"><div class="bar" style="background:${color}"></div><div class="body">
