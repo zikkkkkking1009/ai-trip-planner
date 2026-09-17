@@ -191,16 +191,23 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         cm = CommuteMatrix()
 
         # 统一的 POI 搜索提供器：周边搜索 → 全城文本搜索兜底
+        # （区域型查询如「未央区 酒店」周边半径内可能搜不到，必须能降级）
         city = params.get("city", "西安")
+        def search_provider(query, lat, lon):
+            cands = editor.poi_search(query, lat, lon)
+            if not cands:
+                cands = editor.text_search(query, city)
+            return cands
 
         # ---- hotel 操作：设定住宿锚点，影响之后所有天的通勤 ----
         for hop in hotel_ops:
             query = hop.get("query") or hop.get("name", "")
             def work_hotel():
-                # 酒店搜索不能用 pick_poi（酒店类型在对齐器里属于干扰类型）
-                cands = editor.poi_search(query, 34.26, 108.94, radius=8000)
+                # 区域+类型查询（如「未央区 酒店」）用全城文本搜索更稳，
+                # 搜不到再退回周边搜索
+                cands = editor.text_search(query, city)
                 if not cands:
-                    cands = editor.text_search(query, city)
+                    cands = editor.poi_search(query, 34.26, 108.94, radius=10000)
                 return cands
             cands = await asyncio.to_thread(work_hotel)
             poi = next((c for c in cands
@@ -238,11 +245,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                               sum(p[1] for p in day_anchors.values()) / len(day_anchors)) \
                              if day_anchors else (34.26, 108.94)
                 def work_search():
-                    cands = editor.poi_search(query, *anchor)
-                    if not cands:  # 周边搜不到 → 全城文本搜索兜底
-                        cands = editor.text_search(query,
-                                                   params.get("city", "西安"))
-                    return cands
+                    return search_provider(query, *anchor)
                 cands = await asyncio.to_thread(work_search)
                 poi = editor.pick_poi(cands)
                 if poi is None:
@@ -315,7 +318,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                    for o in ops]
         def work_apply():
             return editor.apply_ops(base_spots, all_ops,
-                                    poi_search_fn=editor.poi_search,
+                                    poi_search_fn=search_provider,
                                     day_anchors=day_anchors)
         new_spots, changes = await asyncio.to_thread(work_apply)
         # 重複去重：LLM 重复输出同一操作会导致同名景点被加多次
