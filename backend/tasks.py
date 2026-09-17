@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from commute import CommuteMatrix
 from constraint_check import check_plan
-from models import PlanRequest
+from models import DayPlan, PlanRequest
 from solver import Solver
 
 
@@ -143,6 +143,15 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
             return editor.parse_instruction(instruction, plan_summary)
         parsed = await asyncio.to_thread(work_parse)
         ops, reply = parsed.get("ops", []), parsed.get("reply", "")
+        # ops 去重：LLM 偶尔把同一操作按天数重复输出多份
+        seen, dedup = set(), []
+        for o in ops:
+            key = (o.get("op"), o.get("name") or o.get("old"),
+                   o.get("query"), o.get("day"))
+            if key not in seen:
+                seen.add(key)
+                dedup.append(o)
+        ops = dedup
 
         if not ops:
             MANAGER.say(task, "理解", reply or "没有识别到可执行的修改")
@@ -155,9 +164,13 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
             MANAGER.say(task, "理解", f"识别到操作：{op.get('op')} "
                                       f"{op.get('name') or op.get('old') or op.get('query', '')}")
 
-        # 阶段 2：确定性执行（周边搜索锚点 = 各天几何中心）
+        # 阶段 2/3：两条执行路径
+        # A) 全部是 pin_add（定点插入酒店/自定义地点）→ 只改目标天，其他天保持不变
+        # B) 有其他操作 → 全局重排（现有路径）；pin 插不进时间窗时也降级到 B
+        import copy
         from models import Spot as SpotModel
         base_spots = [SpotModel(**s) for s in base.request_spots]
+        spot_by_name = {s.name: s for s in base_spots}
         day_anchors = {}
         for d in base.result["days"]:
             pts = [next((s for s in base_spots if s.name == v["name"]), None)
@@ -166,11 +179,122 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
             if pts:
                 day_anchors[d["day"]] = (sum(p.lat for p in pts) / len(pts),
                                          sum(p.lon for p in pts) / len(pts))
+        params = base.req_params
+
+        pin_ops = [o for o in ops if o.get("op") == "pin_add"]
+        other_ops = [o for o in ops if o.get("op") != "pin_add"]
+        changes: list[str] = []
+        cm = CommuteMatrix()
+
+        # 统一的 POI 搜索提供器：周边搜索 → 全城文本搜索兜底
+        city = params.get("city", "西安")
+
+        if pin_ops and not other_ops:
+            days = copy.deepcopy(base.result["days"])
+            new_spots_acc: list[SpotModel] = []
+            fallback = False
+            for op in pin_ops:
+                day_i = op.get("day") or 1
+                d = next((x for x in days if x["day"] == day_i), None)
+                if d is None:
+                    continue
+                query = op.get("query") or op.get("name", "")
+                # 锚点优先级：after 指定的景点坐标 > 该天几何中心 > 全部景点中心
+                # （修过的 bug：用 Day 几何中心搜「钟楼的全季酒店」会因距离 20km 搜不到）
+                after = op.get("after")
+                if after and after in spot_by_name:
+                    anchor = (spot_by_name[after].lat, spot_by_name[after].lon)
+                else:
+                    anchor = day_anchors.get(day_i)
+                if anchor is None:
+                    anchor = (sum(p[0] for p in day_anchors.values()) / len(day_anchors),
+                              sum(p[1] for p in day_anchors.values()) / len(day_anchors)) \
+                             if day_anchors else (34.26, 108.94)
+                def work_search():
+                    cands = editor.poi_search(query, *anchor)
+                    if not cands:  # 周边搜不到 → 全城文本搜索兜底
+                        cands = editor.text_search(query,
+                                                   params.get("city", "西安"))
+                    return cands
+                cands = await asyncio.to_thread(work_search)
+                poi = editor.pick_poi(cands)
+                if poi is None:
+                    changes.append(f"没有搜到「{query}」")
+                    continue
+                if any(v["name"] == poi["name"] for dd in days for v in dd["spots"]):
+                    changes.append(f"「{poi['name']}」已在行程中，跳过重复添加")
+                    continue
+                new_spot = editor.make_spot(poi)
+                day_objs = [spot_by_name[v["name"]] for v in d["spots"]
+                            if v["name"] in spot_by_name]
+                def work_pin():
+                    # commute_fn 必须与基准求解同一口径（高德真实数据），
+                    # 否则估算偏差会把可行判成不可行。
+                    # pin_insert_best 扫描全部插入位置 × 停留时长(60/30)，选通勤最小可行方案
+                    return editor.pin_insert_best(
+                        day_objs, new_spot, op.get("after"),
+                        params.get("daily_start_h", 9.0),
+                        params.get("daily_end_h", 18.0),
+                        commute_fn=cm.minutes)
+                res = await asyncio.to_thread(work_pin)
+                if res is None:
+                    # 该天装不下：记录并继续（部分成功优于整单回滚）
+                    changes.append(f"「{poi['name']}」在 Day{day_i} 装不下，已跳过")
+                    continue
+                d["spots"] = [v.model_dump() for v in res["spots"]]
+                d["commute_min"], d["cost"], d["active_min"] = \
+                    res["commute_min"], res["cost"], res["active_min"]
+                new_spots_acc.append(new_spot)
+                changes.append(f"Day{day_i} 新增「{poi['name']}」（停留 {res['stay_min']} 分钟"
+                               + (f"，{op['after']} 之后" if op.get("after") else "，选通勤最小位置") + "）")
+
+            if new_spots_acc:  # 部分成功也算成功，只有全部失败才降级全局重排
+                total_cost = round(sum(d["cost"] for d in days), 1)
+                total_score = round(sum(
+                    spot_by_name[v["name"]].score
+                    for d in days for v in d["spots"] if v["name"] in spot_by_name)
+                    + sum(s.score for s in new_spots_acc), 1)
+                req_for_check = PlanRequest(
+                    city=params.get("city", "西安"), days=len(days),
+                    budget=params.get("budget"),
+                    daily_start_h=params.get("daily_start_h", 9.0),
+                    daily_end_h=params.get("daily_end_h", 18.0),
+                    spots=base_spots + new_spots_acc)
+                report = check_plan(req_for_check, [
+                    DayPlan(**d) for d in days], total_cost)
+                MANAGER.say(task, "校验", "约束校验通过 ✅" if report["passed"]
+                            else f"发现违规：{'; '.join(report['violations'])}")
+                task.result = {
+                    "city": params.get("city", "西安"), "days": days,
+                    "total_cost": total_cost, "total_score": total_score,
+                    "unplanned": base.result.get("unplanned", []),
+                    "check_report": report,
+                    "reply": reply or "行程已更新",
+                    "changes": changes,
+                }
+                task.req_params = params
+                task.request_spots = [s.model_dump() for s in base_spots] + \
+                                     [s.model_dump() for s in new_spots_acc]
+                task.status = "completed"
+                task.version += 1
+                return
+            # 降级：任一 pin 插不进时间窗 → 走全局重排（pin_add 视为普通 add）
+
+        # 阶段 2'：全局重排路径（pin_add 在此视为普通 add）
+        all_ops = [{**o, "op": "add"} if o.get("op") == "pin_add" else o
+                   for o in ops]
         def work_apply():
-            return editor.apply_ops(base_spots, ops,
+            return editor.apply_ops(base_spots, all_ops,
                                     poi_search_fn=editor.poi_search,
                                     day_anchors=day_anchors)
         new_spots, changes = await asyncio.to_thread(work_apply)
+        # 重複去重：LLM 重复输出同一操作会导致同名景点被加多次
+        seen_names, uniq = set(), []
+        for s in new_spots:
+            if s.name not in seen_names:
+                seen_names.add(s.name)
+                uniq.append(s)
+        new_spots = uniq
         for c in changes:
             MANAGER.say(task, "执行", c)
 

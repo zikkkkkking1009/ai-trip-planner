@@ -1,5 +1,5 @@
-"""编辑器单元测试：apply_ops 纯函数，POI 搜索用桩函数注入。"""
-from editor import apply_ops
+"""编辑器单元测试：apply_ops / pin_modify_day 纯函数，POI 搜索用桩函数注入。"""
+from editor import apply_ops, pin_modify_day
 from models import Spot
 
 
@@ -55,3 +55,38 @@ def test_poi_search_missing_returns_no_change():
                                poi_search_fn=lambda q, a, b: [])
     assert len(spots) == 3
     assert any("没有搜到" in c for c in changes)
+
+
+# ---- pin_modify_day：定点插入 ----
+
+_HOTEL = Spot(source_id=99, name="汉庭酒店(钟楼店)", lat=34.262, lon=108.941,
+              stay_min=30, score=0, ticket=0, open_h=0.0, close_h=24.0,
+              desc="我的酒店")
+
+
+def test_pin_add_middle_inserts_and_recomputes():
+    res = pin_modify_day(_base(), [_HOTEL], [], None, 9.0, 18.0)
+    assert res is not None
+    names = [v.name for v in res["spots"]]
+    assert names == ["钟楼", "汉庭酒店(钟楼店)", "回民街", "西安城墙"]
+    assert res["cost"] == 84.0  # 30 + 54，酒店免费
+
+
+def test_pin_add_after_specified_spot():
+    res = pin_modify_day(_base(), [_HOTEL], [], "回民街", 9.0, 18.0)
+    names = [v.name for v in res["spots"]]
+    assert names.index("汉庭酒店(钟楼店)") == names.index("回民街") + 1
+
+
+def test_pin_add_infeasible_returns_none():
+    # 一个 6:00-6:30 营业的景点，9 点出发永远赶不上 → 时间线不可行
+    closed = Spot(source_id=98, name="凌晨妖怪店", lat=34.26, lon=108.94,
+                  stay_min=30, score=1, ticket=0, open_h=6.0, close_h=6.5)
+    res = pin_modify_day(_base(), [closed], [], None, 9.0, 18.0)
+    assert res is None
+
+
+def test_pin_remove():
+    res = pin_modify_day(_base(), [], ["回民街"], None, 9.0, 18.0)
+    names = [v.name for v in res["spots"]]
+    assert names == ["钟楼", "西安城墙"]

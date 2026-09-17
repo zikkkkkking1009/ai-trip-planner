@@ -30,15 +30,20 @@ from models import Spot
 # ---- LLM 意图解析 ----
 _SYSTEM = """你是行程编辑助手。根据当前行程和用户指令，输出 JSON（不要解释）：
 {"ops": [...], "reply": "一句话回复用户"}
-ops 支持三种操作：
-- remove: {"op":"remove","name":"行程中准确的景点名"}
-- add:    {"op":"add","query":"POI搜索关键词","day":天数(从1开始,可null),"name":"可省略"}
-- replace:{"op":"replace","old":"要移除的景点名","query":"搜索关键词","day":天数或null}
+ops 支持四种操作：
+- remove:   {"op":"remove","name":"行程中准确的景点名"}
+- add:      {"op":"add","query":"POI搜索关键词","day":天数或null,"name":"可省略"}
+- replace:  {"op":"replace","old":"要移除的景点名","query":"搜索关键词","day":天数或null}
+- pin_add:  {"op":"pin_add","name":"用户想加的地点名","query":"搜索词","day":天数,"after":"插到该景点之后或null表示路线中间"}
 规则：
 - remove 的 name 必须逐字取自当前行程，不要改写
 - add/replace 必须给 query（用于地图搜索），如"咖啡馆""美食街""博物馆"
-- 可以一次给多个 ops
-- 指令与行程无关或无法理解时输出 {"ops":[],"reply":"没听懂，试试：把XX换成XX / 加个咖啡馆"}"""
+- 用户要加自己的酒店/民宿/旅馆等自定义地点、或指定"插在某天/某景点旁边/中间"时，
+  用 pin_add：name 尽量取用户提到的地点名，query 用于地图搜索（有名字就用名字，
+  没有名字就按类型搜如"酒店"），after 逐字取自该天行程里的景点名，用户说"中间"传 null
+- 用户没说清楚要加的具体地点时（比如只说"我的酒店"没给名字），ops 给空数组，
+  在 reply 里反问地点名
+- 可以一次给多个 ops；无法理解时输出 {"ops":[],"reply":"没听懂，试试：把XX换成XX / 在Day2中间加我的酒店"}"""
 
 
 def parse_instruction(instruction: str, plan_summary: str) -> dict:
@@ -65,7 +70,7 @@ def parse_instruction(instruction: str, plan_summary: str) -> dict:
 
 # ---- 高德周边搜索（加点用）----
 def poi_search(query: str, lat: float, lon: float,
-               radius: int = 3000) -> list[dict]:
+               radius: int = 5000) -> list[dict]:
     """高德周边搜索 POI，返回 [{name, lat, lon, type_str}]。失败返回空列表。"""
     env = load_env_file()
     key = env.get("AMAP_KEY") or os.environ.get("AMAP_KEY")
@@ -99,6 +104,39 @@ def poi_search(query: str, lat: float, lon: float,
     return out
 
 
+def text_search(query: str, city: str = "西安") -> list[dict]:
+    """高德全城文本搜索（周边搜不到时的降级），返回结构与 poi_search 一致。"""
+    env = load_env_file()
+    key = env.get("AMAP_KEY") or os.environ.get("AMAP_KEY")
+    if not key:
+        return []
+    params = urllib.parse.urlencode({
+        "keywords": query, "city": city, "citylimit": "true",
+        "offset": 5, "page": 1, "key": key,
+    })
+    url = f"https://restapi.amap.com/v3/place/text?{params}"
+    wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
+    if wait > 0:
+        time.sleep(wait)
+    poi_search._last = time.time()
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return []
+    if data.get("status") != "1":
+        return []
+    out = []
+    for p in data.get("pois", []):
+        try:
+            lon, lat2 = map(float, p["location"].split(","))
+        except (KeyError, ValueError):
+            continue
+        out.append({"name": p.get("name", ""), "lat": lat2, "lon": lon,
+                    "type_str": p.get("type", "")})
+    return out
+
+
 def pick_poi(candidates: list[dict]) -> dict | None:
     """从周边搜索结果里选第一个干净类型的 POI（过滤公交站等干扰）。"""
     for c in candidates:
@@ -107,10 +145,10 @@ def pick_poi(candidates: list[dict]) -> dict | None:
     return candidates[0] if candidates else None
 
 
-def make_spot(poi: dict) -> Spot:
-    """POI → 求解器可用的 Spot（餐饮类默认参数：1小时、免费、营业到22点）。"""
+def make_spot(poi: dict, stay_min: int = 60) -> Spot:
+    """POI → 求解器可用的 Spot（默认 1 小时、免费、营业到22点）。"""
     return Spot(source_id=0, name=poi["name"], lat=poi["lat"], lon=poi["lon"],
-                stay_min=60, score=6.5, ticket=0, open_h=9.0, close_h=22.0,
+                stay_min=stay_min, score=6.5, ticket=0, open_h=9.0, close_h=22.0,
                 desc=f"新增：{poi.get('type_str', '').split(';')[0]}")
 
 
@@ -175,3 +213,128 @@ def _overall_centroid(spots: list[Spot]) -> tuple[float, float]:
         return (34.26, 108.94)
     return (sum(s.lat for s in spots) / len(spots),
             sum(s.lon for s in spots) / len(spots))
+
+
+# ---- 定点修改：在某天的序列里插入/删除，重算该天时间线 ----
+def pin_modify_day(day_spots: list[Spot],
+                   inserts: list[Spot],
+                   remove_names: list[str],
+                   after: str | None,
+                   daily_start_h: float,
+                   daily_end_h: float,
+                   commute_fn=None) -> dict | None:
+    """在一天内的序列里删/插景点后重算时间线（不全局重排，保住其他天的安排）。
+
+    after=None 时插在路线中间（「路线中间加酒店」）。
+    commute_fn 必须传基准求解所用的同一函数——口径不一致会把可行判成不可行。
+    时间窗不可行时返回 None，由调用方决定是否降级全局重排。
+    """
+    from models import VisitedSpot, PlanRequest
+    from solver import _Seq
+
+    seq = [s for s in day_spots if s.name not in remove_names]
+    for ns in inserts:
+        idx = len(seq)
+        if after:
+            for i, s in enumerate(seq):
+                if s.name == after:
+                    idx = i + 1
+                    break
+        else:
+            idx = len(seq) // 2  # 中点：3个景点 → 插在第2位
+        seq.insert(idx, ns)
+
+    req = PlanRequest(city="pin", days=1, spots=seq,
+                      daily_start_h=daily_start_h, daily_end_h=daily_end_h)
+    s = _Seq(spots=seq, commute_fn=commute_fn) if commute_fn else _Seq(spots=seq)
+    tl = s.timeline(req)
+    if tl is None:
+        return None  # 插入后违反时间窗 → 让调用方降级
+
+    vspots = [VisitedSpot(name=sp.name, arrive_h=round(a, 2),
+                          depart_h=round(d, 2), ticket=sp.ticket,
+                          desc=sp.desc)
+              for sp, a, d in tl]
+    return {
+        "spots": vspots,
+        "commute_min": round(s.commute_total(req), 1),
+        "cost": round(sum(sp.ticket for sp in seq), 1),
+        "active_min": round(sum(sp.stay_min for sp in seq), 0),
+    }
+
+
+def pin_insert_best(day_spots: list[Spot],
+                    new_spot: Spot,
+                    after: str | None,
+                    daily_start_h: float,
+                    daily_end_h: float,
+                    commute_fn=None,
+                    stay_options: tuple[int, ...] = (60, 30)) -> dict | None:
+    """定点插入的智能版：扫描所有可插入位置 × 停留时长，选通勤最小的可行方案。
+
+    after 给定时只考虑其后位置；否则全位置扫描（「路线中间加酒店」）。
+    停留时长按 stay_options 依次尝试（60 装不下就 30）。
+    全部不可行返回 None。
+    """
+    from models import VisitedSpot, PlanRequest
+    from solver import _Seq
+
+    def evaluate(seq: list[Spot]):
+        req = PlanRequest(city="pin", days=1, spots=seq,
+                          daily_start_h=daily_start_h,
+                          daily_end_h=daily_end_h)
+        s = _Seq(spots=seq, commute_fn=commute_fn) if commute_fn \
+            else _Seq(spots=seq)
+        tl = s.timeline(req)
+        if tl is None:
+            return None
+        return s, tl, req
+
+    base_idx = len(day_spots)
+    if after:
+        for i, s in enumerate(day_spots):
+            if s.name == after:
+                base_idx = i + 1
+                break
+        positions = [base_idx]
+    else:
+        positions = list(range(len(day_spots) + 1))
+
+    best = None
+    for stay in stay_options:
+        ns = new_spot.model_copy(update={"stay_min": stay})
+        for pos in positions:
+            seq = day_spots[:pos] + [ns] + day_spots[pos:]
+            ev = evaluate(seq)
+            if ev is None:
+                continue
+            s, tl, req = ev
+            comm = s.commute_total(req)
+            if best is None or comm < best[0]:
+                best = (comm, seq, tl, stay)
+        if best is not None:
+            break  # 当前停留时长已有可行解，不再压缩
+
+    if best is None:
+        return None
+
+    _, seq, tl, stay = best
+    vspots = [VisitedSpot(name=sp.name, arrive_h=round(a, 2),
+                          depart_h=round(d, 2), ticket=sp.ticket,
+                          desc=sp.desc)
+              for sp, a, d in tl]
+    return {
+        "spots": vspots,
+        "commute_min": round(sum(
+            (commute_fn(seq[i], seq[i + 1]) if commute_fn
+             else _overall_est(seq[i], seq[i + 1]))
+            for i in range(len(seq) - 1)), 1),
+        "cost": round(sum(sp.ticket for sp in seq), 1),
+        "active_min": round(sum(sp.stay_min for sp in seq), 0),
+        "stay_min": stay,
+    }
+
+
+def _overall_est(a: Spot, b: Spot) -> float:
+    from solver import commute_min
+    return commute_min(a, b)

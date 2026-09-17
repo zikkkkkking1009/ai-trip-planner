@@ -134,7 +134,7 @@
   </div>
   <!-- 对话改行程 -->
   <div class="chatbar" id="chatbar" style="display:none">
-    <input id="chatInput" placeholder="例如：明天下午加个附近的咖啡馆 / 把回民街换掉"
+    <input id="chatInput" placeholder="例如：把回民街换成咖啡店 / 在09.26中间加我的酒店"
            onkeydown="if(event.key==='Enter')sendEdit()">
     <button id="chatSend" onclick="sendEdit()">发送</button>
   </div>
@@ -264,10 +264,10 @@ function render() {
 function renderItin() {
   const v = $('view'); v.innerHTML = ''; $('mapView').style.display='none'; v.style.display='block';
   if (!plan) return;
-  if (plan.changes && plan.changes.length) {
+  if (plan.reply || (plan.changes && plan.changes.length)) {
     const c = document.createElement('div');
     c.className = 'changes';
-    c.textContent = '本轮修改：' + plan.changes.join('；');
+    c.textContent = plan.reply || ('本轮修改：' + plan.changes.join('；'));
     v.appendChild(c);
   }
   const days = currentDay === 0 ? plan.days : [plan.days[currentDay-1]];
