@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI 行程规划 · 路书</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="/static/vendor/leaflet.css">
+<script src="/static/vendor/leaflet.js"></script>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
   body { background:#eef1f5; min-height:100vh; display:flex; justify-content:center; }
@@ -69,6 +69,10 @@
   .legend div { margin:3px 0; cursor:pointer; }
   .legend div.off { opacity:.35; }
   .maptip { color:#98a2b3; font-size:11.5px; text-align:center; margin-top:8px; }
+  .empty-hint { position:absolute; top:44%; left:50%; transform:translate(-50%,-50%);
+                z-index:500; background:#fff; border-radius:12px; padding:14px 20px;
+                font-size:13px; color:#667085; text-align:center; line-height:1.9;
+                box-shadow:0 4px 16px rgba(31,63,135,.15); }
   /* 进度日志 */
   details { margin:0 14px 8px; }
   summary { color:#98a2b3; font-size:12px; cursor:pointer; }
@@ -112,6 +116,7 @@
   <div class="daytabs" id="daytabs" style="display:none"></div>
   <div id="view"></div>
   <div id="mapView"><div id="map"></div><div class="legend" id="legend"></div>
+    <div class="empty-hint" id="mapEmpty">还没有行程 —— 回「📋 行程」点「开始规划」<br>生成后这里会画出按天分色的路线</div>
     <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
 
   <div class="bottombar">
@@ -121,6 +126,9 @@
 </div>
 
 <script>
+// 任何前端错误都进日志（不再白屏无解释）
+window.onerror = (msg, src, line) => log('前端错误', `${msg} @line ${line}`);
+
 const $ = id => document.getElementById(id);
 const DAY_COLORS = ['#2f9e44','#f08c00','#7048e8','#1c7ed6','#e8590c','#0ca678','#ae3ec9'];
 const WD = ['周日','周一','周二','周三','周四','周五','周六'];
@@ -218,12 +226,18 @@ function renderItin() {
       v.insertBefore(p, v.firstChild); });
 }
 
+function initMap() {
+  if (map) { setTimeout(() => map.invalidateSize(), 50); return; }
+  // 首次进地图页就初始化（西安市中心），没行程也能看到底图
+  map = L.map('map').setView([34.26, 108.94], 11);
+  amapLayer().addTo(map);
+}
+
 function renderMap() {
   $('view').style.display='none'; $('mapView').style.display='block';
-  if (!map) {
-    map = L.map('map');
-    amapLayer().addTo(map);
-  }
+  initMap();
+  if (!plan) { $('mapEmpty').style.display='block'; $('legend').innerHTML=''; return; }
+  $('mapEmpty').style.display='none';
   setTimeout(() => map.invalidateSize(), 50);
   Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
   $('legend').innerHTML = plan.days.map((d,i)=>{

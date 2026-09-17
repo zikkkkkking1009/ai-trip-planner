@@ -32,9 +32,11 @@ from solver import Solver
 for _k, _v in load_env_file().items():
     os.environ.setdefault(_k, _v)
 
-app = FastAPI(title="AI 行程规划 API", version="0.5.0")
+app = FastAPI(title="AI 行程规划 API", version="0.5.1")
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/health")
