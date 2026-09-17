@@ -76,6 +76,7 @@ def extract_spots(text: str) -> list[Spot]:
             stay_min=int(s.get("stay_min", 90)),
             score=float(s.get("rating", 7.0)),
             ticket=float(s.get("ticket", 0)),
+            desc=str(s.get("note", "")),
         ))
     if not spots:
         raise ValueError("LLM 没有抽到任何景点")

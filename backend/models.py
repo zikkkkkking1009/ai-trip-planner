@@ -26,6 +26,7 @@ class Spot(BaseModel):
     ticket: float = Field(ge=0, default=0)
     open_h: float = 8.0
     close_h: float = 18.0
+    desc: str = ""               # 一句话介绍（LLM 抽取的 note / 演示数据预写）
 
 
 class PlanRequest(BaseModel):
@@ -44,6 +45,7 @@ class VisitedSpot(BaseModel):
     arrive_h: float
     depart_h: float
     ticket: float
+    desc: str = ""
 
 
 class DayPlan(BaseModel):
