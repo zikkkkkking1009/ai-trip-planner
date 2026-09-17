@@ -1,4 +1,4 @@
-# AI 行程规划系统 v0.3
+# AI 行程规划系统 v0.5
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
@@ -56,7 +56,7 @@ uvicorn main:app --reload --port 8000
 # 打开 http://localhost:8000/docs 调试 /plan 接口
 ```
 
-## 已实现（v0.3）
+## 已实现（v0.5）
 
 - ✅ OPTW 启发式求解：贪心插入（收益/通勤比最优位置）+ 天内 2-opt + 跨日搬运，迭代收敛
 - ✅ 时间窗硬约束：每天 [9:00, 18:00]、景点开放时间，装不下就放弃并报告
@@ -66,7 +66,8 @@ uvicorn main:app --reload --port 8000
 - ✅ **地理实体对齐（F1 90%）**：别名→高德 POI。召回 Top-5 → 打分融合（包含关系 0.55 + 字符相似 0.30 + 类型先验 0.15 + 景点后缀扩展 0.15）→ 干扰类型硬过滤（公交站/行政区/足疗店不参选）→ 置信度 <0.72 转人工。20 条标注集三轮迭代：80%（纯文本相似）→ 85%（+类型先验）→ 90%（+硬过滤+后缀扩展）
   - 已知难例 ①同名歧义：AMap 同时存在「华清池」「华清宫」新旧两个 POI ②非词汇相关别名：「紫禁城」与「故宫博物院」无字面重叠 → 修复路径：LLM 别名规范化前置
 - ✅ LLM 抽取接口：OpenAI 兼容（DeepSeek/Qwen 均可）+ JSON 容错解析（剥围栏→提花括号→修尾逗号）
-- ✅ FastAPI 三接口 + Pydantic 全量类型定义
+- ✅ **异步任务化**：`/plan/async` 秒回 task_id + 后台协程 + WebSocket 阶段进度推送（启动/通勤矩阵 N对/贪心/优化轮次/校验）+ 轮询降级接口 + 浏览器演示页——解决长耗时请求被网关 504 的问题
+- ✅ FastAPI 六接口 + 19 个单元测试 + Pydantic 全量类型定义
 
 ## 路线图（按优先级，对应《含金量提升方案》三道硬菜）
 
@@ -91,6 +92,7 @@ uvicorn main:app --reload --port 8000
 
 ## 更新日志
 
+- **v0.5** 异步任务化：`POST /plan/async` 秒回 task_id，后台协程跑完整流水线，WebSocket 实时推送阶段进度（启动→通勤矩阵 N/total→贪心→优化轮次→校验），`GET /task/{id}` 轮询兜底；求解器支持阶段回调，通勤矩阵支持批量预计算；附浏览器演示页（实时进度 + 逐日行程卡片）
 - **v0.4** 工程化：17 个单元测试（求解器/校验器/对齐打分）+ GitHub Actions CI + MIT License；aligner 清理冗余导入
 - **v0.3** 硬菜三：三方评估实验（朴素基线 / 真 LLM / 求解器，50 组场景），预算违规 18% → 0，支撑「LLM 做理解、算法做决策」的架构决策
 - **v0.3** 硬菜二：地理实体对齐管线，20 条标注集 F1 80% → 85% → 90% 三轮迭代（类型先验 / 硬过滤 / 后缀扩展）

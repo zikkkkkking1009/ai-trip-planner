@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 行程规划 · 演示</title>
+<style>
+  :root { --bg:#0f1420; --card:#1a2130; --line:#2a3448; --fg:#e8edf6; --dim:#8b98ad; --acc:#4f8cff; --ok:#3ecf8e; --err:#ff6b6b; }
+  * { box-sizing:border-box; margin:0; padding:0; font-family:"Microsoft YaHei",system-ui,sans-serif; }
+  body { background:var(--bg); color:var(--fg); padding:24px; max-width:960px; margin:0 auto; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:20px; }
+  .row { display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field label { font-size:12px; color:var(--dim); }
+  input, select { background:var(--card); border:1px solid var(--line); color:var(--fg);
+    border-radius:8px; padding:8px 12px; width:140px; }
+  button { background:var(--acc); color:#fff; border:none; border-radius:8px;
+    padding:10px 22px; cursor:pointer; font-size:14px; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--dim); }
+  #log { background:var(--card); border:1px solid var(--line); border-radius:8px;
+    padding:12px; min-height:120px; max-height:260px; overflow-y:auto; margin-bottom:16px;
+    font-size:13px; line-height:1.9; }
+  #log .stage { color:var(--acc); margin-right:8px; }
+  #log .done { color:var(--ok); }
+  .day { background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:14px; margin-bottom:12px; }
+  .day h3 { font-size:14px; color:var(--dim); font-weight:normal; margin-bottom:8px; }
+  .day h3 b { color:var(--fg); }
+  .spot { display:flex; gap:10px; padding:5px 0; font-size:14px; }
+  .spot .t { color:var(--acc); min-width:110px; font-variant-numeric:tabular-nums; }
+  .meta { color:var(--dim); font-size:12px; margin-top:6px; }
+  .unplanned { color:var(--dim); font-size:13px; margin-bottom:12px; }
+  .check { font-size:13px; padding:8px 12px; border-radius:8px; margin-bottom:16px; }
+  .check.ok { background:rgba(62,207,142,.12); color:var(--ok); }
+  .check.bad { background:rgba(255,107,107,.12); color:var(--err); }
+</style>
+</head>
+<body>
+<h1>AI 行程规划 · 实时演示</h1>
+<div class="sub">异步任务 + WebSocket 进度推送 · 通勤数据来自高德 API（三级缓存）</div>
+
+<div class="row">
+  <div class="field"><label>天数</label><input id="days" type="number" value="3" min="1" max="7"></div>
+  <div class="field"><label>预算(元, 留空不限)</label><input id="budget" type="number" value="500"></div>
+  <div class="field"><label>出发</label><input id="start" type="number" value="9" step="0.5"></div>
+  <div class="field"><label>返回</label><input id="end" type="number" value="18" step="0.5"></div>
+  <div class="field"><label>&nbsp;</label><button id="go">开始规划</button></div>
+  <div class="field"><label>&nbsp;</label><button id="loadDemo" class="ghost">载入西安示例</button></div>
+</div>
+
+<div id="log"><span style="color:var(--dim)">点击「开始规划」，这里会实时滚动求解进度…</span></div>
+<div id="result"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let spots = [];
+
+// 页面加载即拉取示例景点
+fetch('/demo/spots').then(r => r.json()).then(d => { spots = d.spots; });
+
+$('loadDemo').onclick = () => fetch('/demo/spots').then(r => r.json()).then(d => {
+  spots = d.spots; log('示例', `已载入 ${spots.length} 个西安景点`);
+});
+
+function log(stage, msg, cls) {
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="stage">[${stage}]</span><span class="${cls||''}">${msg}</span>`;
+  $('log').appendChild(div);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+$('go').onclick = async () => {
+  $('go').disabled = true;
+  $('log').innerHTML = ''; $('result').innerHTML = '';
+  const budget = $('budget').value === '' ? null : Number($('budget').value);
+  const req = { city:'西安', days:Number($('days').value), budget,
+                daily_start_h:Number($('start').value), daily_end_h:Number($('end').value),
+                spots };
+
+  // 1) 提交异步任务
+  const {task_id, ws_url} = await fetch('/plan/async', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(req)
+  }).then(r => r.json());
+  log('任务', `已创建，task_id=${task_id}`);
+
+  // 2) WebSocket 实时收进度
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${location.host}${ws_url}`);
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    (d.progress || []).forEach(p => log(p.stage, p.msg));
+    if (d.status === 'completed') { render(d.result); ws.close(); $('go').disabled = false; }
+    if (d.status === 'failed') { log('失败', d.error, 'done'); ws.close(); $('go').disabled = false; }
+  };
+  ws.onerror = () => { log('错误', 'WebSocket 断开，可刷新页面重试', 'done'); $('go').disabled = false; };
+};
+
+function fmt(h) { const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; }
+
+function render(r) {
+  const c = r.check_report;
+  const div = document.createElement('div');
+  div.className = 'check ' + (c.passed ? 'ok' : 'bad');
+  div.textContent = (c.passed ? '✅ 约束校验通过' : '❌ ' + c.violations.join('；'))
+    + `　总门票 ¥${r.total_cost}　已排 ${c.stats.spots_planned} 个景点`
+    + `　通勤API调用 ${c.stats.commute_api.api_calls} 次 / 缓存命中 ${Math.round(c.stats.cache_hit_rate*100)}%`;
+  $('result').appendChild(div);
+
+  (r.unplanned || []).forEach(u => {
+    const p = document.createElement('div');
+    p.className = 'unplanned';
+    p.textContent = `未安排：${u.name}（${u.reason}）`;
+    $('result').appendChild(p);
+  });
+
+  r.days.forEach(d => {
+    if (!d.spots.length) return;
+    const card = document.createElement('div');
+    card.className = 'day';
+    card.innerHTML = `<h3><b>Day ${d.day}</b>　门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟 · 游玩 ${d.active_min} 分钟</h3>`
+      + d.spots.map(v => `<div class="spot"><span class="t">${fmt(v.arrive_h)} – ${fmt(v.depart_h)}</span><span>${v.name} ${v.ticket ? `(¥${v.ticket})` : ''}</span></div>`).join('');
+    $('result').appendChild(card);
+  });
+}
+</script>
+</body>
+</html>
