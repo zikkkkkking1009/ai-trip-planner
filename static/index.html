@@ -7,88 +7,112 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  :root { --fg:#222; --dim:#999; --line:#eee; --acc:#1c7ed6; --ok:#2f9e44; --err:#e03131; }
   * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  body { background:#e9ecef; min-height:100vh; display:flex; justify-content:center; }
-  #phone { width:100%; max-width:460px; background:#fff; min-height:100vh; position:relative;
-           box-shadow:0 0 24px rgba(0,0,0,.08); display:flex; flex-direction:column; }
-  header { padding:20px 20px 12px; }
-  header h1 { font-size:22px; font-weight:700; }
-  header .meta { color:var(--dim); font-size:13px; margin-top:4px; }
-  .controls { padding:0 20px 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:end; }
-  .field { display:flex; flex-direction:column; gap:3px; }
-  .field label { font-size:11px; color:var(--dim); }
-  input { border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:14px; width:86px; }
-  input[type=date] { width:140px; }
-  button { background:var(--acc); color:#fff; border:none; border-radius:18px;
-           padding:9px 20px; cursor:pointer; font-size:14px; font-weight:600; }
-  button:disabled { opacity:.45; }
+  body { background:#eef1f5; min-height:100vh; display:flex; justify-content:center; }
+  #phone { width:100%; max-width:460px; background:#f6f7fa; min-height:100vh; position:relative;
+           box-shadow:0 0 24px rgba(0,0,0,.10); display:flex; flex-direction:column; }
+  /* 渐变头图 */
+  header { background:linear-gradient(135deg,#38bdf8 0%,#2563eb 100%); color:#fff;
+           padding:26px 20px 46px; border-radius:0 0 22px 22px; }
+  header h1 { font-size:22px; font-weight:800; letter-spacing:.5px; }
+  header .meta { opacity:.9; font-size:12.5px; margin-top:6px; }
+  header .chips { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+  header .chip { background:rgba(255,255,255,.18); backdrop-filter:blur(4px);
+                 padding:4px 12px; border-radius:12px; font-size:12px; }
+  /* 表单卡片浮在头图上 */
+  .sheet { background:#fff; border-radius:14px; margin:-30px 14px 12px; padding:16px;
+           box-shadow:0 6px 18px rgba(31,63,135,.10); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; }
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field label { font-size:11px; color:#8a94a6; }
+  input { border:1px solid #e6eaf0; background:#f8fafc; border-radius:9px;
+          padding:8px 10px; font-size:14px; width:100%; color:#222; }
+  input:focus { outline:none; border-color:#2563eb; background:#fff; }
+  .go { grid-column:1 / -1; background:linear-gradient(90deg,#38bdf8,#2563eb); color:#fff;
+        border:none; border-radius:10px; padding:11px; font-size:15px; font-weight:700;
+        cursor:pointer; letter-spacing:2px; }
+  .go:disabled { opacity:.5; }
   /* 日程 tab 条 */
-  .daytabs { display:flex; gap:4px; padding:0 12px; border-bottom:1px solid var(--line);
-             overflow-x:auto; scrollbar-width:none; }
+  .daytabs { display:flex; gap:4px; padding:0 12px; border-bottom:1px solid #e8ecf2;
+             overflow-x:auto; scrollbar-width:none; background:#fff; }
   .daytabs::-webkit-scrollbar { display:none; }
-  .daytabs .tab { padding:10px 12px; font-size:14px; color:var(--dim); cursor:pointer;
+  .daytabs .tab { padding:11px 12px; font-size:14px; color:#98a2b3; cursor:pointer;
                   white-space:nowrap; border-bottom:2.5px solid transparent; }
-  .daytabs .tab.active { color:var(--fg); font-weight:700; border-bottom-color:var(--acc); }
+  .daytabs .tab.active { color:#1d2939; font-weight:800; border-bottom-color:#2563eb; }
   /* 内容区 */
-  #view { flex:1; overflow-y:auto; padding:6px 20px 90px; }
-  .dayblock { margin-top:14px; }
-  .daytitle { font-size:17px; font-weight:700; margin-bottom:2px; }
-  .daysub { color:var(--dim); font-size:12px; margin-bottom:10px; }
-  .entry { display:flex; gap:12px; padding:10px 0; }
+  #view { flex:1; overflow-y:auto; padding:8px 16px 96px; }
+  .dayblock { background:#fff; border-radius:14px; padding:14px; margin-bottom:14px;
+              box-shadow:0 2px 10px rgba(31,63,135,.06); }
+  .dayhead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+  .daytitle { font-size:17px; font-weight:800; }
+  .daysub { color:#98a2b3; font-size:11.5px; }
+  .entry { display:flex; gap:11px; padding:9px 0; border-top:1px dashed #eef1f5; }
+  .entry:first-of-type { border-top:none; }
   .entry .bar { width:4px; border-radius:2px; flex-shrink:0; }
   .entry .body { flex:1; }
-  .entry .tag { color:var(--ok); font-size:11px; }
-  .entry .name { font-size:16px; font-weight:700; }
-  .entry .time { display:inline-block; background:#f5f6f8; border-radius:8px;
-                 padding:6px 12px; margin:6px 0 4px; font-size:14px; font-weight:600;
+  .entry .toprow { display:flex; align-items:baseline; gap:6px; }
+  .entry .tag { color:#2f9e44; font-size:10.5px; }
+  .entry .name { font-size:15.5px; font-weight:700; }
+  .entry .ticket { color:#e8590c; font-size:11.5px; }
+  .entry .time { display:inline-block; background:#f0f4fa; color:#1d2939; border-radius:8px;
+                 padding:5px 11px; margin:6px 0 4px; font-size:13.5px; font-weight:700;
                  font-variant-numeric:tabular-nums; }
-  .entry .desc { color:#666; font-size:13px; line-height:1.6; }
-  .entry .ticket { color:#e8590c; font-size:12px; margin-left:6px; }
-  .unplanned { color:var(--dim); font-size:12px; padding:4px 0; }
+  .entry .desc { color:#667085; font-size:12.5px; line-height:1.65; }
+  .unplanned { background:#fff4f4; color:#c0392b; font-size:12px; padding:7px 12px;
+               border-radius:9px; margin-bottom:8px; }
   /* 地图 */
-  #mapView { display:none; position:relative; }
-  #map { height:70vh; width:100%; border-radius:12px; }
-  .legend { position:absolute; top:10px; right:10px; z-index:500; background:#fff;
-            border-radius:10px; padding:8px 12px; font-size:12px; box-shadow:0 2px 8px rgba(0,0,0,.15); }
+  #mapView { display:none; position:relative; padding:8px 14px 96px; }
+  #map { height:calc(100vh - 220px); min-height:420px; width:100%; border-radius:14px; }
+  .legend { position:absolute; top:20px; right:24px; z-index:500; background:#fff;
+            border-radius:10px; padding:8px 12px; font-size:12px; box-shadow:0 2px 10px rgba(0,0,0,.18); }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; }
   .legend div { margin:3px 0; cursor:pointer; }
   .legend div.off { opacity:.35; }
+  .maptip { color:#98a2b3; font-size:11.5px; text-align:center; margin-top:8px; }
   /* 进度日志 */
-  details { margin:0 20px 8px; }
-  summary { color:var(--dim); font-size:12px; cursor:pointer; }
+  details { margin:0 14px 8px; }
+  summary { color:#98a2b3; font-size:12px; cursor:pointer; }
   #log { max-height:150px; overflow-y:auto; font-size:12px; line-height:1.9; color:#555;
-         background:#f7f8fa; border-radius:8px; padding:8px 12px; }
-  #log .st { color:var(--acc); }
+         background:#fff; border-radius:8px; padding:8px 12px; box-shadow:0 1px 6px rgba(31,63,135,.05); }
+  #log .st { color:#2563eb; }
   /* 底部切换 */
   .bottombar { position:absolute; bottom:0; left:0; right:0; background:#fff;
-               border-top:1px solid var(--line); display:flex; z-index:600; }
+               border-top:1px solid #e8ecf2; display:flex; z-index:600;
+               box-shadow:0 -4px 14px rgba(31,63,135,.06); }
   .bottombar .b { flex:1; text-align:center; padding:12px 0 14px; font-size:14px;
-                  color:var(--dim); cursor:pointer; }
-  .bottombar .b.active { color:var(--acc); font-weight:700; }
+                  color:#98a2b3; cursor:pointer; }
+  .bottombar .b.active { color:#2563eb; font-weight:700; }
 </style>
 </head>
 <body>
 <div id="phone">
   <header>
-    <h1 id="title">AI 行程规划</h1>
-    <div class="meta" id="subtitle">粘贴攻略生成路书 · 高德真实通勤 · 约束校验兜底</div>
+    <h1>AI 行程规划</h1>
+    <div class="meta">LLM 抽取 → 实体对齐 → OPTW 求解 → 约束校验</div>
+    <div class="chips" id="chips">
+      <span class="chip">🎒 高德真实通勤</span>
+      <span class="chip">🧭 三级缓存</span>
+      <span class="chip">✅ 约束校验</span>
+    </div>
   </header>
 
-  <div class="controls">
-    <div class="field"><label>出发日期</label><input id="startDate" type="date"></div>
-    <div class="field"><label>天数</label><input id="days" type="number" value="3" min="1" max="7"></div>
-    <div class="field"><label>预算(空=不限)</label><input id="budget" type="number" value="500"></div>
-    <div class="field"><label>每天出发(点)</label><input id="start" type="number" value="9" step="0.5"></div>
-    <div class="field"><label>每天返回(点)</label><input id="end" type="number" value="18" step="0.5"></div>
-    <button id="go">开始规划</button>
+  <div class="sheet">
+    <div class="grid">
+      <div class="field"><label>出发日期</label><input id="startDate" type="date"></div>
+      <div class="field"><label>结束日期</label><input id="endDate" type="date"></div>
+      <div class="field"><label>每天出发时间</label><input id="start" type="time" value="09:00"></div>
+      <div class="field"><label>每天返回时间</label><input id="end" type="time" value="18:00"></div>
+      <div class="field"><label>预算(空=不限)</label><input id="budget" type="number" value="500"></div>
+      <button class="go" id="go">开 始 规 划</button>
+    </div>
   </div>
 
   <details><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
 
   <div class="daytabs" id="daytabs" style="display:none"></div>
   <div id="view"></div>
-  <div id="mapView"><div id="map"></div><div class="legend" id="legend"></div></div>
+  <div id="mapView"><div id="map"></div><div class="legend" id="legend"></div>
+    <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
 
   <div class="bottombar">
     <div class="b active" id="bItin" onclick="switchView('itin')">📋 行程</div>
@@ -102,38 +126,35 @@ const DAY_COLORS = ['#2f9e44','#f08c00','#7048e8','#1c7ed6','#e8590c','#0ca678',
 const WD = ['周日','周一','周二','周三','周四','周五','周六'];
 let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {};
 
-$('startDate').value = new Date().toISOString().slice(0,10);
+const today = new Date(); const end = new Date(today); end.setDate(end.getDate()+2);
+$('startDate').value = today.toISOString().slice(0,10);
+$('endDate').value = end.toISOString().slice(0,10);
 fetch('/demo/spots').then(r => r.json()).then(d => { spots = d.spots; });
 
-// ---- GCJ-02(高德) → WGS84(OSM)，eviltransform 标准算法 ----
-function gcj2wgs(lat, lon) {
-  if (lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271) return [lat, lon];
-  const tLat = (x,y) => -100 + 2*x + 3*y + .2*y*y + .1*x*y + .2*Math.sqrt(Math.abs(x))
-    + (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2/3
-    + (20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI))*2/3
-    + (160*Math.sin(y/12*Math.PI) + 320*Math.sin(y*Math.PI/30))*2/3;
-  const tLon = (x,y) => 300 + x + 2*y + .1*x*x + .1*x*y + .1*Math.sqrt(Math.abs(x))
-    + (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2/3
-    + (20*Math.sin(x*Math.PI) + 40*Math.sin(x/3*Math.PI))*2/3
-    + (150*Math.sin(x/12*Math.PI) + 300*Math.sin(x/30*Math.PI))*2/3;
-  let dLat = tLat(lon-105, lat-35), dLon = tLon(lon-105, lat-35);
-  const rad = lat/180*Math.PI; let m = Math.sin(rad); m = 1 - .00669342162296594*m*m;
-  const sq = Math.sqrt(m);
-  dLat = (dLat*180) / ((6378245*(1-.00669342162296594))/(m*sq)*Math.PI);
-  dLon = (dLon*180) / (6378245/sq*Math.cos(rad)*Math.PI);
-  return [lat - dLat, lon - dLon];
+// 天数 = 结束 - 开始 + 1，自动算（上限 7 天）
+function dayCount() {
+  const s = new Date($('startDate').value), e = new Date($('endDate').value);
+  return Math.max(1, Math.min(7, Math.round((e - s)/86400000) + 1));
 }
+const timeToH = t => { const [h,m] = t.split(':').map(Number); return h + m/60; };
 const fmt = h => { const hh=Math.floor(h), mm=Math.round((h-hh)*60);
   return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); };
 const dateOf = i => { const d = new Date($('startDate').value || Date.now());
   d.setDate(d.getDate()+i);
   return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${WD[d.getDay()]}`; };
 
+// 底图用高德瓦片：国内直连 + GCJ-02 坐标系。
+// 景点坐标来自高德，同为 GCJ-02，直接打点即可（无需转 WGS84）。
+const amapLayer = () => L.tileLayer(
+  'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+  { subdomains:'1234', attribution:'© 高德地图', maxZoom:18 });
+
 $('go').onclick = async () => {
   $('go').disabled = true; $('log').textContent = '';
-  const req = { city:'西安', days:Number($('days').value),
+  const req = { city:'西安', days: dayCount(),
     budget: $('budget').value==='' ? null : Number($('budget').value),
-    daily_start_h:Number($('start').value), daily_end_h:Number($('end').value), spots };
+    daily_start_h: timeToH($('start').value || '09:00'),
+    daily_end_h: timeToH($('end').value || '18:00'), spots };
   const {task_id, ws_url} = await fetch('/plan/async', {method:'POST',
     headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)}).then(r=>r.json());
   log('任务', `task_id=${task_id}`);
@@ -155,9 +176,11 @@ function log(stage, msg) {
 // ---- 渲染：tab 条 + 行程卡片 + 地图 ----
 function render() {
   const c = plan.check_report;
-  $('title').textContent = `${plan.city}${plan.days.length}天行程`;
-  $('subtitle').textContent = `总门票 ¥${plan.total_cost} · 已排 ${c.stats.spots_planned} 个`
-    + ` · 校验${c.passed?'通过 ✅':'未通过 ❌'} · API调用 ${c.stats.commute_api.api_calls} 次/缓存 ${Math.round(c.stats.cache_hit_rate*100)}%`;
+  $('chips').innerHTML =
+    `<span class="chip">🎫 总门票 ¥${plan.total_cost}</span>` +
+    `<span class="chip">📍 已排 ${c.stats.spots_planned} 个</span>` +
+    `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
+    `<span class="chip">🛰 API ${c.stats.commute_api.api_calls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('daytabs').style.display = 'flex';
   $('daytabs').innerHTML = `<div class="tab" data-day="0">总览</div>`
     + plan.days.map((d,i)=>`<div class="tab" data-day="${i+1}">${dateOf(i).split(' ')[0]}</div>`).join('');
@@ -177,28 +200,29 @@ function renderItin() {
     const dayIdx = plan.days.indexOf(d);
     if (!d.spots.length) return;
     const blk = document.createElement('div'); blk.className='dayblock';
-    blk.innerHTML = `<div class="daytitle">${dateOf(dayIdx)}</div>
-      <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟 · 游玩 ${d.active_min} 分钟</div>`
+    blk.innerHTML = `<div class="dayhead"><div class="daytitle">${dateOf(dayIdx)}</div>
+      <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟</div></div>`
       + d.spots.map(v => {
         const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
         return `<div class="entry"><div class="bar" style="background:${color}"></div><div class="body">
-          <div><span class="tag">景点</span> <span class="name">${v.name}</span>
-          ${v.ticket ? `<span class="ticket">门票 ¥${v.ticket}</span>` : ''}</div>
+          <div class="toprow"><span class="tag">景点</span>
+          <span class="name">${v.name}</span>
+          ${v.ticket ? `<span class="ticket">¥${v.ticket}</span>` : ''}</div>
           <div class="time">${fmt(v.arrive_h)} – ${fmt(v.depart_h)}</div>
           ${v.desc ? `<div class="desc">${v.desc}</div>` : ''}</div></div>`; }).join('');
     v.appendChild(blk);
   });
   if (currentDay === 0)
     plan.unplanned.forEach(u => { const p=document.createElement('div');
-      p.className='unplanned'; p.textContent=`未安排：${u.name}（${u.reason}）`; v.appendChild(p); });
+      p.className='unplanned'; p.textContent=`未安排：${u.name}（${u.reason}）`;
+      v.insertBefore(p, v.firstChild); });
 }
 
 function renderMap() {
   $('view').style.display='none'; $('mapView').style.display='block';
   if (!map) {
     map = L.map('map');
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {attribution:'© OpenStreetMap'}).addTo(map);
+    amapLayer().addTo(map);
   }
   setTimeout(() => map.invalidateSize(), 50);
   Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
@@ -211,7 +235,7 @@ function renderMap() {
     const color = DAY_COLORS[i % DAY_COLORS.length];
     const latlngs = d.spots.map(v => {
       const s = spots.find(s => s.name === v.name) || spots[0];
-      return gcj2wgs(s.lat, s.lon); });
+      return [s.lat, s.lon]; });   // 高德瓦片 = GCJ-02，坐标直接用
     if (latlngs.length < 1) return;
     layers[i] = L.layerGroup().addTo(map);
     if (latlngs.length > 1)
