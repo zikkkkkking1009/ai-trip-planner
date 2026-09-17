@@ -86,6 +86,15 @@
   .bottombar .b { flex:1; text-align:center; padding:12px 0 14px; font-size:14px;
                   color:#98a2b3; cursor:pointer; }
   .bottombar .b.active { color:#2563eb; font-weight:700; }
+  /* 对话改行程 */
+  .chatbar { position:absolute; bottom:52px; left:0; right:0; display:flex; gap:8px;
+             padding:10px 14px; background:#fff; border-top:1px solid #e8ecf2; z-index:600; }
+  .chatbar input { flex:1; }
+  .chatbar button { background:#2563eb; color:#fff; border:none; border-radius:9px;
+                    padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+  .chatbar button:disabled { opacity:.5; }
+  .changes { background:#eef6ee; border:1px solid #cde8cf; color:#2b6e34;
+             font-size:12.5px; border-radius:10px; padding:8px 12px; margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -123,6 +132,12 @@
     <div class="b active" id="bItin" onclick="switchView('itin')">📋 行程</div>
     <div class="b" id="bMap" onclick="switchView('map')">🗺 地图</div>
   </div>
+  <!-- 对话改行程 -->
+  <div class="chatbar" id="chatbar" style="display:none">
+    <input id="chatInput" placeholder="例如：明天下午加个附近的咖啡馆 / 把回民街换掉"
+           onkeydown="if(event.key==='Enter')sendEdit()">
+    <button id="chatSend" onclick="sendEdit()">发送</button>
+  </div>
 </div>
 
 <script>
@@ -133,6 +148,7 @@ const $ = id => document.getElementById(id);
 const DAY_COLORS = ['#2f9e44','#f08c00','#7048e8','#1c7ed6','#e8590c','#0ca678','#ae3ec9'];
 const WD = ['周日','周一','周二','周三','周四','周五','周六'];
 let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {};
+let lastTaskId = null;   // 当前行程对应的任务，对话修改以此为基准
 
 const today = new Date(); const end = new Date(today); end.setDate(end.getDate()+2);
 $('startDate').value = today.toISOString().slice(0,10);
@@ -192,9 +208,32 @@ $('go').onclick = async () => {
   const ws = new WebSocket(`${proto}://${location.host}${ws_url}`);
   ws.onmessage = e => { const d = JSON.parse(e.data);
     (d.progress||[]).forEach(p => log(p.stage, p.msg));
-    if (d.status==='completed') { plan = d.result; render(); ws.close(); $('go').disabled=false; }
+    if (d.status==='completed') { plan = d.result; lastTaskId = task_id;
+      $('chatbar').style.display='flex'; render(); ws.close(); $('go').disabled=false; }
     if (d.status==='failed') { log('失败', d.error); ws.close(); $('go').disabled=false; } };
 };
+
+// 对话式修改：以当前行程为基准发起新的异步任务
+function sendEdit() {
+  const text = $('chatInput').value.trim();
+  if (!text || !lastTaskId) return;
+  $('chatSend').disabled = true; $('chatInput').value = '';
+  $('log').textContent = ''; log('编辑', `收到指令：${text}`);
+  fetch('/plan/edit', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({task_id: lastTaskId, instruction: text})})
+    .then(r => r.json()).then(({task_id, ws_url}) => {
+      const proto = location.protocol==='https:'?'wss':'ws';
+      const ws = new WebSocket(`${proto}://${location.host}${ws_url}`);
+      ws.onmessage = e => { const d = JSON.parse(e.data);
+        (d.progress||[]).forEach(p => log(p.stage, p.msg));
+        if (d.status==='completed') {
+          if (d.result.days) { plan = d.result; lastTaskId = task_id; render(); }
+          else log('回复', d.result.reply || '没有识别到可执行的修改');
+          ws.close(); $('chatSend').disabled = false; }
+        if (d.status==='failed') { log('失败', d.error); ws.close(); $('chatSend').disabled=false; } };
+      ws.onerror = () => { log('错误', '连接断开'); $('chatSend').disabled = false; };
+    });
+}
 
 function log(stage, msg) {
   const div = document.createElement('div');
@@ -225,6 +264,12 @@ function render() {
 function renderItin() {
   const v = $('view'); v.innerHTML = ''; $('mapView').style.display='none'; v.style.display='block';
   if (!plan) return;
+  if (plan.changes && plan.changes.length) {
+    const c = document.createElement('div');
+    c.className = 'changes';
+    c.textContent = '本轮修改：' + plan.changes.join('；');
+    v.appendChild(c);
+  }
   const days = currentDay === 0 ? plan.days : [plan.days[currentDay-1]];
   days.forEach(d => {
     const dayIdx = plan.days.indexOf(d);

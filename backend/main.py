@@ -146,6 +146,31 @@ def get_task(task_id: str) -> dict:
     return task.snapshot()
 
 
+@app.post("/plan/edit")
+async def edit_plan(body: dict) -> dict:
+    """对话式修改：{"task_id": 基准任务, "instruction": "明天下午加个咖啡馆"}。
+
+    返回新任务 id，进度与结果走同样的 WS /task 通道。
+    需要 LLM Key 解析指令（503 = 未配置）。
+    """
+    import os
+    base_task_id = body.get("task_id", "")
+    instruction = (body.get("instruction") or "").strip()
+    if not base_task_id or not instruction:
+        raise HTTPException(400, "需要 task_id 和 instruction")
+    from commute import load_env_file
+    env = load_env_file()
+    if not (env.get("LLM_API_KEY") or os.environ.get("LLM_API_KEY")):
+        raise HTTPException(503, "未配置 LLM_API_KEY，无法解析编辑指令")
+    from tasks import MANAGER, run_edit_task
+    if MANAGER.get(base_task_id) is None or MANAGER.get(base_task_id).status != "completed":
+        raise HTTPException(404, "基准任务不存在或未完成")
+    task = MANAGER.create()
+    asyncio.create_task(run_edit_task(task.id, base_task_id, instruction))
+    return {"task_id": task.id, "ws_url": f"/ws/{task.id}",
+            "poll_url": f"/task/{task.id}"}
+
+
 @app.websocket("/ws/{task_id}")
 async def ws_task(websocket: WebSocket, task_id: str) -> None:
     """WebSocket 实时推送：进度更新时发增量，任务结束时发终态。"""

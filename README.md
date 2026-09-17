@@ -29,6 +29,7 @@
 - **异步任务系统**：`/plan/async` 秒回 task_id，后台协程执行完整流水线，WebSocket 实时推送阶段进度，轮询接口兜底——解决长耗时请求被网关 504 的问题
 - **约束校验器**：预算超支（硬违规）/ 日负载过重（软）/ 通勤占比 > 40%（软，提示绕路）/ 空天
 - **路书前端**：手机卡片式 UI、日期区间选择、Day 分页 tab、Leaflet 地图按天分色路线 + 图例开关，底图可配置（高德 / OSM，含 GCJ-02↔WGS84 转换）
+- **对话式修改**：行程页底部对话框输入「把回民街换成附近的咖啡店」——LLM 解析意图（add/remove/replace），确定性代码执行周边搜索与选点，重排求解并重新校验，LLM 永远不直接改行程数据
 - **LLM 抽取**：OpenAI 兼容接口（DeepSeek/Qwen 均可）+ JSON 容错解析
 
 ## 快速开始（30 秒，零 API Key）
@@ -65,6 +66,7 @@ cp .env.example .env   # 填入 AMAP_KEY / LLM_API_KEY
 | POST | `/plan/async` | 异步排期，返回 task_id |
 | GET | `/task/{id}` | 任务状态轮询 |
 | WS | `/ws/{id}` | 实时进度推送 |
+| POST | `/plan/edit` | 对话式修改行程（LLM 意图 + 确定性执行） |
 | POST | `/extract` | 攻略文本 → LLM 抽取 → 实体对齐 |
 
 ## 评估实验
@@ -102,7 +104,7 @@ static/index.html        # 路书前端（原生 JS + Leaflet，无构建步骤�
 
 ## 路线图
 
-- [ ] 对话式修改行程（function calling：「明天下午加个附近的咖啡馆」）
+- [x] 对话式修改行程（LLM 意图解析 + 高德周边搜索 + 确定性执行）✅
 - [ ] 行程长图导出 / 分享页
 - [ ] OR-Tools CP-SAT 最优解对比实验（量化启发式 gap）
 - [ ] 任务持久化（磁盘/Redis）；标注集扩充至 200 条；LLM 别名规范化前置

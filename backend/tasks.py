@@ -31,6 +31,9 @@ class Task:
     result: dict | None = None
     error: str | None = None
     created_at: float = field(default_factory=time.time)
+    # 编辑流水线需要：原始请求参数与景点列表（dict 形式，便于序列化）
+    req_params: dict = field(default_factory=dict)
+    request_spots: list[dict] = field(default_factory=list)
 
     def snapshot(self) -> dict:
         return {"task_id": self.id, "status": self.status,
@@ -65,6 +68,11 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
     if task is None:
         return
     task.status = "running"
+    task.req_params = {"city": req.city, "days": req.days,
+                       "budget": req.budget,
+                       "daily_start_h": req.daily_start_h,
+                       "daily_end_h": req.daily_end_h}
+    task.request_spots = [s.model_dump() for s in req.spots]
     MANAGER.say(task, "启动", f"收到排期请求：{req.city} {req.days} 天，"
                               f"{len(req.spots)} 个景点，预算 {req.budget or '不限'}")
 
@@ -105,6 +113,99 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
         task.status = "completed"
         task.version += 1
     except Exception as e:  # 后台任务不能静默死掉
+        task.status = "failed"
+        task.error = f"{type(e).__name__}: {e}"
+        task.version += 1
+
+
+async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> None:
+    """对话式修改：LLM 解析意图 → 确定性执行 → 重排求解 → 校验。
+
+    复用整套进度推送；完成后 result 与排期任务同构（多一个 reply/changes）。
+    """
+    import editor
+    task = MANAGER.get(task_id)
+    base = MANAGER.get(base_task_id)
+    if task is None or base is None or base.result is None:
+        if task:
+            task.status = "failed"
+            task.error = "基准任务不存在或未完成"
+            task.version += 1
+        return
+    task.status = "running"
+    try:
+        # 阶段 1：LLM 解析意图（子线程，防阻塞事件循环）
+        MANAGER.say(task, "理解", "正在解析你的指令…")
+        plan_summary = "\n".join(
+            f"Day{d['day']}: " + "、".join(v["name"] for v in d["spots"])
+            for d in base.result["days"])
+        def work_parse():
+            return editor.parse_instruction(instruction, plan_summary)
+        parsed = await asyncio.to_thread(work_parse)
+        ops, reply = parsed.get("ops", []), parsed.get("reply", "")
+
+        if not ops:
+            MANAGER.say(task, "理解", reply or "没有识别到可执行的修改")
+            task.result = {"reply": reply or "没有识别到可执行的修改",
+                           "changes": []}
+            task.status = "completed"
+            task.version += 1
+            return
+        for op in ops:
+            MANAGER.say(task, "理解", f"识别到操作：{op.get('op')} "
+                                      f"{op.get('name') or op.get('old') or op.get('query', '')}")
+
+        # 阶段 2：确定性执行（周边搜索锚点 = 各天几何中心）
+        from models import Spot as SpotModel
+        base_spots = [SpotModel(**s) for s in base.request_spots]
+        day_anchors = {}
+        for d in base.result["days"]:
+            pts = [next((s for s in base_spots if s.name == v["name"]), None)
+                   for v in d["spots"]]
+            pts = [p for p in pts if p]
+            if pts:
+                day_anchors[d["day"]] = (sum(p.lat for p in pts) / len(pts),
+                                         sum(p.lon for p in pts) / len(pts))
+        def work_apply():
+            return editor.apply_ops(base_spots, ops,
+                                    poi_search_fn=editor.poi_search,
+                                    day_anchors=day_anchors)
+        new_spots, changes = await asyncio.to_thread(work_apply)
+        for c in changes:
+            MANAGER.say(task, "执行", c)
+
+        # 阶段 3：重排求解 + 校验（复用排期流水线）
+        params = base.req_params
+        new_req = PlanRequest(city=params.get("city", "西安"),
+                              days=params.get("days", 2),
+                              budget=params.get("budget"),
+                              daily_start_h=params.get("daily_start_h", 9.0),
+                              daily_end_h=params.get("daily_end_h", 18.0),
+                              spots=new_spots)
+        cm = CommuteMatrix()
+        def work_solve():
+            return Solver(new_req, cm.minutes).solve(
+                lambda stage, info: MANAGER.say(task, stage, info.get("msg", "")))
+        day_plans, unplanned, total_cost, total_score = await asyncio.to_thread(work_solve)
+        report = check_plan(new_req, day_plans, total_cost)
+        report["stats"]["commute_api"] = cm.stats
+        report["stats"]["cache_hit_rate"] = round(cm.hit_rate(), 3)
+        MANAGER.say(task, "校验", "约束校验通过 ✅" if report["passed"]
+                    else f"发现违规：{'; '.join(report['violations'])}")
+
+        task.result = {
+            "city": new_req.city, "days": [d.model_dump() for d in day_plans],
+            "total_cost": total_cost, "total_score": total_score,
+            "unplanned": [u.model_dump() for u in unplanned],
+            "check_report": report,
+            "reply": reply or "行程已更新",
+            "changes": changes,
+        }
+        task.req_params = params
+        task.request_spots = [s.model_dump() for s in new_spots]
+        task.status = "completed"
+        task.version += 1
+    except Exception as e:
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
         task.version += 1
