@@ -7,3 +7,4 @@ __pycache__/
 .venv/
 .ci-venv/
 .pytest_cache/
+local-notes/

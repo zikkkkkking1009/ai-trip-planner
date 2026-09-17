@@ -1,11 +1,9 @@
 """通勤矩阵：高德路径数据 + 本地缓存 + 自动降级。
 
-设计（对应《含金量提升方案》硬菜一的配套）：
 1. 有 AMAP_KEY → 调高德「距离测量」API（/v3/distance，type=1 驾车）拿真实时长
 2. 无 Key / 调用失败 → 自动降级回 haversine 估算，服务不中断
 3. 所有结果落 JSON 缓存（坐标取 3 位小数 ≈110m 粒度，提高命中率）
-4. 全程统计 api_calls / cache_hits / fallbacks——这三个数就是简历素材
-   （「缓存使高德 API 调用量下降 XX%」）
+4. 全程统计 api_calls / cache_hits / fallbacks，缓存效果可量化
 
 Key 配置：backend/.env 里写 AMAP_KEY=xxx（文件已 gitignore）。
 """
