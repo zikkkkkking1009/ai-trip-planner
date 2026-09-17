@@ -45,15 +45,17 @@ class _Seq:
     spots: list[Spot] = field(default_factory=list)
     commute_fn: Callable[[Spot, Spot], float] = commute_min
 
-    def timeline(self, req: PlanRequest) -> list[tuple[Spot, float, float]] | None:
+    def timeline(self, req: PlanRequest, hotel=None) -> list[tuple[Spot, float, float]] | None:
         """给定顺序模拟一天时间线，返回 [(spot, arrive_h, depart_h)]。
 
+        hotel（住宿锚点）给定时：从酒店出发（首段通勤）且必须按时返回
+        （末段通勤计入时间窗）。
         到早了等开门（start = max(arrive, open_h)）；
-        任何景点 depart 超过 close_h 或 daily_end_h → 整个顺序不可行，返回 None。
+        任何景点 depart 超过 close_h 或返回时间超 daily_end_h → 不可行，返回 None。
         """
         t = req.daily_start_h
         out: list[tuple[Spot, float, float]] = []
-        prev: Spot | None = None
+        prev = hotel  # 有酒店时，第一段通勤从酒店算起
         for s in self.spots:
             if prev is not None:
                 t += self.commute_fn(prev, s) / 60.0
@@ -64,15 +66,23 @@ class _Seq:
             out.append((s, t, depart))
             t = depart
             prev = s
+        # 返程：最后景点 → 酒店，回程时间也受 daily_end 约束
+        if hotel is not None and self.spots:
+            if t + self.commute_fn(prev, hotel) / 60.0 > req.daily_end_h + 1e-9:
+                return None
         return out
 
-    def commute_total(self, req: PlanRequest) -> float:
-        """序列可行时的纯通勤总分钟数。"""
+    def commute_total(self, req: PlanRequest, hotel=None) -> float:
+        """序列可行时的纯通勤总分钟数（含酒店往返两段）。"""
         total, prev = 0.0, None
+        if hotel is not None and self.spots:
+            total += self.commute_fn(hotel, self.spots[0])
         for s in self.spots:
             if prev is not None:
                 total += self.commute_fn(prev, s)
             prev = s
+        if hotel is not None and self.spots:
+            total += self.commute_fn(prev, hotel)
         return total
 
 
@@ -80,6 +90,7 @@ class Solver:
     def __init__(self, req: PlanRequest, commute_fn=None):
         self.req = req
         self.commute_fn = commute_fn or commute_min
+        self.hotel = req.hotel  # 住宿锚点：每天的起点与终点
         self.days: list[_Seq] = [
             _Seq(commute_fn=self.commute_fn) for _ in range(req.days)]
 
@@ -96,8 +107,8 @@ class Solver:
         for di, day in enumerate(self.days):
             for pos in range(len(day.spots) + 1):
                 day.spots.insert(pos, s)
-                if day.timeline(self.req) is not None:
-                    ratio = day.commute_total(self.req) / max(s.score, 0.01)
+                if day.timeline(self.req, self.hotel) is not None:
+                    ratio = day.commute_total(self.req, self.hotel) / max(s.score, 0.01)
                     if best is None or ratio < best[0]:
                         best = (ratio, di, pos)
                 day.spots.pop(pos)
@@ -109,15 +120,15 @@ class Solver:
     # ---------- 优化阶段 1：天内 2-opt ----------
     def _intra_2opt(self, di: int) -> bool:
         day = self.days[di]
-        base = day.commute_total(self.req)
+        base = day.commute_total(self.req, self.hotel)
         improved = False
         n = len(day.spots)
         for i in range(n - 1):
             for j in range(i + 1, n):
                 day.spots[i:j + 1] = reversed(day.spots[i:j + 1])
-                if (day.timeline(self.req) is not None
-                        and day.commute_total(self.req) < base - 1e-6):
-                    base = day.commute_total(self.req)
+                if (day.timeline(self.req, self.hotel) is not None
+                        and day.commute_total(self.req, self.hotel) < base - 1e-6):
+                    base = day.commute_total(self.req, self.hotel)
                     improved = True
                 else:
                     day.spots[i:j + 1] = reversed(day.spots[i:j + 1])
@@ -137,7 +148,7 @@ class Solver:
                         continue
                     for pos in range(len(tgt.spots) + 1):
                         tgt.spots.insert(pos, s)
-                        if (tgt.timeline(self.req) is not None
+                        if (tgt.timeline(self.req, self.hotel) is not None
                                 and self._global_commute() < before - 1e-6):
                             placed = True
                             break
@@ -151,7 +162,7 @@ class Solver:
         return False
 
     def _global_commute(self) -> float:
-        return sum(d.commute_total(self.req) for d in self.days)
+        return sum(d.commute_total(self.req, self.hotel) for d in self.days)
 
     # ---------- 主入口 ----------
     def solve(self, progress_cb: Callable[[str, dict], None] | None = None
@@ -193,10 +204,10 @@ class Solver:
         day_plans: list[DayPlan] = []
         total_cost = total_score = 0.0
         for i, day in enumerate(self.days):
-            tl = day.timeline(self.req) or []
+            tl = day.timeline(self.req, self.hotel) or []
             vspots: list[VisitedSpot] = []
             cost = active = comm = 0.0
-            prev: Spot | None = None
+            prev: Spot | None = self.hotel  # 通勤从酒店出发算起
             for s, arrive, depart in tl:
                 if prev is not None:
                     comm += self.commute_fn(prev, s)
@@ -207,6 +218,8 @@ class Solver:
                 active += s.stay_min
                 total_score += s.score
                 prev = s
+            if self.hotel is not None and prev is not None:
+                comm += self.commute_fn(prev, self.hotel)  # 回酒店这段也算通勤
             total_cost += cost
             day_plans.append(DayPlan(
                 day=i + 1, spots=vspots, commute_min=round(comm, 1),

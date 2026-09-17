@@ -72,7 +72,7 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
     task.req_params = {"city": req.city, "days": req.days,
                        "budget": req.budget,
                        "daily_start_h": req.daily_start_h,
-                       "daily_end_h": req.daily_end_h}
+                       "daily_end_h": req.daily_end_h, "hotel": None}
     task.request_spots = [s.model_dump() for s in req.spots]
     MANAGER.say(task, "启动", f"收到排期请求：{req.city} {req.days} 天，"
                               f"{len(req.spots)} 个景点，预算 {req.budget or '不限'}")
@@ -185,12 +185,36 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         params = base.req_params
 
         pin_ops = [o for o in ops if o.get("op") == "pin_add"]
-        other_ops = [o for o in ops if o.get("op") != "pin_add"]
+        hotel_ops = [o for o in ops if o.get("op") == "hotel"]
+        other_ops = [o for o in ops if o.get("op") not in ("pin_add", "hotel")]
         changes: list[str] = []
         cm = CommuteMatrix()
 
         # 统一的 POI 搜索提供器：周边搜索 → 全城文本搜索兜底
         city = params.get("city", "西安")
+
+        # ---- hotel 操作：设定住宿锚点，影响之后所有天的通勤 ----
+        for hop in hotel_ops:
+            query = hop.get("query") or hop.get("name", "")
+            def work_hotel():
+                # 酒店搜索不能用 pick_poi（酒店类型在对齐器里属于干扰类型）
+                cands = editor.poi_search(query, 34.26, 108.94, radius=8000)
+                if not cands:
+                    cands = editor.text_search(query, city)
+                return cands
+            cands = await asyncio.to_thread(work_hotel)
+            poi = next((c for c in cands
+                        if "酒店" in c["name"] or "宾馆" in c["name"]), None) \
+                  or (cands[0] if cands else None)
+            if poi is None:
+                changes.append(f"没有搜到酒店「{query}」")
+                continue
+            params["hotel"] = {"name": poi["name"], "lat": poi["lat"],
+                               "lon": poi["lon"], "desc": "住宿锚点"}
+            changes.append(f"住宿设为「{poi['name']}」——每天从这里出发、回到这里")
+
+        # ---- pin_add 定点插入（仅当没有其他操作时走轻量路径）----
+        other_ops = other_ops + hotel_ops  # 有 hotel 时走全局重排（酒店影响所有天）
 
         if pin_ops and not other_ops:
             days = copy.deepcopy(base.result["days"])
@@ -234,11 +258,13 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                     # commute_fn 必须与基准求解同一口径（高德真实数据），
                     # 否则估算偏差会把可行判成不可行。
                     # pin_insert_best 扫描全部插入位置 × 停留时长(60/30)，选通勤最小可行方案
+                    from models import Hotel as HotelModel
+                    hotel_obj = HotelModel(**params["hotel"]) if params.get("hotel") else None
                     return editor.pin_insert_best(
                         day_objs, new_spot, op.get("after"),
                         params.get("daily_start_h", 9.0),
                         params.get("daily_end_h", 18.0),
-                        commute_fn=cm.minutes)
+                        commute_fn=cm.minutes, hotel=hotel_obj)
                 res = await asyncio.to_thread(work_pin)
                 if res is None:
                     # 该天装不下：记录并继续（部分成功优于整单回滚）
@@ -274,6 +300,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                     "check_report": report,
                     "reply": reply or "行程已更新",
                     "changes": changes,
+                    "hotel": params.get("hotel"),
                 }
                 task.req_params = params
                 task.request_spots = [s.model_dump() for s in base_spots] + \
@@ -303,12 +330,15 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
 
         # 阶段 3：重排求解 + 校验（复用排期流水线）
         params = base.req_params
+        from models import Hotel
+        hotel_obj = Hotel(**params["hotel"]) if params.get("hotel") else None
         new_req = PlanRequest(city=params.get("city", "西安"),
                               days=params.get("days", 2),
                               budget=params.get("budget"),
                               daily_start_h=params.get("daily_start_h", 9.0),
                               daily_end_h=params.get("daily_end_h", 18.0),
-                              spots=new_spots)
+                              spots=new_spots,
+                              hotel=hotel_obj)
         cm = CommuteMatrix()
         def work_solve():
             return Solver(new_req, cm.minutes).solve(
@@ -336,6 +366,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
             "check_report": report,
             "reply": reply or "行程已更新",
             "changes": changes,
+            "hotel": params.get("hotel"),
         }
         task.req_params = params
         task.request_spots = [s.model_dump() for s in new_spots]

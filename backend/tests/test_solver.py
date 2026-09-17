@@ -56,3 +56,18 @@ def test_solver_is_deterministic():
     r1 = Solver(_req()).solve()
     r2 = Solver(_req()).solve()
     assert r1 == r2
+
+
+def test_hotel_anchor_counts_into_commute_and_window():
+    from models import Hotel
+    spots = [s for s in XI_AN_SPOTS if s.name in ("钟楼", "回民街")]
+    # 酒店设在兵马俑附近（离市区 ~25km），每天往返酒店的长途必须计入
+    req = PlanRequest(city="西安", days=1,
+                      spots=[s.model_copy() for s in spots],
+                      hotel=Hotel(name="远郊酒店", lat=34.38, lon=109.28))
+    days, unplanned, cost, _ = Solver(req).solve()
+    d = days[0]
+    assert d.spots, "景点应被排入"
+    assert d.commute_min > 60, "酒店往返通勤应计入当天通勤"
+    for v in d.spots:
+        assert v.depart_h <= req.daily_end_h + 1e-6

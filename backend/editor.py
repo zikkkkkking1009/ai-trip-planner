@@ -30,19 +30,22 @@ from models import Spot
 # ---- LLM 意图解析 ----
 _SYSTEM = """你是行程编辑助手。根据当前行程和用户指令，输出 JSON（不要解释）：
 {"ops": [...], "reply": "一句话回复用户"}
-ops 支持四种操作：
+ops 支持五种操作：
 - remove:   {"op":"remove","name":"行程中准确的景点名"}
 - add:      {"op":"add","query":"POI搜索关键词","day":天数或null,"name":"可省略"}
 - replace:  {"op":"replace","old":"要移除的景点名","query":"搜索关键词","day":天数或null}
 - pin_add:  {"op":"pin_add","name":"用户想加的地点名","query":"搜索词","day":天数,"after":"插到该景点之后或null表示路线中间"}
+- hotel:    {"op":"hotel","name":"酒店名","query":"搜索词"}
 规则：
 - remove 的 name 必须逐字取自当前行程，不要改写
 - add/replace 必须给 query（用于地图搜索），如"咖啡馆""美食街""博物馆"
-- 用户要加自己的酒店/民宿/旅馆等自定义地点、或指定"插在某天/某景点旁边/中间"时，
-  用 pin_add：name 尽量取用户提到的地点名，query 用于地图搜索（有名字就用名字，
-  没有名字就按类型搜如"酒店"），after 逐字取自该天行程里的景点名，用户说"中间"传 null
-- 用户没说清楚要加的具体地点时（比如只说"我的酒店"没给名字），ops 给空数组，
-  在 reply 里反问地点名
+- 用户提到酒店/民宿/旅馆/住的地方时，一律用 hotel 操作——酒店是每天的
+  起点和终点，影响所有天的通勤，不是某一天的行程条目；name/query 取
+  用户给的酒店名，没有名字就在 reply 里反问
+- 用户要往某天游览路线里加自定义地点（如歇脚的咖啡馆）并指定位置时用 pin_add：
+  name 取地点名，query 用于地图搜索，after 逐字取自该天行程里的景点名，
+  用户说"中间"传 null
+- 用户没说清楚具体地点时，ops 给空数组，在 reply 里反问地点名
 - 可以一次给多个 ops；无法理解时输出 {"ops":[],"reply":"没听懂，试试：把XX换成XX / 在Day2中间加我的酒店"}"""
 
 
@@ -283,7 +286,8 @@ def pin_insert_best(day_spots: list[Spot],
                     daily_start_h: float,
                     daily_end_h: float,
                     commute_fn=None,
-                    stay_options: tuple[int, ...] = (60, 30)) -> dict | None:
+                    stay_options: tuple[int, ...] = (60, 30),
+                    hotel=None) -> dict | None:
     """定点插入的智能版：扫描所有可插入位置 × 停留时长，选通勤最小的可行方案。
 
     after 给定时只考虑其后位置；否则全位置扫描（「路线中间加酒店」）。
@@ -296,10 +300,10 @@ def pin_insert_best(day_spots: list[Spot],
     def evaluate(seq: list[Spot]):
         req = PlanRequest(city="pin", days=1, spots=seq,
                           daily_start_h=daily_start_h,
-                          daily_end_h=daily_end_h)
+                          daily_end_h=daily_end_h, hotel=hotel)
         s = _Seq(spots=seq, commute_fn=commute_fn) if commute_fn \
             else _Seq(spots=seq)
-        tl = s.timeline(req)
+        tl = s.timeline(req, hotel)
         if tl is None:
             return None
         return s, tl, req

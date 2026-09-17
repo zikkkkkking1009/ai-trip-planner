@@ -256,6 +256,7 @@ function render() {
   $('chips').innerHTML =
     `<span class="chip">🎫 总门票 ¥${plan.total_cost}</span>` +
     `<span class="chip">📍 已排 ${c.stats.spots_planned} 个</span>` +
+    (plan.hotel ? `<span class="chip">🏨 ${plan.hotel.name}</span>` : '') +
     `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
     `<span class="chip">🛰 API ${c.stats.commute_api.api_calls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('daytabs').style.display = 'flex';
@@ -328,15 +329,27 @@ function renderMap() {
     : [[plan.days[currentDay - 1], currentDay - 1]];
   toDraw.forEach(([d, i]) => {
     const color = DAY_COLORS[i % DAY_COLORS.length];
-    const latlngs = d.spots.map(v => {
+    let latlngs = d.spots.map(v => {
       const s = spots.find(s => s.name === v.name) || spots[0];
       return tileCfg.gcj ? [s.lat, s.lon] : gcj2wgs(s.lat, s.lon); });
+    // 有酒店时：路线从酒店出发、回到酒店
+    if (plan.hotel) {
+      const h = tileCfg.gcj ? [plan.hotel.lat, plan.hotel.lon]
+                            : gcj2wgs(plan.hotel.lat, plan.hotel.lon);
+      latlngs = [h, ...latlngs, h];
+      L.marker(h, {icon: L.divIcon({className:'', html:
+        `<div style="font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">🏨</div>`,
+        iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${plan.hotel.name}`).addTo(map);
+      all.push(h);
+    }
     if (latlngs.length < 1) return;
     layers[i] = L.layerGroup().addTo(map);
     if (latlngs.length > 1)
       L.polyline(latlngs, {color, weight:4, opacity:.85}).addTo(layers[i]);
     latlngs.forEach((ll, k) => {
-      const v = d.spots[k];
+      if (plan.hotel && (k === 0 || k === latlngs.length - 1)) return; // 酒店端点单独标记
+      const v = d.spots[plan.hotel ? k - 1 : k];
+      if (!v) return;
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
         .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${v.name}`)
         .addTo(layers[i]);

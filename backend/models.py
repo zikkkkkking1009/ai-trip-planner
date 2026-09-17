@@ -29,14 +29,23 @@ class Spot(BaseModel):
     desc: str = ""               # 一句话介绍（LLM 抽取的 note / 演示数据预写）
 
 
+class Hotel(BaseModel):
+    """住宿锚点：每天从这里出发、回到这里。不是行程条目，不占游玩时长。"""
+    name: str
+    lat: float
+    lon: float
+    desc: str = ""
+
+
 class PlanRequest(BaseModel):
     """用户请求：一组景点 + 行程参数。"""
     city: str = "西安"
     days: int = Field(ge=1, le=7)
-    daily_start_h: float = 9.0   # 每天出发时间
-    daily_end_h: float = 18.0    # 每天结束时间（酒店回程不计入）
+    daily_start_h: float = 9.0   # 每天从酒店出发的时间
+    daily_end_h: float = 18.0    # 每天必须回到酒店的时间
     budget: float | None = None  # 总预算（元），None = 不限
     spots: list[Spot]
+    hotel: Hotel | None = None   # 住宿锚点（对话中可设定/更换）
 
 
 class VisitedSpot(BaseModel):
