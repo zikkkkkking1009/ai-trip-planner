@@ -209,7 +209,8 @@ def hotel_search(body: dict) -> dict:
     city = body.get("city", "西安")
     cands = text_search(query, city) or poi_search(query, 34.26, 108.94, radius=10000)
     return {"results": [{"name": c["name"], "lat": c["lat"], "lon": c["lon"],
-                         "intro": c.get("type_str", "").split(";")[0]}
+                         "intro": c.get("type_str", "").split(";")[0],
+                         "image": c.get("image", "")}
                         for c in cands[:8]]}
 
 

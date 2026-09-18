@@ -121,8 +121,10 @@ def poi_search(query: str, lat: float, lon: float,
             lon, lat2 = map(float, p["location"].split(","))
         except (KeyError, ValueError):
             continue
+        photos = p.get("photos") or []
         out.append({"name": p.get("name", ""), "lat": lat2, "lon": lon,
-                    "type_str": p.get("type", "")})
+                    "type_str": p.get("type", ""),
+                    "image": (photos[0].get("url", "") if photos else "")})
     return out
 
 
@@ -154,8 +156,10 @@ def text_search(query: str, city: str = "西安") -> list[dict]:
             lon, lat2 = map(float, p["location"].split(","))
         except (KeyError, ValueError):
             continue
+        photos = p.get("photos") or []
         out.append({"name": p.get("name", ""), "lat": lat2, "lon": lon,
-                    "type_str": p.get("type", "")})
+                    "type_str": p.get("type", ""),
+                    "image": (photos[0].get("url", "") if photos else "")})
     return out
 
 
