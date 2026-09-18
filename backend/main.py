@@ -184,6 +184,18 @@ def poi_detail(name: str) -> dict:
         media[name] = m
         MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
                               encoding="utf-8")
+    # 评价摘要 + 长介绍：LLM 生成一次并缓存（无 Key 时前端隐藏该区块）
+    if "reviews" not in m:
+        try:
+            from editor import generate_reviews
+            m["reviews"] = generate_reviews(
+                name, m.get("intro", "") + " " + m.get("address", ""))
+            m["reviews_ai"] = m["reviews"] is not None
+        except Exception:
+            m["reviews"] = None
+            m["reviews_ai"] = False
+        MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
+                              encoding="utf-8")
     return m
 
 

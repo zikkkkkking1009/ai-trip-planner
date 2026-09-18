@@ -365,3 +365,40 @@ def pin_insert_best(day_spots: list[Spot],
 def _overall_est(a: Spot, b: Spot) -> float:
     from solver import commute_min
     return commute_min(a, b)
+
+
+def generate_reviews(name: str, intro: str = "") -> dict | None:
+    """生成景点评价摘要（3 好评 + 3 避雷）+ 长介绍。LLM 生成，调用方缓存。
+
+    高德不开放评论 API，页面上的「真实评价」由 LLM 生成（前端标注 AI 生成，
+    与圆周旅迹同类功能做法一致）。无 LLM Key 时返回 None，前端隐藏该区块。
+    """
+    from extractor import _tolerant_json_parse
+    from openai import OpenAI
+
+    api_key = os.environ.get("LLM_API_KEY")
+    base_url = os.environ.get("LLM_BASE_URL")
+    if not api_key or not base_url:
+        return None
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    resp = client.chat.completions.create(
+        model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
+        messages=[
+            {"role": "system", "content": (
+                "你是旅游点评生成器。根据景点信息，模仿真实游客的口吻输出 JSON：\n"
+                '{"good": ["标题: 一句话", "标题: 一句话", "标题: 一句话"],\n'
+                ' "bad": ["标题: 一句话", "标题: 一句话", "标题: 一句话"],\n'
+                ' "intro_long": "150字左右的景点介绍段落"}\n'
+                "good 是最值得称赞的方面（景色/体验/文化），bad 是避雷提示"
+                "（人多/暴晒/禁令/交通），标题 2-4 个字，内容具体不空泛。")},
+            {"role": "user", "content": f"景点：{name}\n已知信息：{intro or '无'}"},
+        ],
+        temperature=0.8,
+    )
+    try:
+        parsed = _tolerant_json_parse(resp.choices[0].message.content or "")
+        if "good" in parsed or "bad" in parsed:
+            return parsed
+    except Exception:
+        pass
+    return None
