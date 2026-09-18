@@ -2,125 +2,151 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>AI 行程规划 · 路书</title>
 <link rel="stylesheet" href="/static/vendor/leaflet.css">
 <script src="/static/vendor/leaflet.js"></script>
 <style>
+  :root { --acc:#1677ff; --acc2:#4096ff; --fg:#1d2939; --dim:#98a2b3; --line:#e8ecf2; }
   * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  body { background:#eef1f5; min-height:100vh; display:flex; justify-content:center; }
-  #phone { width:100%; max-width:460px; background:#f6f7fa; min-height:100vh; position:relative;
-           box-shadow:0 0 24px rgba(0,0,0,.10); display:flex; flex-direction:column; }
-  /* 页面容器 */
-  .page { display:none; flex-direction:column; min-height:100vh; }
-  .page.active { display:flex; }
-  /* 渐变头图 */
-  header { background:linear-gradient(135deg,#38bdf8 0%,#2563eb 100%); color:#fff;
-           padding:26px 20px 46px; border-radius:0 0 22px 22px; flex-shrink:0; }
-  header h1 { font-size:22px; font-weight:800; letter-spacing:.5px; }
-  header .meta { opacity:.9; font-size:12.5px; margin-top:6px; }
+  body { background:#e9edf3; display:flex; justify-content:center; }
+  /* App 壳：固定高度，页内滚动，底部导航常驻 */
+  #phone { width:100%; max-width:460px; height:100vh; background:#f2f4f8;
+           box-shadow:0 0 24px rgba(0,0,0,.10); display:flex; flex-direction:column; overflow:hidden; }
+  .page { display:none; flex:1; overflow-y:auto; overscroll-behavior:contain; }
+  .page.active { display:block; }
+  header { background:linear-gradient(135deg,#3d9bff 0%,#1677ff 100%); color:#fff;
+           padding:24px 20px 44px; border-radius:0 0 20px 20px; }
+  header h1 { font-size:21px; font-weight:800; }
+  header .meta { opacity:.92; font-size:12.5px; margin-top:5px; }
   header .chips { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
-  header .chip { background:rgba(255,255,255,.18); backdrop-filter:blur(4px);
-                 padding:4px 12px; border-radius:12px; font-size:12px; }
-  /* 表单卡片 */
-  .sheet { background:#fff; border-radius:14px; margin:-30px 14px 12px; padding:16px;
-           box-shadow:0 6px 18px rgba(31,63,135,.10); flex-shrink:0; }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; }
+  header .chip { background:rgba(255,255,255,.2); padding:4px 12px; border-radius:12px; font-size:12px; }
+  .sheet { background:#fff; border-radius:14px; margin:-28px 14px 12px; padding:14px;
+           box-shadow:0 6px 18px rgba(22,119,255,.10); }
   .field { display:flex; flex-direction:column; gap:4px; }
   .field label { font-size:11px; color:#8a94a6; }
-  input { border:1px solid #e6eaf0; background:#f8fafc; border-radius:9px;
-          padding:8px 10px; font-size:14px; width:100%; color:#222; }
-  input:focus { outline:none; border-color:#2563eb; background:#fff; }
-  .go { grid-column:1 / -1; background:linear-gradient(90deg,#38bdf8,#2563eb); color:#fff;
+  .datefield { margin-bottom:10px; cursor:pointer; }
+  .datebox { display:flex; justify-content:space-between; align-items:center;
+             border:1px solid var(--line); background:#f8fafc; border-radius:9px; padding:10px 12px; }
+  .datebox b { font-size:15px; color:var(--fg); font-variant-numeric:tabular-nums; }
+  .datebox .nights { color:var(--acc); font-size:12px; font-weight:700; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  input { border:1px solid var(--line); background:#f8fafc; border-radius:9px;
+          padding:9px 10px; width:100%; color:var(--fg); font-size:14px; }
+  input:focus { outline:none; border-color:var(--acc); background:#fff; }
+  .go { margin-top:10px; width:100%; background:linear-gradient(90deg,#4096ff,#1677ff); color:#fff;
         border:none; border-radius:10px; padding:11px; font-size:15px; font-weight:700;
         cursor:pointer; letter-spacing:2px; }
   .go:disabled { opacity:.5; }
-  /* 行程/地图 分段控件 */
-  .seg { display:flex; background:#fff; border-radius:10px; margin:8px 14px 0;
-         padding:3px; box-shadow:0 1px 6px rgba(31,63,135,.06); flex-shrink:0; }
-  .seg .s { flex:1; text-align:center; padding:8px 0; font-size:13.5px; color:#98a2b3;
+  /* 分段控件 + Day tabs：吸顶 */
+  .seg { display:flex; background:#fff; border-radius:10px; margin:8px 14px; padding:3px;
+         box-shadow:0 1px 6px rgba(22,119,255,.08); position:sticky; top:0; z-index:420; }
+  .seg .s { flex:1; text-align:center; padding:8px 0; font-size:13.5px; color:var(--dim);
             border-radius:8px; cursor:pointer; }
-  .seg .s.active { background:#eef4ff; color:#2563eb; font-weight:700; }
-  /* 日程 tab 条 */
-  .daytabs { display:flex; gap:4px; padding:0 12px; border-bottom:1px solid #e8ecf2;
-             overflow-x:auto; scrollbar-width:none; background:#fff; flex-shrink:0; }
+  .seg .s.active { background:#e8f1ff; color:var(--acc); font-weight:700; }
+  .daytabs { display:flex; gap:4px; padding:0 12px; background:#fff; overflow-x:auto;
+             scrollbar-width:none; position:sticky; top:44px; z-index:410;
+             border-bottom:1px solid var(--line); }
   .daytabs::-webkit-scrollbar { display:none; }
-  .daytabs .tab { padding:11px 12px; font-size:14px; color:#98a2b3; cursor:pointer;
+  .daytabs .tab { padding:11px 12px; font-size:14px; color:var(--dim); cursor:pointer;
                   white-space:nowrap; border-bottom:2.5px solid transparent; }
-  .daytabs .tab.active { color:#1d2939; font-weight:800; border-bottom-color:#2563eb; }
-  /* 内容区 */
-  #view { flex:1; overflow-y:auto; padding:8px 16px 96px; }
+  .daytabs .tab.active { color:var(--fg); font-weight:800; border-bottom-color:var(--acc); }
+  /* 行程卡片 */
+  #view { padding:8px 16px 24px; }
   .dayblock { background:#fff; border-radius:14px; padding:14px; margin-bottom:14px;
-              box-shadow:0 2px 10px rgba(31,63,135,.06); }
+              box-shadow:0 2px 10px rgba(22,119,255,.06); }
   .dayhead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
   .daytitle { font-size:17px; font-weight:800; }
-  .daysub { color:#98a2b3; font-size:11.5px; }
+  .daysub { color:var(--dim); font-size:11.5px; }
   .entry { display:flex; gap:11px; padding:9px 0; border-top:1px dashed #eef1f5; }
   .entry:first-of-type { border-top:none; }
   .entry .bar { width:4px; border-radius:2px; flex-shrink:0; }
-  .entry .img { width:56px; height:56px; border-radius:9px; object-fit:cover; flex-shrink:0;
-                background:#eef1f5; }
+  .entry .img { width:56px; height:56px; border-radius:9px; object-fit:cover; flex-shrink:0; background:#eef1f5; }
   .entry .body { flex:1; min-width:0; }
   .entry .toprow { display:flex; align-items:baseline; gap:6px; }
   .entry .tag { color:#2f9e44; font-size:10.5px; }
-  .entry .name { font-size:15.5px; font-weight:700; }
+  .entry .name { font-size:15.5px; font-weight:700; cursor:pointer; }
+  .entry .name:active { color:var(--acc); }
   .entry .ticket { color:#e8590c; font-size:11.5px; }
-  .entry .time { display:inline-block; background:#f0f4fa; color:#1d2939; border-radius:8px;
+  .entry .time { display:inline-block; background:#f0f4fa; border-radius:8px;
                  padding:5px 11px; margin:6px 0 4px; font-size:13.5px; font-weight:700;
                  font-variant-numeric:tabular-nums; }
   .entry .desc { color:#667085; font-size:12.5px; line-height:1.65; }
-  .entry .intro { color:#98a2b3; font-size:11.5px; margin-top:2px; }
-  .fav { align-self:center; background:none; border:none; font-size:20px; cursor:pointer;
-         flex-shrink:0; padding:4px; }
+  .entry .intro { color:var(--dim); font-size:11.5px; margin-top:2px; }
+  .fav { align-self:center; background:none; border:none; font-size:20px; cursor:pointer; flex-shrink:0; padding:4px; }
   .unplanned { background:#fff4f4; color:#c0392b; font-size:12px; padding:7px 12px;
                border-radius:9px; margin-bottom:8px; }
+  .changes { background:#eef6ee; border:1px solid #cde8cf; color:#2b6e34;
+             font-size:12.5px; border-radius:10px; padding:8px 12px; margin-bottom:10px; }
   /* 地图 */
-  #mapView { display:none; position:relative; padding:8px 14px 96px; }
-  #map { height:calc(100vh - 300px); min-height:380px; width:100%; border-radius:14px; }
+  #mapView { padding:8px 14px 24px; position:relative; }
+  #map { height:56vh; min-height:360px; width:100%; border-radius:14px; }
   .legend { position:absolute; top:20px; right:24px; z-index:500; background:#fff;
             border-radius:10px; padding:8px 12px; font-size:12px; box-shadow:0 2px 10px rgba(0,0,0,.18); }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; }
   .legend div { margin:3px 0; cursor:pointer; }
   .legend div.off { opacity:.35; }
-  .maptip { color:#98a2b3; font-size:11.5px; text-align:center; margin-top:8px; }
+  .maptip { color:var(--dim); font-size:11.5px; text-align:center; margin-top:8px; }
   .empty-hint { position:absolute; top:44%; left:50%; transform:translate(-50%,-50%);
                 z-index:500; background:#fff; border-radius:12px; padding:14px 20px;
                 font-size:13px; color:#667085; text-align:center; line-height:1.9;
-                box-shadow:0 4px 16px rgba(31,63,135,.15); }
-  /* 进度日志 */
+                box-shadow:0 4px 16px rgba(22,119,255,.15); }
+  /* 日志 + 对话框 */
   details { margin:0 14px 8px; }
-  summary { color:#98a2b3; font-size:12px; cursor:pointer; }
+  summary { color:var(--dim); font-size:12px; cursor:pointer; }
   #log { max-height:150px; overflow-y:auto; font-size:12px; line-height:1.9; color:#555;
-         background:#fff; border-radius:8px; padding:8px 12px; box-shadow:0 1px 6px rgba(31,63,135,.05); }
-  #log .st { color:#2563eb; }
-  /* 对话改行程 */
-  .chatbar { display:flex; gap:8px; padding:10px 14px; background:#fff;
-             border-top:1px solid #e8ecf2; flex-shrink:0; }
-  .chatbar input { flex:1; }
-  .chatbar button { background:#2563eb; color:#fff; border:none; border-radius:9px;
+         background:#fff; border-radius:8px; padding:8px 12px; }
+  #log .st { color:var(--acc); }
+  .chatbar { display:flex; gap:8px; padding:10px 14px; background:#f2f4f8;
+             position:sticky; bottom:0; z-index:430; }
+  .chatbar input { flex:1; box-shadow:0 2px 10px rgba(22,119,255,.08); }
+  .chatbar button { background:var(--acc); color:#fff; border:none; border-radius:9px;
                     padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600; }
   .chatbar button:disabled { opacity:.5; }
-  .changes { background:#eef6ee; border:1px solid #cde8cf; color:#2b6e34;
-             font-size:12.5px; border-radius:10px; padding:8px 12px; margin-bottom:10px; }
-  /* ===== 我的 页面 ===== */
+  /* ===== 我的 ===== */
   .usection { background:#fff; border-radius:14px; margin:14px; padding:16px;
-              box-shadow:0 2px 10px rgba(31,63,135,.06); }
+              box-shadow:0 2px 10px rgba(22,119,255,.06); }
   .usection h2 { font-size:15px; font-weight:800; margin-bottom:12px; }
   .ucard { display:flex; gap:12px; padding:10px 0; border-top:1px dashed #eef1f5;
            cursor:pointer; align-items:center; }
   .ucard:first-of-type { border-top:none; }
   .ucard .info { flex:1; min-width:0; }
   .ucard .t { font-size:15px; font-weight:700; }
-  .ucard .s { color:#98a2b3; font-size:12px; margin-top:3px; }
+  .ucard .s { color:var(--dim); font-size:12px; margin-top:3px; }
   .ucard .del { background:none; border:none; color:#e03131; font-size:16px; cursor:pointer; padding:6px; }
-  .uempty { color:#98a2b3; font-size:13px; text-align:center; padding:18px 0; }
-  /* 主导航 */
-  .bottombar { position:absolute; bottom:0; left:0; right:0; background:#fff;
-               border-top:1px solid #e8ecf2; display:flex; z-index:600;
-               box-shadow:0 -4px 14px rgba(31,63,135,.06); }
-  .bottombar .b { flex:1; text-align:center; padding:11px 0 13px; font-size:14px;
-                  color:#98a2b3; cursor:pointer; }
-  .bottombar .b.active { color:#2563eb; font-weight:700; }
+  .uempty { color:var(--dim); font-size:13px; text-align:center; padding:18px 0; }
+  /* ===== 底部主导航（常驻） ===== */
+  .bottombar { flex-shrink:0; background:#fff; display:flex;
+               border-top:1px solid var(--line); z-index:600; }
+  .bottombar .b { flex:1; text-align:center; padding:9px 0 11px; font-size:13.5px;
+                  color:var(--dim); cursor:pointer; }
+  .bottombar .b.active { color:var(--acc); font-weight:700; }
+  /* ===== 日历弹层 ===== */
+  .cal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:950;
+                 display:flex; align-items:flex-end; justify-content:center; }
+  .cal-sheet { width:100%; max-width:460px; background:#fff; border-radius:18px 18px 0 0;
+               max-height:86vh; display:flex; flex-direction:column; }
+  .cal-head { padding:14px 16px 8px; display:flex; justify-content:space-between; align-items:center; }
+  .cal-head b { font-size:16px; }
+  .cal-week { display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
+              color:var(--dim); font-size:12px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .cal-week span:first-child, .cal-week span:last-child { color:#e8590c; }
+  .cal-months { overflow-y:auto; flex:1; padding:0 8px 8px; }
+  .cal-title { font-size:15px; font-weight:800; padding:14px 10px 6px; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); }
+  .cal-cell { height:48px; display:flex; align-items:center; justify-content:center; }
+  .cal-cell .d { width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+                 border-radius:9px; font-size:14.5px; font-variant-numeric:tabular-nums; }
+  .cal-cell.dis .d { color:#ccd3dc; pointer-events:none; }
+  .cal-cell .d.today { box-shadow:inset 0 0 0 1px var(--acc); color:var(--acc); }
+  .cal-cell .d.start, .cal-cell .d.end { background:var(--acc); color:#fff; font-weight:700; }
+  .cal-cell .d.inrange { background:#e8f1ff; color:var(--acc); border-radius:0; }
+  .cal-cell .d.start.inrange { border-radius:9px 0 0 9px; }
+  .cal-cell .d.end.inrange { border-radius:0 9px 9px 0; }
+  .cal-foot { padding:10px 14px 14px; border-top:1px solid var(--line); }
+  .cal-foot button { width:100%; background:var(--acc); color:#fff; border:none; border-radius:10px;
+                     padding:12px; font-size:15px; font-weight:700; cursor:pointer; }
+  .cal-foot button:disabled { opacity:.4; }
 </style>
 </head>
 <body>
@@ -139,14 +165,20 @@
     </header>
 
     <div class="sheet">
-      <div class="grid">
-        <div class="field"><label>出发日期</label><input id="startDate" type="date"></div>
-        <div class="field"><label>结束日期</label><input id="endDate" type="date"></div>
-        <div class="field"><label>每天出发时间</label><input id="start" type="time" value="09:00"></div>
-        <div class="field"><label>每天返回时间</label><input id="end" type="time" value="18:00"></div>
-        <div class="field"><label>预算(空=不限)</label><input id="budget" type="number" value="500"></div>
-        <button class="go" id="go">开 始 规 划</button>
+      <div class="field datefield" onclick="openCalendar()">
+        <label>行程日期</label>
+        <div class="datebox">
+          <b id="dateText">--</b><span class="nights" id="nightsText"></span><span>📅</span>
+        </div>
       </div>
+      <input type="hidden" id="startDate">
+      <input type="hidden" id="endDate">
+      <div class="grid3">
+        <div class="field"><label>每天出发</label><input id="start" type="time" value="09:00"></div>
+        <div class="field"><label>每天返回</label><input id="end" type="time" value="18:00"></div>
+        <div class="field"><label>预算(空=不限)</label><input id="budget" type="number" value="500"></div>
+      </div>
+      <button class="go" id="go">开 始 规 划</button>
     </div>
 
     <details><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
@@ -157,7 +189,7 @@
       <div class="s" onclick="switchView('map')">🗺 地图</div>
     </div>
     <div id="view"></div>
-    <div id="mapView"><div id="map"></div><div class="legend" id="legend"></div>
+    <div id="mapView" style="display:none"><div id="map"></div><div class="legend" id="legend"></div>
       <div class="empty-hint" id="mapEmpty">还没有行程 —— 点「开始规划」<br>生成后这里会画出按天分色的路线</div>
       <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
 
@@ -170,16 +202,14 @@
 
   <!-- ========= 页面二：我的 ========= -->
   <div class="page" id="pageUser">
-    <header style="padding-bottom:26px">
+    <header style="padding-bottom:24px">
       <h1>我的</h1>
       <div class="meta">历史规划与收藏的景点</div>
     </header>
-
     <div class="usection">
       <h2>🕘 历史规划</h2>
       <div id="plansList"><div class="uempty">加载中…</div></div>
     </div>
-
     <div class="usection">
       <h2>⭐ 收藏的景点</h2>
       <div id="favsList"><div class="uempty">加载中…</div></div>
@@ -199,17 +229,17 @@ const WD = ['周日','周一','周二','周三','周四','周五','周六'];
 let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {};
 let lastTaskId = null, favSet = new Set();
 
-const today = new Date(); const end = new Date(today); end.setDate(end.getDate()+2);
-$('startDate').value = today.toISOString().slice(0,10);
-$('endDate').value = end.toISOString().slice(0,10);
+// ---- 默认日期：今天起 3 天 ----
+function iso(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+const today = new Date(); const de = new Date(today); de.setDate(de.getDate()+2);
+$('startDate').value = iso(today); $('endDate').value = iso(de);
+refreshDateBox();
 fetch('/demo/spots').then(r => r.json()).then(d => { spots = d.spots; });
-loadFavorites();  // 启动即同步收藏状态，收藏星标不再依赖「我的」页先打开
+loadFavorites();  // 启动即同步收藏状态，星标不再滞后
 
-// 任何前端错误都进日志（不再白屏无解释）
 window.onerror = (msg, src, line) => log('前端错误', `${msg} @line ${line}`);
 
-// 底图可配置：默认高德瓦片（GCJ-02，坐标直接用）；TILE_PROVIDER=osm 时后端下发 OSM 配置，
-// 前端用 eviltransform 把 GCJ-02 转 WGS84 再打点（国内地图必备知识，详见 README 合规节）
+// 底图可配置：默认高德瓦片（GCJ-02）；TILE_PROVIDER=osm 时后端下发 OSM 配置
 let tileCfg = { tile_url: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
                 subdomains: '1234', attribution: '© 高德地图', gcj: true };
 fetch('/demo/config').then(r => r.json()).then(c => { tileCfg = c;
@@ -225,6 +255,7 @@ function gcj2wgs(lat, lon) {
     + (20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI))*2/3
     + (160*Math.sin(y/12*Math.PI) + 320*Math.sin(y*Math.PI/30))*2/3;
   const tLon = (x,y) => 300 + x + 2*y + .1*x*x + .1*x*y + .1*Math.sqrt(Math.abs(x))
+    + (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2/3
     + (20*Math.sin(x*Math.PI) + 40*Math.sin(x/3*Math.PI))*2/3
     + (150*Math.sin(x/12*Math.PI) + 300*Math.sin(x/30*Math.PI))*2/3;
   let dLat = tLat(lon-105, lat-35), dLon = tLon(lon-105, lat-35);
@@ -239,18 +270,90 @@ const fmt = h => { const hh=Math.floor(h), mm=Math.round((h-hh)*60);
 const dateOf = i => { const d = new Date($('startDate').value || Date.now());
   d.setDate(d.getDate()+i);
   return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${WD[d.getDay()]}`; };
-
-// 天数 = 结束 - 开始 + 1，自动算（上限 7 天）
 function dayCount() {
   const s = new Date($('startDate').value), e = new Date($('endDate').value);
   return Math.max(1, Math.min(7, Math.round((e - s)/86400000) + 1));
 }
 const timeToH = t => { const [h,m] = t.split(':').map(Number); return h + m/60; };
+function refreshDateBox() {
+  const s = new Date($('startDate').value), e = new Date($('endDate').value);
+  const f = d => `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+  $('dateText').textContent = `${f(s)} ${WD[s.getDay()]} — ${f(e)} ${WD[e.getDay()]}`;
+  $('nightsText').textContent = `共${dayCount()}天`;
+}
 
-// 底图用高德瓦片：国内直连 + GCJ-02 坐标系
-const amapLayer = () => L.tileLayer(tileCfg.tile_url,
-  { subdomains: tileCfg.subdomains, attribution: tileCfg.attribution, maxZoom: 18 });
+// ---- 日历弹层（先选出发日，再选结束日，区间高亮）----
+let calStart = null, calEnd = null;
+function openCalendar() {
+  calStart = new Date($('startDate').value); calEnd = new Date($('endDate').value);
+  const ov = document.createElement('div');
+  ov.className = 'cal-overlay'; ov.id = 'calModal';
+  ov.innerHTML = `<div class="cal-sheet">
+    <div class="cal-head"><b>选择行程日期</b>
+      <button onclick="this.closest('.cal-overlay').remove()" style="background:#f0f2f5;border:none;
+        border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
+    <div class="cal-week">${['日','一','二','三','四','五','六'].map(w=>`<span>${w}</span>`).join('')}</div>
+    <div class="cal-months" id="calMonths"></div>
+    <div class="cal-foot"><button id="calDone" onclick="calApply()"></button></div>
+  </div>`;
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+  buildCal();
+}
+function buildCal() {
+  const el = $('calMonths'); el.innerHTML = '';
+  const base = new Date(); base.setDate(1);
+  for (let m = 0; m < 3; m++) {
+    const first = new Date(base.getFullYear(), base.getMonth()+m, 1);
+    const title = document.createElement('div');
+    title.className = 'cal-title';
+    title.textContent = `${first.getFullYear()} 年 ${first.getMonth()+1} 月`;
+    el.appendChild(title);
+    const grid = document.createElement('div');
+    grid.className = 'cal-grid';
+    for (let i = 0; i < first.getDay(); i++) grid.appendChild(document.createElement('div'));
+    const days = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
+    for (let day = 1; day <= days; day++) {
+      const d = new Date(first.getFullYear(), first.getMonth(), day);
+      const cell = document.createElement('div'); cell.className = 'cal-cell';
+      const dd = document.createElement('div'); dd.className = 'd'; dd.textContent = day;
+      if (d < new Date(new Date().toDateString())) cell.classList.add('dis');
+      if (d.toDateString() === new Date().toDateString()) dd.classList.add('today');
+      if (calStart && d.toDateString() === calStart.toDateString()) dd.classList.add('start');
+      if (calEnd && d.toDateString() === calEnd.toDateString()) dd.classList.add('end');
+      if (calStart && calEnd && d > calStart && d < calEnd) dd.classList.add('inrange');
+      cell.onclick = () => calPick(d);
+      cell.appendChild(dd); grid.appendChild(cell);
+    }
+    el.appendChild(grid);
+  }
+  updateCalFoot();
+}
+function calPick(d) {
+  if (!calStart || (calStart && calEnd)) { calStart = d; calEnd = null; }
+  else if (d > calStart) { calEnd = d; }
+  else { calStart = d; calEnd = null; }
+  buildCal();
+}
+function updateCalFoot() {
+  const btn = $('calDone');
+  if (calStart && calEnd) {
+    const n = Math.round((calEnd - calStart)/86400000);
+    btn.disabled = false;
+    btn.textContent = `完成（${n} 晚 · ${n+1} 天）`;
+  } else {
+    btn.disabled = true;
+    btn.textContent = calStart ? '请选择结束日期' : '请先选择出发日期';
+  }
+}
+function calApply() {
+  if (!calStart || !calEnd) return;
+  $('startDate').value = iso(calStart); $('endDate').value = iso(calEnd);
+  refreshDateBox();
+  $('calModal').remove();
+}
 
+// ---- 底图：默认高德瓦片（GCJ-02）；TILE_PROVIDER=osm 时切 OSM + 坐标转换 ----
 $('go').onclick = async () => {
   $('go').disabled = true; $('log').textContent = '';
   const req = { city:'西安', days: dayCount(),
@@ -260,7 +363,6 @@ $('go').onclick = async () => {
   const {task_id, ws_url} = await fetch('/plan/async', {method:'POST',
     headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)}).then(r=>r.json());
   log('任务', `task_id=${task_id}`);
-
   const proto = location.protocol==='https:'?'wss':'ws';
   const ws = new WebSocket(`${proto}://${location.host}${ws_url}`);
   ws.onmessage = e => { const d = JSON.parse(e.data);
@@ -277,7 +379,7 @@ function log(stage, msg) {
   $('log').appendChild(div); $('log').scrollTop = 1e9;
 }
 
-// ---- 渲染：tab 条 + 行程卡片 + 地图 ----
+// ---- 行程渲染 ----
 function render() {
   const c = plan.check_report;
   $('chips').innerHTML =
@@ -363,18 +465,17 @@ function loadFavorites() {
         <div class="info"><div class="t">${f.name}</div>
         <div class="s">${f.intro || f.desc || ''}</div></div>
         <button class="del" onclick="event.stopPropagation(); toggleFav('${f.name.replace(/'/g,"\\'")}')">✕</button></div>`).join('');
-    if (plan) renderItin();  // 收藏状态变化后同步行程里的星标
+    if (plan) renderItin();
   });
 }
 
-// ---- 景点详情卡（参考高德地图详情页：图片组/介绍/营业时间/地址）----
+// ---- 景点详情卡（高德风格：图片组/介绍/营业时间/地址）----
 function openSpotDetail(name) {
   const base = (plan ? [...plan.days.flatMap(d => d.spots)] : [])
     .find(s => s.name === name) || spots.find(s => s.name === name) || {name};
   const fav = favSet.has(name) ? '⭐ 已收藏' : '☆ 未收藏';
   const overlay = document.createElement('div');
   overlay.id = 'spotModal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900;display:flex;align-items:flex-end;justify-content:center';
   overlay.innerHTML = `<div style="width:100%;max-width:460px;background:#fff;border-radius:18px 18px 0 0;
     max-height:82vh;overflow-y:auto">
     <div style="padding:12px 16px 10px;display:flex;justify-content:space-between;align-items:center">
@@ -388,7 +489,7 @@ function openSpotDetail(name) {
       <div id="spotRows" style="font-size:13.5px;line-height:2;color:#333"></div>
       ${base.desc ? `<div style="color:#667085;font-size:13px;line-height:1.7;margin-top:8px">${base.desc}</div>` : ''}
       <div style="margin-top:12px"><button id="spotFavBtn"
-        style="background:#eef4ff;color:#2563eb;border:none;border-radius:10px;padding:9px 18px;cursor:pointer;font-weight:700">${fav}</button></div>
+        style="background:#e8f1ff;color:var(--acc);border:none;border-radius:10px;padding:9px 18px;cursor:pointer;font-weight:700">${fav}</button></div>
     </div></div>`;
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   document.body.appendChild(overlay);
@@ -411,7 +512,7 @@ function openSpotDetail(name) {
       const si = overlay.querySelector('[style*="color:#98a2b3"]');
       if (d.intro && si && !si.textContent) si.textContent = d.intro;
       overlay.querySelector('#spotRows').innerHTML = rows.map(([k, v]) =>
-        `<div><b style="color:#1d2939">${k}</b>　${v}</div>`).join('');
+        `<div><b style="color:var(--fg)">${k}</b>　${v}</div>`).join('');
     })
     .catch(() => {
       $('spotPhotos').innerHTML = base.image
@@ -451,9 +552,10 @@ function switchPage(which) {
   document.querySelectorAll('.bottombar .b').forEach((b,i) =>
     b.classList.toggle('active', (i===0) === (which==='plan')));
   if (which==='user') { loadPlans(); loadFavorites(); }
-  if (which==='plan' && plan) switchView('itin');
+  if (which==='plan') setTimeout(() => { if (map) map.invalidateSize(); }, 60);
 }
 
+// ---- 地图 ----
 function renderMap() {
   $('view').style.display='none'; $('mapView').style.display='block';
   if (!map) {
@@ -470,7 +572,6 @@ function renderMap() {
     return `<div id="lg${i}" onclick="toggleDay(${i})"><i style="background:${c}"></i>Day${i+1}</div>`;
   }).join('');
   const all = [];
-  // 只画当前选中天（总览=全部）
   const toDraw = currentDay === 0
     ? plan.days.map((d, i) => [d, i])
     : [[plan.days[currentDay - 1], currentDay - 1]];
@@ -479,7 +580,6 @@ function renderMap() {
     let latlngs = d.spots.map(v => {
       const s = spots.find(s => s.name === v.name) || spots[0];
       return tileCfg.gcj ? [s.lat, s.lon] : gcj2wgs(s.lat, s.lon); });
-    // 有酒店时：路线从酒店出发、回到酒店
     if (plan.hotel) {
       const h = tileCfg.gcj ? [plan.hotel.lat, plan.hotel.lon]
                             : gcj2wgs(plan.hotel.lat, plan.hotel.lon);
@@ -494,7 +594,7 @@ function renderMap() {
     if (latlngs.length > 1)
       L.polyline(latlngs, {color, weight:4, opacity:.85}).addTo(layers[i]);
     latlngs.forEach((ll, k) => {
-      if (plan.hotel && (k === 0 || k === latlngs.length - 1)) return; // 酒店端点单独标记
+      if (plan.hotel && (k === 0 || k === latlngs.length - 1)) return;
       const v = d.spots[plan.hotel ? k - 1 : k];
       if (!v) return;
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
@@ -513,7 +613,6 @@ function renderMap() {
   if (all.length) map.fitBounds(all, {padding:[30,30]});
 }
 
-// 相邻景点直线距离合计（km）——仅用于路线胶囊标签
 function haversineKm(d) {
   let total = 0;
   for (let i = 1; i < d.spots.length; i++) {
@@ -534,14 +633,13 @@ function toggleDay(i) {
 }
 
 function switchView(which) {
-  $('bItin') && $('bItin').classList.remove('active');
   document.querySelectorAll('#viewSeg .s').forEach((s,i) =>
     s.classList.toggle('active', (i===0) === (which==='itin')));
   if (which==='itin') { $('mapView').style.display='none'; $('view').style.display='block'; }
   else { if (plan) renderMap(); else { $('view').style.display='none'; $('mapView').style.display='block'; } }
 }
 
-// 对话式修改：以当前行程为基准发起新的异步任务
+// ---- 对话式修改 ----
 function sendEdit() {
   const text = $('chatInput').value.trim();
   if (!text) { log('提示', '先输入想怎么改'); return; }
