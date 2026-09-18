@@ -27,6 +27,8 @@ class Spot(BaseModel):
     open_h: float = 8.0
     close_h: float = 18.0
     desc: str = ""               # 一句话介绍（LLM 抽取的 note / 演示数据预写）
+    image: str = ""              # 高德 POI 实景图 URL（spot_media.json / 抽取时补充）
+    intro: str = ""              # 高德景点介绍（类型/评分/人均，来自 place detail）
 
 
 class Hotel(BaseModel):
@@ -55,6 +57,8 @@ class VisitedSpot(BaseModel):
     depart_h: float
     ticket: float
     desc: str = ""
+    image: str = ""
+    intro: str = ""
 
 
 class DayPlan(BaseModel):

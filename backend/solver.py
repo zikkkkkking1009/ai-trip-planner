@@ -213,7 +213,8 @@ class Solver:
                     comm += self.commute_fn(prev, s)
                 vspots.append(VisitedSpot(
                     name=s.name, arrive_h=round(arrive, 2),
-                    depart_h=round(depart, 2), ticket=s.ticket, desc=s.desc))
+                    depart_h=round(depart, 2), ticket=s.ticket, desc=s.desc,
+                    image=s.image, intro=s.intro))
                 cost += s.ticket
                 active += s.stay_min
                 total_score += s.score
