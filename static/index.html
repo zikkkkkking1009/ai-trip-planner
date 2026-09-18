@@ -373,11 +373,15 @@ function calApply() {
   $('startDate').value = iso(calStart); $('endDate').value = iso(calEnd);
   refreshDateBox();
   $('calModal').remove();
+  // 日期改动与当前行程不一致时，明示需要重新规划（日期只作用于新规划）
+  if (plan) window.dateMismatch = (dayCount() !== plan.days.length);
+  if (plan) renderItin();
 }
 
 // ---- 底图：默认高德瓦片（GCJ-02）；TILE_PROVIDER=osm 时切 OSM + 坐标转换 ----
 $('go').onclick = async () => {
   $('go').disabled = true; $('log').textContent = '';
+  window.dateMismatch = false;  // 新规划按新日期生成，清除不一致提示
   const req = { city:'西安', days: dayCount(),
     budget: $('budget').value==='' ? null : Number($('budget').value),
     daily_start_h: timeToH($('start').value || '09:00'),
@@ -431,6 +435,13 @@ function renderItin() {
     const c = document.createElement('div');
     c.className = 'changes';
     c.textContent = plan.reply || ('本轮修改：' + plan.changes.join('；'));
+    v.appendChild(c);
+  }
+  if (window.dateMismatch && plan) {
+    const c = document.createElement('div');
+    c.className = 'changes';
+    c.style.background = '#fff8e6'; c.style.borderColor = '#ffe58f'; c.style.color = '#ad6800';
+    c.textContent = `⚠️ 行程日期已改为 ${dayCount()} 天，与当前行程（${plan.days.length} 天）不一致——点「开始规划」按新日期重新生成`;
     v.appendChild(c);
   }
   const days = currentDay === 0 ? plan.days : [plan.days[currentDay-1]];
@@ -730,6 +741,7 @@ function openPlan(taskId) {
   fetch(`/task/${taskId}`).then(r => r.json()).then(d => {
     if (d.status !== 'completed' || !d.result || !d.result.days) return;
     plan = d.result; lastTaskId = taskId; currentDay = 0;
+    window.dateMismatch = false;  // 载入的历史行程与日期字段无关
     render(); switchPage('plan');
   });
 }
