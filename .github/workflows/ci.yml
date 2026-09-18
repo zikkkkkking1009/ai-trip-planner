@@ -20,6 +20,14 @@ jobs:
         run: |
           pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Frontend static check (syntax + shadowing guard)
+        run: python tools/check_frontend.py
+
       - name: Run unit tests
         working-directory: backend
         run: |

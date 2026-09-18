@@ -463,12 +463,24 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
         from models import Spot as SpotModel, Hotel
         base_spots = [SpotModel(**s) for s in base.request_spots]
         cm = CommuteMatrix()
+        hotel_obj = Hotel(**params["hotel"])
+        # 住宿锚点会引入「酒店 ↔ 各景点」两倍数量的新高德通勤对：首次必须真实调用
+        # （0.35s 限频），显式预热 + 上报进度，避免界面长时间静止被误认为卡死。
+        pairs = len(base_spots) * 2
+        MANAGER.say(task, "通勤矩阵",
+                    f"计算酒店与 {len(base_spots)} 个景点的通勤（{pairs} 对，"
+                    f"首次走真实高德调用，约 {pairs * 0.35:.0f} 秒）…")
+        for i, sp in enumerate(base_spots, 1):
+            cm.minutes(hotel_obj, sp)
+            cm.minutes(sp, hotel_obj)
+            if i % 3 == 0 or i == len(base_spots):
+                MANAGER.say(task, "通勤矩阵", f"酒店通勤已算 {i}/{len(base_spots)} 个景点")
         new_req = PlanRequest(city=params.get("city", "西安"),
                               days=params.get("days", 2),
                               budget=params.get("budget"),
                               daily_start_h=params.get("daily_start_h", 9.0),
                               daily_end_h=params.get("daily_end_h", 18.0),
-                              spots=base_spots, hotel=Hotel(**params["hotel"]))
+                              spots=base_spots, hotel=hotel_obj)
         def work():
             return Solver(new_req, cm.minutes).solve(
                 lambda st, info: MANAGER.say(task, st, info.get("msg", "")))

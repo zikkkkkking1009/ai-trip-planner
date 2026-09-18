@@ -240,10 +240,16 @@ class Solver:
         rng = random.Random(MULTISTART_SEED)
         base_order = sorted(spots, key=lambda x: -x.score)
 
+        progress_cb("构造", {"msg": (f"多起点搜索启动：{n} 个景点 / {self.req.days} 天"
+                                    f"（最多 {iters} 轮，取目标最优）" if iters > 1
+                                    else f"贪心构造：{n} 个景点 / {self.req.days} 天")})
+
         self._unplanned: list[UnplannedSpot] = []
         best_obj = float("-inf")
         best_snap = None
         t0 = time.perf_counter()
+        _budget_start = None      # 预算从第 0 轮结束后起算：首轮含真实通勤预热，不应吃掉搜索预算
+        _last_report = t0
         rounds_done = 0
 
         for k in range(iters):
@@ -257,11 +263,15 @@ class Solver:
             if obj > best_obj:
                 best_obj, best_snap = obj, self._snapshot()
             rounds_done = k + 1
-            if iters > 1 and (k + 1) % 100 == 0:
+            _now = time.perf_counter()
+            if iters > 1 and ((k + 1) % 100 == 0 or _now - _last_report > 2.0):
+                _last_report = _now
                 progress_cb("构造", {"msg": f"多起点搜索 {k + 1}/{iters} 轮，"
                                             f"当前最优收益 {self._planned_score():.1f}"
                                             f"（通勤 {self._global_commute():.0f} 分钟）"})
-            if iters > 1 and time.perf_counter() - t0 > MULTISTART_TIME_BUDGET_S:
+            if k == 0:
+                _budget_start = time.perf_counter()
+            elif iters > 1 and time.perf_counter() - _budget_start > MULTISTART_TIME_BUDGET_S:
                 break
 
         self._restore(best_snap)

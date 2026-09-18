@@ -560,14 +560,14 @@ function openLightbox(idx) {
     <div id="lbCount" style="position:absolute;bottom:24px;color:#fff;font-size:13px"></div>`;
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
   document.body.appendChild(ov);
-  const render = () => {
+  const paint = () => {
     $('lbImg').src = lbUrls[lbIdx];
     $('lbCount').textContent = `${lbIdx + 1} / ${lbUrls.length}`;
     $('lbPrev').style.display = lbUrls.length > 1 ? 'block' : 'none';
     $('lbNext').style.display = lbUrls.length > 1 ? 'block' : 'none';
   };
-  $('lbPrev').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx - 1 + lbUrls.length) % lbUrls.length; render(); };
-  $('lbNext').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx + 1) % lbUrls.length; render(); };
+  $('lbPrev').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx - 1 + lbUrls.length) % lbUrls.length; paint(); };
+  $('lbNext').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx + 1) % lbUrls.length; paint(); };
   render();
 }
 
@@ -659,9 +659,9 @@ function openSpotDetail(name) {
           .catch(() => { rc.innerHTML = ''; });
       }
       const rows = [];
-      const esc = name.replace(/'/g, "\\'");
+      const qn = name.replace(/'/g, "\\'");
       const navLink = (d.lon && d.lat)
-        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" onclick="navTo(${d.lon},${d.lat},'${esc}')">🧭 导航</a>` : '';
+        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" onclick="navTo(${d.lon},${d.lat},'${qn}')">🧭 导航</a>` : '';
       if (d.opentime) rows.push(['🕘', '营业时间', d.opentime]);
       if (d.address) rows.push(['📍', '地址', `${esc(d.address)}${navLink}`]);
       $('spotRows').innerHTML = rows.map(([e, k, v]) =>
@@ -905,18 +905,18 @@ function openHotelPicker() {
       .then(r => r.json()).then(d => {
         if (!d.results.length) { $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>'; return; }
         $('hotelResults').innerHTML = d.results.map((h, i) => {
-          const esc = h.name.replace(/'/g, "\\'");
+          const qn = h.name.replace(/'/g, "\\'");
           const img = h.image
             ? `<img src="${h.image}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;flex-shrink:0" loading="lazy" onerror="this.style.display='none'">`
             : `<div style="width:56px;height:56px;border-radius:9px;background:#eef1f5;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏨</div>`;
           return `<div style="border-top:1px dashed #eef1f5;padding:10px 0">
             <div style="display:flex;gap:12px;align-items:center">
               ${img}
-              <div class="info" style="flex:1;min-width:0" onclick="toggleHotelMap(${i},${h.lat},${h.lon},'${esc}')">
+              <div class="info" style="flex:1;min-width:0" onclick="toggleHotelMap(${i},${h.lat},${h.lon},'${qn}')">
                 <div class="t" style="cursor:pointer">${esc(h.name)}
                   <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
                 <div class="s">${esc(h.intro)}</div></div>
-              <button onclick="pickHotel('${esc}',${h.lat},${h.lon})" style="background:var(--acc);
+              <button onclick="pickHotel('${qn}',${h.lat},${h.lon})" style="background:var(--acc);
                 color:#fff;border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
                 font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>
             <div id="hmap-${i}" style="display:none;margin-top:8px;height:180px;border-radius:12px;overflow:hidden"></div>
@@ -1032,12 +1032,12 @@ function renderMap() {
       if (plan.hotel && (k === 0 || k === latlngs.length - 1)) return;
       const v = d.spots[plan.hotel ? k - 1 : k];
       if (!v) return;
-      const esc = v.name.replace(/'/g, "\\'");
+      const qn = v.name.replace(/'/g, "\\'");
       const btn = 'background:#e8f1ff;color:#1677ff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;margin:4px 4px 0 0';
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
         .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${esc(v.name)}<br>
-          <button onclick="openSpotDetail('${esc}')" style="${btn}">详情</button>
-          <button onclick="navToSpot('${esc}')" style="${btn}">🧭 导航</button>`)
+          <button onclick="openSpotDetail('${qn}')" style="${btn}">详情</button>
+          <button onclick="navToSpot('${qn}')" style="${btn}">🧭 导航</button>`)
         .addTo(layers[i]);
       all.push(ll);
     });
