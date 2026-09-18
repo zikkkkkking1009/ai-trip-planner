@@ -15,10 +15,10 @@
     "budget_violations": 0
   },
   "llm_baseline": {
-    "avg_conflicts_per_plan": 0.02,
-    "conflict_free_rate": 0.98,
-    "avg_quality": 0.921,
-    "avg_commute_ratio": 0.131,
+    "avg_conflicts_per_plan": 0.06,
+    "conflict_free_rate": 0.96,
+    "avg_quality": 0.918,
+    "avg_commute_ratio": 0.133,
     "budget_violations": 8
   },
   "llm_completed": 50

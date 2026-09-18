@@ -270,8 +270,11 @@ def run(n: int = 50, with_llm: bool = False) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n", type=int, default=50)
+    parser.add_argument("--seed", type=int, default=42,
+                        help="随机种子（固定后实验可复现）")
     parser.add_argument("--with-llm", action="store_true")
     args = parser.parse_args()
+    random.seed(args.seed)   # 固定种子：同参数下结果可复现
 
     r = run(args.n, with_llm=args.with_llm)
     print(json.dumps(r, ensure_ascii=False, indent=2))

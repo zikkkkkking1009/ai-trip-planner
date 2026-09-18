@@ -1,11 +1,13 @@
-# AI Trip Planning System v0.5
+# AI Trip Planning System
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/tests-19%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)
 
 [简体中文](README.md) | [English](README_en.md)
+
+> 中文版为权威版本（更新更及时）：[README.md](README.md) · 实验报告 [docs/experiments.md](docs/experiments.md) · 路线图 [ROADMAP.md](ROADMAP.md)
 
 Turn a plain-text travel guide into a **verifiable, interactive, map-visualized** day-by-day itinerary:
 

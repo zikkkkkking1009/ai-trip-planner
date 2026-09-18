@@ -1,38 +1,78 @@
-# AI 行程规划系统 v0.5
+# AI 行程规划系统
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/tests-19%20passed-brightgreen)
 
 [简体中文](README.md) | [English](README_en.md)
 
-把一段旅行攻略文本变成一份**可校验、可修改、地图可视化**的逐日行程：
+把一段旅行攻略文本，变成一份**约束可校验、可对话修改、地图可视**的逐日行程。
 
 ```
-攻略文本 ──LLM 抽取──▶ 景点别名 ──实体对齐(高德 POI, F1 90%)──▶ 排期求解器(OPTW)
-                                                                  │
-用户(日期区间/预算/时间窗) ──────────────────────────▶ 约束校验器 ◀┘
-                                                                  │
-                                          逐日行程 JSON + WebSocket 进度 + 地图路线
+攻略文本 ──LLM 抽取──▶ 景点候选 ──实体对齐(高德 POI)──▶ 可求解实例
+                                                          │
+用户(日期/预算/时间窗/住宿) ────────────────▶ OPTW 求解器(贪心+2-opt+跨日搬运)
+                                                          │
+                                              约束校验器(预算/时间窗/通勤占比)
+                                                          │
+                                    逐日行程 JSON + WebSocket 进度 + 路书前端
 ```
 
-核心设计：**LLM 只负责理解和抽取，所有硬约束（预算/时间窗/开放时间）交给确定性算法**。
-这个决策不是拍脑袋——50 组场景的三方评估显示，纯 LLM 排期有 18% 的概率超预算，
-而本方案的求解器为 0（见[评估实验](#评估实验)）。
+**核心设计决策：LLM 只负责「理解」，所有硬约束交给确定性算法。**
+这不是拍脑袋——50 组场景的三方对照实验显示，让 LLM 直接排期，行程质量分甚至略高（0.921 vs 0.915），
+但**有 8 次预算违规、2% 的场景存在时间冲突**；本项目求解器为 **100% 合规、0 违规**。
+数据见 [docs/experiments.md](docs/experiments.md)。
+
+---
+
+## 量化结果
+
+**排期方案三方对比**（50 组程序生成场景，固定随机种子 42，详见实验报告）
+
+| 指标 | 朴素装填基线 | **本项目求解器** | LLM 直接排期 |
+|------|-------------|----------------|-------------|
+| 每计划时间冲突数 | 0.38 | **0** | 0.02 |
+| 无冲突率 | 62% | **100%** | 98% |
+| 预算违规次数 | 12 | **0** | 8 |
+| 通勤时间占比 | 23.5% | **13.1%** | 13.1% |
+| 行程质量分 | 0.857 | 0.915 | 0.921 |
+
+**实体对齐**：20 条标注集上 Precision 90% / Recall 90% / F1 90%，低置信度转人工率 20%（用户点选兜底）。
+
+**模型选型**（每任务重复 5 次，详见实验报告）：免费模型在**用户等待路径**上慢 3~6 倍
+（抽取 12.12s vs 1.88s、意图解析 2.56s vs 0.78s），因此交互任务保留主模型；
+**后台评价生成**改用免费模型（5.74s vs 1.98s，但发生在预取阶段，用户无感）——做到「交互不降速 + 生成零成本」。
+
+---
 
 ## 功能特性
 
-- **排期求解器**：将行程规划建模为带时间窗的定向问题（OPTW），贪心构造 + 天内 2-opt + 跨日搬运，预算在构造阶段即生效，装不下的景点给出原因（预算不足/时间窗冲突）
-- **地理实体对齐**：攻略别名（「兵马俑」「紫禁城」）→ 高德标准 POI。召回 Top-5 → 四路打分融合（包含关系/字符相似/类型先验/后缀扩展）→ 干扰类型硬过滤（公交站/行政区不参选）→ 低置信度转人工。20 条标注集上 F1 从 80% 迭代至 90%
-- **通勤矩阵**：高德距离测量 API 真实驾车时长 + 三级缓存（进程内 memo → 文件 → API）+ 限频节流（个人 Key 3QPS）+ 无 Key 自动降级估算。实测重复求解 API 调用量降为 0
-- **异步任务系统**：`/plan/async` 秒回 task_id，后台协程执行完整流水线，WebSocket 实时推送阶段进度，轮询接口兜底——解决长耗时请求被网关 504 的问题
-- **约束校验器**：预算超支（硬违规）/ 日负载过重（软）/ 通勤占比 > 40%（软，提示绕路）/ 空天
-- **路书前端**：手机卡片式 UI、日期区间选择、Day 分页 tab、Leaflet 地图按天分色路线 + 图例开关，底图可配置（高德 / OSM，含 GCJ-02↔WGS84 转换）
-- **对话式修改**：行程页底部对话框输入「把回民街换成附近的咖啡店」——LLM 解析意图（add/remove/replace），确定性代码执行周边搜索与选点，重排求解并重新校验，LLM 永远不直接改行程数据
-- **LLM 抽取**：OpenAI 兼容接口（DeepSeek/Qwen 均可）+ JSON 容错解析
+**规划链路（后端）**
 
-## 快速开始（30 秒，零 API Key）
+- **OPTW 求解器**：行程规划建模为带时间窗的定向问题，贪心构造 + 天内 2-opt + 跨日搬运；预算在构造阶段生效，装不下的景点给出原因（预算不足 / 时间窗装不下）
+- **住宿锚点**：酒店是每天的起点与终点——往返通勤计入时间窗与统计，而不是作为某个景点插入某天
+- **地理实体对齐**：攻略别名（「兵马俑」「紫禁城」）→ 高德标准 POI：召回 Top-5 → 四路打分融合（包含关系/字符相似/类型先验/后缀扩展）→ 干扰类型硬过滤 → 低置信度转人工
+- **通勤矩阵**：高德驾车时长 + 三级缓存（进程内 → 磁盘 → API）+ 限频节流；无 Key 自动降级为直线估算
+- **约束校验器**：独立复核求解结果（预算 / 时间窗 / 通勤占比 / 空天），不信任求解器自述
+- **异步任务 + 实时进度**：`/plan/async` 秒回任务 ID，后台协程执行，WebSocket 推阶段进度，轮询兜底
+- **对话式修改**：LLM 解析意图（remove/add/replace/pin_add/hotel）→ 确定性代码执行 → 重排 + 复校验；支持**多轮指代**（先说「酒店是汉庭」，再说「换到西安站附近」）
+- **景点媒体与 AI 评价**：高德图库实景图 + 营业时间 + 地址；评价摘要由 LLM 生成并缓存，规划完成后**后台并发预取**，点开即显
+
+**路书前端（`static/index.html`，零构建）**
+
+- 双页结构：**规划**（表单 → 进度日志 → Day 分页行程 → 地图）与**我的**（历史规划 + 收藏景点）
+- 日历区间选择（先出发后结束、区间高亮、点已选日期取消）
+- Leaflet 地图按天分色路线、图例开关、住宿锚点标记；底图可切换高德 / OSM（含 GCJ-02↔WGS84 转换）
+- 景点详情卡：实景图灯箱、AI 介绍、好评 / 避雷双卡、地址一键唤起高德导航
+- 酒店选择器：检索 → 缩略图 → 就地展开小地图（橙点=酒店、彩点=当前行程景点）判断住宿是否顺手
+- 历史规划预览 / 软删除 / 批量清理；收藏与行程联动
+
+---
+
+## 快速开始
+
+**零 API Key 跑通**（走内置演示数据 + 直线距离估算）：
 
 ```bash
 git clone https://github.com/zikkkkkking1009/ai-trip-planner.git
@@ -41,89 +81,121 @@ pip install pydantic
 python run_demo.py
 ```
 
-启动完整服务（含 Web 界面）：
+**启动完整服务**：
 
 ```bash
+cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uvicorn main:app --port 8000
 # 打开 http://localhost:8000 → 点「开始规划」→ 切「🗺 地图」看路线
 ```
 
-配置 Key（可选，解锁真实通勤数据与 LLM 抽取）：
+**配置 Key（可选，解锁真实通勤、LLM 抽取与 AI 评价）**：
 
 ```bash
-cp .env.example .env   # 填入 AMAP_KEY / LLM_API_KEY
+cp backend/.env.example backend/.env
 ```
+
+| 变量 | 用途 | 说明 |
+|------|------|------|
+| `AMAP_KEY` | 高德 Web 服务 Key | 通勤时长、POI 检索、实景图 |
+| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL_ID` | 主模型 | 攻略抽取等重任务（OpenAI 兼容即可） |
+| `LLM_FAST_API_KEY` / `LLM_FAST_BASE_URL` / `LLM_FAST_MODEL` | 轻任务快模型 | 意图解析、评价生成；**可指向免费模型，不配则回落主模型** |
+| `TILE_PROVIDER` | 底图 | 默认高德；`osm` 切 OpenStreetMap |
+
+> 实测可用的免费轻任务模型：智谱 `glm-4-flash-250414`（0.5~0.8s 单轮；注意 `glm-4.5-flash` 与 `glm-4.7-flash` 实测 22s / 过载，不要用）。
+
+---
 
 ## API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/` | Web 路书界面 |
-| GET | `/health` | 健康检查 |
-| GET | `/demo/spots` · `/demo/config` | 演示数据 / 底图配置 |
-| POST | `/plan` | 同步排期（简单场景） |
-| POST | `/plan/async` | 异步排期，返回 task_id |
-| GET | `/task/{id}` | 任务状态轮询 |
-| WS | `/ws/{id}` | 实时进度推送 |
-| POST | `/plan/edit` | 对话式修改行程（LLM 意图 + 确定性执行） |
+| GET | `/` | 路书前端 |
+| GET | `/health` | 健康检查（含求解器与高德状态） |
+| GET | `/demo/spots` · `/demo/config` | 演示景点（含图片与介绍）/ 底图配置 |
 | POST | `/extract` | 攻略文本 → LLM 抽取 → 实体对齐 |
+| POST | `/plan` · `/plan/async` | 同步 / 异步排期 |
+| GET | `/task/{id}` · WS `/ws/{id}` | 任务状态（轮询 / 实时进度） |
+| POST | `/plan/edit` | 对话式修改行程（多轮记忆） |
+| POST | `/hotel/search` · `/hotel/set` | 酒店检索 / 设为住宿锚点并重排 |
+| GET | `/poi/detail` · `/poi/reviews` | 地点详情（快接口）/ AI 评价（可异步补） |
+| GET | `/plans` | 历史规划列表 |
+| DELETE | `/plans/{id}` · POST `/plans/delete` | 删除 / 批量删除（软删除，可恢复） |
+| GET | `/favorites` · POST `/favorites` | 收藏列表 / 增删 |
 
-## 评估实验
+---
 
-50 组场景（seed=42 可复现），质量函数 = 0.4·(1-通勤占比) + 0.4·(1-时间冲突率) + 0.2·(1-负载不均衡)：
+## 工程实践
 
-| 指标 | 朴素装填基线 | 真 LLM 排期 (deepseek-chat) | OPTW 求解器 |
-|------|-------------|---------------------------|------------|
-| 平均时间冲突数/行程 | 0.38 | 0.06 | **0** |
-| 无冲突行程占比 | 62% | 94% | **100%** |
-| 通勤占比 | 23.5% | 13.0% | **13.1%** |
-| **预算违规** | 12/50 | **9/50 (18%)** | **0** |
-| 单次排期耗时 | <1ms | ~800ms + API 费用 | **~1ms，零成本** |
+- **测试与 CI**：29 个单元测试（对齐 / 求解 / 校验 / 编辑器 / 任务流水线），GitHub Actions 全绿
+- **缓存与限频**：通勤矩阵三级缓存（重复求解 API 调用降为 0）；高德 0.35s 节流
+- **快慢接口分离**：详情接口只返回毫秒级可达的高德数据，AI 评价走二次请求异步补，避免首屏等待
+- **后台预取**：规划开始时即并发预取媒体（与求解并行），用户点开详情时通常已命中缓存
+- **软删除**：删除历史规划只标记 `deleted`，误删可恢复，且不做批量物理删除
+- **降级策略**：无高德 Key → 直线估算；无 LLM Key → 评价区块自动隐藏；模型不可用 → 回落主模型
 
-结论：给足结构化数据后 LLM 排期质量不差，但**预算约束控制不住**（18% 场景超支），且有 API 成本与延迟。求解器保证全部硬约束且零成本——评估数据支撑「LLM 做理解与抽取，约束交给确定性算法」的架构决策。详见 `backend/eval_results.json`。
+---
 
-## 目录
+## 评估与实验
+
+```bash
+cd backend
+python evaluation.py --n 50 --seed 42 --with-llm   # 排期：朴素基线 vs 求解器 vs LLM 直排
+python eval_aligner.py                             # 实体对齐：P / R / F1 / 转人工率
+python bench_models.py --repeat 3                  # 模型选型：抽取 / 意图解析 / 评价生成
+```
+
+实验结果、方法学与失败案例分析见 **[docs/experiments.md](docs/experiments.md)**。
+
+---
+
+## 目录结构
 
 ```
 backend/
-├── models.py            # 数据模型（Spot / PlanRequest / DayPlan / UnplannedSpot / PlanResult）
-├── solver.py            # 排期求解器：贪心构造（预算硬约束）+ 2-opt + 跨日搬运，通勤函数可注入
-├── commute.py           # 通勤矩阵：高德 /v3/distance + 三级缓存 + 限频节流 + 无Key降级
-├── aligner.py           # 实体对齐：别名→高德POI（召回→打分融合→类型硬过滤→阈值分流）
-├── eval_aligner.py      # 对齐评估：标注集 + P/R/F1 + 转人工率
-├── evaluation.py        # 三方评估实验（朴素基线 / 真LLM / 求解器）
-├── tasks.py             # 异步任务系统：TaskManager + 后台流水线 + 进度推送
-├── constraint_check.py  # 约束校验器
-├── extractor.py         # LLM 抽取（OpenAI 兼容 + JSON 容错解析）
-├── main.py              # FastAPI 入口
-├── tests/               # 19 个单元测试（求解器/校验器/对齐打分/异步任务）
-└── ...
-static/index.html        # 路书前端（原生 JS + Leaflet，无构建步骤）
+  main.py                 FastAPI 入口与 18 个接口
+  models.py               Pydantic 领域模型（Spot / PlanRequest / DayPlan / Hotel）
+  extractor.py            攻略文本 → 景点候选（LLM + 容错 JSON 解析）
+  aligner.py              实体对齐（高德 POI 检索 + 打分融合 + 类型过滤）
+  solver.py               OPTW 求解器（贪心 + 2-opt + 跨日搬运）
+  constraint_check.py     独立约束校验
+  commute.py              通勤矩阵（高德 API + 三级缓存 + 限频）
+  editor.py               对话式编辑（LLM 意图解析 + 确定性执行 + 评价生成）
+  tasks.py                异步任务与进度推送、媒体预取
+  demo_data.py            西安演示数据
+  tests/                  29 个单元测试
+static/index.html         路书前端（零构建）
+data/plans/               规划快照（软删除标记）
+docs/experiments.md       实验报告
+ROADMAP.md                项目复盘与推进路线图
 ```
 
-## 路线图
+---
 
-- [x] 对话式修改行程（LLM 意图解析 + 高德周边搜索 + 确定性执行）✅
-- [ ] 行程长图导出 / 分享页
-- [ ] OR-Tools CP-SAT 最优解对比实验（量化启发式 gap）
-- [ ] 任务持久化（磁盘/Redis）；标注集扩充至 200 条；LLM 别名规范化前置
+## 已知局限
+
+- 演示数据仅西安，多城市泛化未验证（`city` 已参数化，替换数据即可）
+- 持久层为 JSON 文件，无数据库与用户体系（多用户隔离待补）
+- 任务对象在内存中无淘汰策略；无结构化日志
+- 无最优解对照（没有 CP-SAT / 下界，因此无法给出 gap）
+
+以上均已在 **[ROADMAP.md](ROADMAP.md)** 中列出解决方案、优先级与依赖关系。
+
+---
 
 ## 合规与密钥管理
 
-- **密钥**：全部通过 `backend/.env` 配置（已被 .gitignore 排除），仓库全部提交历史经特征检索确认无泄露。Key 泄露时在对应控制台重置即可，无需改代码
-- **地图底图**：默认高德栅格瓦片仅建议本地开发/演示使用；生产环境请使用官方 JS API（Web端 Key），或在 `.env` 设 `TILE_PROVIDER=osm`（前端自动做 GCJ-02→WGS84 转换）
-- **数据**：演示数据为手工整理的公开信息；未采用任何平台内容抓取（以「粘贴攻略正文」为主输入路径）
-- **许可证**：MIT
+- **不提交任何密钥**：`.env`、缓存文件、运行数据均在 `.gitignore` 中；仓库内只有 `.env.example`
+- **地图合规**：默认底图为高德瓦片（GCJ-02）；切到 OSM 时前端用 eviltransform 算法做 GCJ-02 → WGS84 纠偏
+- 演示数据中的景点信息、图片与地址来自高德开放平台公开接口，仅用于技术演示
+- 密钥泄露风险自检：`git ls-files | xargs grep -l "sk-"`（应为空）
 
-## 致谢
-
-架构设计参考了 [liketrek/TREK](https://github.com/liketrek/TREK)、[1sdv/TripStar](https://github.com/1sdv/TripStar)、[OSU-NLP-Group/TravelPlanner](https://github.com/OSU-NLP-Group/TravelPlanner) 等开源项目的思想（仅借鉴设计，未复制代码）。
+---
 
 ## 更新日志
 
-- **v0.5** 异步任务系统（task_id + WebSocket 进度推送）、路书式前端（日期区间 + Day tab + 地图路线）、底图配置化
-- **v0.4** 工程化：单元测试 + GitHub Actions CI + MIT License
-- **v0.3** 三方评估实验（朴素基线 / 真 LLM / 求解器，50 组场景）+ 地理实体对齐管线（F1 80%→90%）
-- **v0.2** 高德通勤矩阵（三级缓存 + 限频节流）、预算改为构造期硬约束
-- **v0.1** OPTW 启发式求解器 + 约束校验器 + LLM 抽取模块
+- **v0.9（2026-09-18）**：双页结构（规划 / 我的）、住宿锚点、景点详情卡与 AI 评价、图片灯箱、地图导航、历史规划软删除与批量清理、对话多轮记忆、快慢接口分离与后台预取、轻任务免费模型通道、评测脚本固定随机种子
+- v0.5：对话式修改、异步任务与 WebSocket 进度、地图分色路线、实体对齐评估
+- v0.3：OPTW 求解器 + 约束校验 + 通勤矩阵缓存
+- v0.1：LLM 抽取 + 实体对齐原型

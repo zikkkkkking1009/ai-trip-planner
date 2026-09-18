@@ -60,7 +60,8 @@ def parse_instruction(instruction: str, plan_summary: str,
     """
     from extractor import _tolerant_json_parse
 
-    client, model = _llm(fast=True)   # 意图解析是轻任务，走快模型通道
+    # 意图解析在交互路径上（用户要等），实测主模型 0.73s 快于免费模型 3.7s，故用主模型
+    client, model = _llm(fast=False)
     hist_txt = ""
     for h in (history or [])[-6:]:
         hist_txt += (f"用户：{h.get('q', '')}\n"

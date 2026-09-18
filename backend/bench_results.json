@@ -1,0 +1,54 @@
+{
+  "guide_chars": 101,
+  "repeat": 5,
+  "results": [
+    {
+      "provider": "main",
+      "task": "攻略抽取",
+      "repeat": 5,
+      "latency_mean_s": 1.88,
+      "latency_min_s": 1.52,
+      "success_rate": 1.0
+    },
+    {
+      "provider": "main",
+      "task": "意图解析",
+      "repeat": 5,
+      "latency_mean_s": 0.78,
+      "latency_min_s": 0.62,
+      "success_rate": 1.0
+    },
+    {
+      "provider": "main",
+      "task": "评价生成",
+      "repeat": 5,
+      "latency_mean_s": 1.98,
+      "latency_min_s": 1.58,
+      "success_rate": 1.0
+    },
+    {
+      "provider": "fast",
+      "task": "攻略抽取",
+      "repeat": 5,
+      "latency_mean_s": 12.12,
+      "latency_min_s": 10.14,
+      "success_rate": 1.0
+    },
+    {
+      "provider": "fast",
+      "task": "意图解析",
+      "repeat": 5,
+      "latency_mean_s": 2.56,
+      "latency_min_s": 0.99,
+      "success_rate": 1.0
+    },
+    {
+      "provider": "fast",
+      "task": "评价生成",
+      "repeat": 5,
+      "latency_mean_s": 5.74,
+      "latency_min_s": 3.96,
+      "success_rate": 1.0
+    }
+  ]
+}

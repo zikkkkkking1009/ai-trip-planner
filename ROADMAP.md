@@ -213,6 +213,22 @@ cd backend && python eval_aligner.py
 
 ---
 
-## 八、更新记录
+## 八、五个现场问题的具体解法
 
-- 2026-09-18 首版：事实基线、五维评估、A/B/C 问题清单、六批路线图、面试资产包。
+审计发现的 5 个问题都在 B 级（影响「可信可用」），逐条给出做法、代价、验收。**建议在批次 4/5 集中处理，其中 B6 可以提前顺手做掉**。
+
+| # | 问题 | 具体做法 | 代价 | 验收 |
+|---|------|---------|------|------|
+| B5 | 无日志体系 | ①各模块 `logging.getLogger(__name__)` ②`main.py` 启动时配 `dictConfig`（级别从环境变量读，默认 INFO，本地可 DEBUG）③请求中间件注入 `request_id`（`contextvars`），日志格式带 `%(request_id)s` ④高德/LLM 调用记录耗时与重试次数 ⑤不引第三方库，保持零依赖 | 低（约 80 行，1 次会话） | 一次规划从头到尾可按 `request_id` 串起日志 |
+| B3 | 任务只增不减 | ①`TaskManager` 加容量上限（如 200）+ 淘汰最旧且 `status in (completed, failed)` 的任务 ②完成任务加 TTL（如 2 小时）惰性清理（每次 `create()` 时顺手扫一遍）③仍在运行的任务永不淘汰（避免打断）④落盘快照本来就独立于内存，淘汰不丢历史 | 低（约 40 行 + 测试） | 压测：连续创建 500 个任务后 `len(_tasks) ≤ 200`，内存平稳 |
+| B4 | 前端 32 处 `innerHTML` 直插外部内容 | ①加 `const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))` ②所有插入 LLM/高德来源文本的位置（景点名、desc、intro、评价、reply、changes）统一走 `esc()` ③纯静态模板保留 `innerHTML` ④补一条注入用例（景点名含 `<img onerror=...>`）作为手工验收 | 中（约 60 处替换，需逐个核对，1~2 次会话） | 注入用例不执行；功能无回归 |
+| B6 | 无重试；`extractor` 无超时 | ①封装 `call_llm_with_retry()`：统一 `timeout=30`、最多 3 次、指数退避（1s/2s/4s）、只对可重试错误（超时/429/5xx）重试 ②高德同理包一层（已有 0.35s 限频，重试时保留）③`extractor` 补 timeout ④重试事件写进日志（与 B5 联动） | 低（约 50 行，可顺手做） | 用「断网 + 单个接口 500」注入测试：最终成功或明确失败，不挂起 |
+| B7 | 依赖未锁版本、缺开发依赖 | ①拆 `backend/requirements.txt`（运行时：fastapi/uvicorn/pydantic/openai/httpx）与 `backend/requirements-dev.txt`（pytest/ruff/mypy）②用 `pip freeze` 或 `pip-tools` 生成锁定文件 ③CI 装锁定版 | 低 | 全新虚拟环境按文档一键起，版本完全一致 |
+| B1/B2 | 无数据库、无用户体系 | ①SQLite + SQLAlchemy 2.x，三表：`users(id, token, created_at)` / `plans(id, user_id, city, params_json, result_json, deleted_at)` / `favorites(user_id, name, lat, lon, ...)` ②保留 JSON 快照做双写过渡，迁移脚本把 `data/plans/*.json` 导入 ③鉴权用最简令牌（`Authorization: Bearer`，登录接口发 token；不引 OAuth）④`solver`/`aligner` 不动，只换持久层 | 中高（2~3 次会话） | 两个账号数据完全隔离；重启服务数据不丢；迁移后 `/plans` 与新表一致 |
+| B8 | 未部署 | ①`Dockerfile`（python:3.12-slim + 单 worker，SQLite 挂载卷）②`docker-compose.yml` 便于本地复现 ③部署到 Render（免费额度）或 Fly.io ④环境变量在平台侧配置，`.env` 不进镜像 ⑤README 补访问链接与冷启动说明 | 中（1~2 次会话，含账号注册） | 公网 URL 可打开并完成一次规划 |
+
+
+
+## 九、更新记录
+
+- 2026-09-18 首版：事实基线、五维评估、A/B/C 问题清单、六批路线图、面试资产包；补第八节「五个现场问题的具体解法」。
