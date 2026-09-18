@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -21,6 +22,8 @@ from commute import CommuteMatrix
 from constraint_check import check_plan
 from models import DayPlan, PlanRequest
 from solver import Solver
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,13 +48,47 @@ class Task:
 
 
 class TaskManager:
+    """内存任务表。
+
+    容量与 TTL 双保护：任务对象包含完整行程与进度，长跑服务只进不出会持续吃内存。
+    - `MAX_TASKS`：超出后淘汰「已完成/失败」中最旧的任务（运行中的永不淘汰）
+    - `TASK_TTL_S`：超过存活时长的终态任务在下次 `create()` 时惰性清理
+    落盘快照（data/plans）独立于内存，淘汰不影响历史回看。
+    """
+
+    MAX_TASKS = 200
+    TASK_TTL_S = 2 * 3600   # 终态任务保留 2 小时
+
     def __init__(self):
         self._tasks: dict[str, Task] = {}
+        self.evicted = 0
 
     def create(self) -> Task:
+        self._evict()
         task = Task(id=uuid.uuid4().hex[:12])
         self._tasks[task.id] = task
         return task
+
+    def _evict(self) -> None:
+        now = time.time()
+        # 1) TTL：终态且超龄
+        stale = [tid for tid, t in self._tasks.items()
+                 if t.status in ("completed", "failed")
+                 and (now - t.created_at) > self.TASK_TTL_S]
+        for tid in stale:
+            self._tasks.pop(tid, None)
+            self.evicted += 1
+        # 2) 容量：仍超限则按创建时间淘汰最旧的终态任务
+        if len(self._tasks) >= self.MAX_TASKS:
+            done = sorted((t for t in self._tasks.values()
+                           if t.status in ("completed", "failed")),
+                          key=lambda t: t.created_at)
+            overflow = len(self._tasks) - self.MAX_TASKS + 1
+            for t in done[:overflow]:
+                self._tasks.pop(t.id, None)
+                self.evicted += 1
+        if self.evicted:
+            log.debug("任务淘汰：累计 %d，当前在表 %d", self.evicted, len(self._tasks))
 
     def get(self, task_id: str) -> Task | None:
         return self._tasks.get(task_id)
@@ -60,6 +97,10 @@ class TaskManager:
         task.progress.append({"stage": stage, "msg": msg,
                               "ts": round(time.time(), 1)})
         task.version += 1
+
+    def stats(self) -> dict:
+        return {"in_memory": len(self._tasks), "evicted_total": self.evicted,
+                "max_tasks": self.MAX_TASKS, "ttl_s": self.TASK_TTL_S}
 
 
 MANAGER = TaskManager()
@@ -117,6 +158,10 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
         }
         task.status = "completed"
         task.version += 1
+        _days = task.result.get("days", [])
+        log.info("排期任务完成 task_id=%s 天数=%d 景点=%d 总门票=%.0f",
+                 task.id, len(_days), sum(len(d["spots"]) for d in _days),
+                 task.result.get("total_cost", 0))
         from main import save_plan_snapshot
         save_plan_snapshot(task)
         asyncio.create_task(prefetch_media(
@@ -125,6 +170,7 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
         task.version += 1
+        log.exception("排期任务失败 task_id=%s", task.id)
 
 
 async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> None:

@@ -55,3 +55,30 @@ def test_async_task_full_lifecycle():
 def test_task_not_found():
     client = TestClient(app)
     assert client.get("/task/nonexistent").status_code == 404
+
+
+def test_task_manager_evicts_when_over_capacity():
+    """容量保护：超出上限时淘汰最旧的终态任务，运行中的任务不受影响。"""
+    from tasks import TaskManager
+    mgr = TaskManager()
+    mgr.MAX_TASKS = 5
+    running = mgr.create()
+    running.status = "running"
+    for i in range(10):
+        t = mgr.create()
+        t.status = "completed"
+        t.created_at = 1000 + i          # 手工拉开创建时间
+    assert len(mgr._tasks) <= 5
+    assert mgr.get(running.id) is not None, "运行中的任务不应被淘汰"
+    assert mgr.evicted > 0
+
+
+def test_task_manager_ttl_evicts_finished():
+    """TTL 保护：终态且超龄的任务被清理。"""
+    from tasks import TaskManager
+    mgr = TaskManager()
+    old = mgr.create()
+    old.status = "completed"
+    old.created_at = 0                    # 远古任务
+    mgr.create()                          # 触发惰性清理
+    assert mgr.get(old.id) is None

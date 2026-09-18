@@ -17,23 +17,53 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
+import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from commute import CommuteMatrix, load_env_file
+
+# .env → os.environ（extractor 等模块从环境变量读 Key）
+for _k, _v in load_env_file().items():
+    os.environ.setdefault(_k, _v)
+
+# 日志必须在上面的 env 加载之后初始化，这样 LOG_LEVEL / LOG_FILE 才生效
+from logging_setup import new_request_id, request_id_var, setup_logging
+
+setup_logging()
+log = logging.getLogger(__name__)
+
 from constraint_check import check_plan
 from demo_data import XI_AN_SPOTS
 from extractor import extract_spots
 from models import PlanRequest, PlanResult
 from solver import Solver
 
-# .env → os.environ（extractor 等模块从环境变量读 Key）
-for _k, _v in load_env_file().items():
-    os.environ.setdefault(_k, _v)
+app = FastAPI(title="AI 行程规划 API", version="0.9.0")
 
-app = FastAPI(title="AI 行程规划 API", version="0.5.1")
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    """为每个请求注入 request_id，并记录耗时——日志可按 ID 串起完整链路。"""
+    rid = new_request_id()
+    token = request_id_var.set(rid)
+    t0 = time.time()
+    try:
+        response = await call_next(request)
+    except Exception:
+        log.exception("请求异常 %s %s", request.method, request.url.path)
+        raise
+    finally:
+        request_id_var.reset(token)
+    cost_ms = (time.time() - t0) * 1000
+    if not request.url.path.startswith("/static"):
+        log.info("%s %s → %d（%.0fms）", request.method, request.url.path,
+                 response.status_code, cost_ms)
+    response.headers["X-Request-Id"] = rid
+    return response
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 from fastapi.staticfiles import StaticFiles
@@ -53,9 +83,11 @@ def _load_favorites() -> list[dict]:
 
 @app.get("/health")
 def health() -> dict:
+    from tasks import MANAGER
     cm = CommuteMatrix()
     return {"status": "ok", "solver": "greedy+2opt",
-            "amap": "enabled" if cm.key else "fallback(estimate)"}
+            "amap": "enabled" if cm.key else "fallback(estimate)",
+            "tasks": MANAGER.stats()}
 
 
 @app.post("/plan", response_model=PlanResult)

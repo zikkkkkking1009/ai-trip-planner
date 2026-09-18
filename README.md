@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-34%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -39,6 +39,10 @@
 | 行程质量分 | 0.857 | 0.915 | 0.921 |
 
 **实体对齐**：20 条标注集上 Precision 90% / Recall 90% / F1 90%，低置信度转人工率 20%（用户点选兜底）。
+
+**最优解对照**（与 OR-Tools CP-SAT 同模型对照，50 场景）：gap 均值 **7.57%**、中位 5.9%、≤3% 占 46%。
+启发式耗时 **1 毫秒**（CP-SAT 均值 4.18 秒）；宽松实例（≤10 景点）两者均为最优（gap 0%），
+紧张实例（13 景点 / 2 天）差 21~24% —— 瓶颈在「景点选择」而非「排序」。详见实验报告。
 
 **模型选型**（每任务重复 5 次，详见实验报告）：免费模型在**用户等待路径**上慢 3~6 倍
 （抽取 12.12s vs 1.88s、意图解析 2.56s vs 0.78s），因此交互任务保留主模型；
@@ -133,7 +137,30 @@ cp backend/.env.example backend/.env
 - **快慢接口分离**：详情接口只返回毫秒级可达的高德数据，AI 评价走二次请求异步补，避免首屏等待
 - **后台预取**：规划开始时即并发预取媒体（与求解并行），用户点开详情时通常已命中缓存
 - **软删除**：删除历史规划只标记 `deleted`，误删可恢复，且不做批量物理删除
+- **可观测性**：标准库 `logging` + 请求 ID 中间件，一条链路可串起所有日志；`LOG_LEVEL` / `LOG_FILE` 可控
+- **可靠性**：统一超时与重试（`reliability.py`）——只重试超时/429/5xx，指数退避 + 抖动，重试事件写日志
+- **内存保护**：任务表容量 200 + 终态任务 TTL 2 小时惰性清理，运行中的任务永不淘汰（`/health` 可观测）
+- **依赖锁定**：运行时 / 开发 / 实验三套 requirements，全部精确版本，部署可复现
 - **降级策略**：无高德 Key → 直线估算；无 LLM Key → 评价区块自动隐藏；模型不可用 → 回落主模型
+
+---
+
+## 部署
+
+```bash
+# 方式一：Docker（推荐）
+docker build -t ai-trip-planner .
+docker run -p 8000:8000 --env-file backend/.env -v $(pwd)/data:/app/data ai-trip-planner
+
+# 方式二：docker compose（含健康检查与数据卷）
+docker compose up -d
+```
+
+要点：**密钥不进镜像**（`.dockerignore` 排除 `.env`，运行时注入）；`data/` 挂卷持久化规划快照与收藏；
+单 worker 即可（求解是毫秒级 CPU 小任务，需要更强吞吐时横向扩实例）。
+
+部署到托管平台（Render / Fly.io 等）时：设置环境变量 `AMAP_KEY` / `LLM_*`，
+并把持久磁盘挂到 `/app/data`。**目前尚未实际部署上线，公网链接待补**。
 
 ---
 
@@ -144,6 +171,7 @@ cd backend
 python evaluation.py --n 50 --seed 42 --with-llm   # 排期：朴素基线 vs 求解器 vs LLM 直排
 python eval_aligner.py                             # 实体对齐：P / R / F1 / 转人工率
 python bench_models.py --repeat 3                  # 模型选型：抽取 / 意图解析 / 评价生成
+python eval_gap.py --n 50 --seed 42 --limit 8      # 启发式 vs CP-SAT 最优：gap（需 requirements-eval.txt）
 ```
 
 实验结果、方法学与失败案例分析见 **[docs/experiments.md](docs/experiments.md)**。
@@ -159,12 +187,15 @@ backend/
   extractor.py            攻略文本 → 景点候选（LLM + 容错 JSON 解析）
   aligner.py              实体对齐（高德 POI 检索 + 打分融合 + 类型过滤）
   solver.py               OPTW 求解器（贪心 + 2-opt + 跨日搬运）
+  solver_cpsat.py         OR-Tools CP-SAT 精确解（对照实验 / 可选出更优解）
+  reliability.py          统一超时与重试（LLM + 高德共用）
+  logging_setup.py        日志配置与请求 ID 上下文
   constraint_check.py     独立约束校验
   commute.py              通勤矩阵（高德 API + 三级缓存 + 限频）
   editor.py               对话式编辑（LLM 意图解析 + 确定性执行 + 评价生成）
   tasks.py                异步任务与进度推送、媒体预取
   demo_data.py            西安演示数据
-  tests/                  29 个单元测试
+  tests/                  34 个单元测试（含 CP-SAT 与任务淘汰）
 static/index.html         路书前端（零构建）
 data/plans/               规划快照（软删除标记）
 docs/experiments.md       实验报告
@@ -195,6 +226,7 @@ ROADMAP.md                项目复盘与推进路线图
 
 ## 更新日志
 
+- **v1.0（2026-09-18）**：CP-SAT 精确解对照实验（gap 量化 + 下界约束保证不差于启发式）、日志与请求 ID、统一重试与超时、任务淘汰与内存保护、依赖锁定、前端 XSS 转义、Docker 部署文件、测试增至 34 个
 - **v0.9（2026-09-18）**：双页结构（规划 / 我的）、住宿锚点、景点详情卡与 AI 评价、图片灯箱、地图导航、历史规划软删除与批量清理、对话多轮记忆、快慢接口分离与后台预取、轻任务免费模型通道、评测脚本固定随机种子
 - v0.5：对话式修改、异步任务与 WebSocket 进度、地图分色路线、实体对齐评估
 - v0.3：OPTW 求解器 + 约束校验 + 通勤矩阵缓存

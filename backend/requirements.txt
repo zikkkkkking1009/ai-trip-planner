@@ -1,4 +1,5 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
-openai>=1.30
+# 运行时依赖（版本锁定，保证部署可复现）
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+openai==3.14.1

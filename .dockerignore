@@ -1,0 +1,18 @@
+# 密钥与运行数据绝不进镜像
+.env
+**/.env
+data/
+**/*.log
+local-notes/
+
+# 开发产物
+.git/
+.github/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.ci-venv/
+docs/
+*.md

@@ -258,6 +258,13 @@
 
 <script>
 const $ = id => document.getElementById(id);
+
+// HTML 转义：所有来自 LLM / 高德接口 / 用户输入的内容在插入 DOM 前必须过这里，
+// 否则景点名、评价、地址里的标签会被浏览器当作标记执行（XSS）。
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g,
+    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
 const DAY_COLORS = ['#2f9e44','#f08c00','#7048e8','#1c7ed6','#e8590c','#0ca678','#ae3ec9'];
 const WD = ['周日','周一','周二','周三','周四','周五','周六'];
 let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {};
@@ -434,7 +441,7 @@ function render() {
   $('chips').innerHTML =
     `<span class="chip">🎫 总门票 ¥${plan.total_cost}</span>` +
     `<span class="chip">📍 已排 ${c.stats.spots_planned} 个</span>` +
-    (plan.hotel ? `<span class="chip">🏨 ${plan.hotel.name}</span>` : '') +
+    (plan.hotel ? `<span class="chip">🏨 ${esc(plan.hotel.name)}</span>` : '') +
     `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
     `<span class="chip">🛰 API ${c.stats.commute_api.api_calls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('hotelText').textContent = plan.hotel ? plan.hotel.name : '未设置（点此搜索选择）';
@@ -476,20 +483,20 @@ function renderItin() {
       <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟</div></div>`
       + (plan.hotel ? (() => { const hn = plan.hotel.name.replace(/'/g,"\\'"); return `<div class="entry"><div class="bar" style="background:#7048e8"></div>
           <div class="body"><div><span class="tag" style="color:#7048e8">住宿</span>
-          <span class="name" style="cursor:pointer" onclick="openSpotDetail('${hn}')">🏨 ${plan.hotel.name}</span></div>
+          <span class="name" style="cursor:pointer" onclick="openSpotDetail('${hn}')">🏨 ${esc(plan.hotel.name)}</span></div>
           <div class="desc">点击查看详情 · 每天从这里出发、傍晚回到这里</div></div></div>`; })() : '')
       + d.spots.map(v => {
         const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
         const isFav = favSet.has(v.name);
         const img = v.image ? `<img class="img" src="${v.image}" loading="lazy" onerror="this.style.display='none'">` : '';
-        const intro = v.intro ? `<div class="intro">${v.intro}</div>` : '';
+        const intro = v.intro ? `<div class="intro">${esc(v.intro)}</div>` : '';
         return `<div class="entry"><div class="bar" style="background:${color}"></div>${img}
           <div class="body">
           <div class="toprow"><span class="tag">景点</span>
-          <span class="name" style="cursor:pointer" onclick="openSpotDetail('${v.name.replace(/'/g,"\\'")}')">${v.name}</span>
+          <span class="name" style="cursor:pointer" onclick="openSpotDetail('${v.name.replace(/'/g,"\\'")}')">${esc(v.name)}</span>
           ${v.ticket ? `<span class="ticket">¥${v.ticket}</span>` : ''}</div>
           <div class="time">${fmt(v.arrive_h)} – ${fmt(v.depart_h)}</div>
-          ${v.desc ? `<div class="desc">${v.desc}</div>` : ''}${intro}</div>
+          ${v.desc ? `<div class="desc">${esc(v.desc)}</div>` : ''}${intro}</div>
           <button class="fav" title="收藏" onclick="toggleFav('${v.name.replace(/'/g,"\\'")}')">${isFav?'⭐':'☆'}</button></div>`; }).join('');
     v.appendChild(blk);
   });
@@ -519,8 +526,8 @@ function loadFavorites() {
     if (!d.favorites.length) { el.innerHTML = '<div class="uempty">还没有收藏 —— 在行程里点 ☆ 收藏景点</div>'; return; }
     el.innerHTML = d.favorites.map(f =>
       `<div class="ucard" onclick="openSpotDetail('${f.name.replace(/'/g,"\\'")}')">${f.image ? `<img class="img" src="${f.image}" style="width:56px;height:56px;border-radius:9px;object-fit:cover" onerror="this.style.display='none'">` : ''}
-        <div class="info"><div class="t">${f.name}</div>
-        <div class="s">${f.intro || f.desc || ''}</div></div>
+        <div class="info"><div class="t">${esc(f.name)}</div>
+        <div class="s">${esc(f.intro || f.desc)}</div></div>
         <button class="del" onclick="event.stopPropagation(); toggleFav('${f.name.replace(/'/g,"\\'")}')">✕</button></div>`).join('');
     if (plan) renderItin();
   });
@@ -578,14 +585,14 @@ function openSpotDetail(name) {
       <button onclick="this.closest('#spotModal').remove()" style="background:#f0f2f5;border:none;
         border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:15px;flex-shrink:0">✕</button></div>
     <div id="spotChips" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 16px 10px">
-      <span style="background:#fff4e6;color:#e8590c;font-size:11px;padding:3px 9px;border-radius:8px">${base.intro || '景点信息'}</span>
+      <span style="background:#fff4e6;color:#e8590c;font-size:11px;padding:3px 9px;border-radius:8px">${esc(base.intro) || '景点信息'}</span>
     </div>
     <div style="flex:1;overflow-y:auto;padding:0 16px 90px">
       <div id="spotPhotos" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:14px">
         <div style="color:#98a2b3;font-size:12px">加载图片中…</div></div>
       <h3 style="font-size:16px;margin-bottom:6px">地点介绍
         <span style="color:#98a2b3;font-size:11px;font-weight:normal">AI 生成</span></h3>
-      <p id="spotIntroLong" style="color:#333;font-size:14px;line-height:1.9">${base.desc || '生成中…'}</p>
+      <p id="spotIntroLong" style="color:#333;font-size:14px;line-height:1.9">${esc(base.desc) || '生成中…'}</p>
       <h3 style="font-size:16px;margin:16px 0 10px;display:none" id="rvTitle">真实评价
         <span style="color:#98a2b3;font-size:11px;font-weight:normal">AI 生成</span></h3>
       <div id="spotReviews"></div>
@@ -618,7 +625,7 @@ function openSpotDetail(name) {
         : '<div style="color:#98a2b3;font-size:12px">暂无图片</div>';
       const chips = $('spotChips');
       if (d.intro) chips.innerHTML = `<span style="background:#fff4e6;color:#e8590c;
-        font-size:11px;padding:3px 9px;border-radius:8px">${d.intro}</span>`;
+        font-size:11px;padding:3px 9px;border-radius:8px">${esc(d.intro)}</span>`;
       const long = (d.reviews && d.reviews.intro_long) || base.desc
         || `${name}是西安的热门去处，适合安排半天时间慢慢逛。建议避开节假日高峰，出行前确认开放时间。`;
       $('spotIntroLong').textContent = long;
@@ -628,7 +635,7 @@ function openSpotDetail(name) {
         if (!rv || (!rv.good && !rv.bad)) { rt.style.display = 'none'; return; }
         rt.style.display = 'block';
         const item = t => { const i = t.indexOf(':') > 0 ? t.indexOf(':') : t.indexOf('：');
-          return i > 0 ? `<b>${t.slice(0, i)}</b>：${t.slice(i + 1).trim()}` : t; };
+          return i > 0 ? `<b>${esc(t.slice(0, i))}</b>：${esc(t.slice(i + 1).trim())}` : esc(t); };
         rc.innerHTML = (rv.good || []).length
           ? `<div style="background:#eaf7ea;border-radius:14px;padding:12px 14px;margin-bottom:10px;
               border-top-left-radius:4px">
@@ -656,7 +663,7 @@ function openSpotDetail(name) {
       const navLink = (d.lon && d.lat)
         ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" onclick="navTo(${d.lon},${d.lat},'${esc}')">🧭 导航</a>` : '';
       if (d.opentime) rows.push(['🕘', '营业时间', d.opentime]);
-      if (d.address) rows.push(['📍', '地址', `${d.address}${navLink}`]);
+      if (d.address) rows.push(['📍', '地址', `${esc(d.address)}${navLink}`]);
       $('spotRows').innerHTML = rows.map(([e, k, v]) =>
         `<div style="padding:9px 0;border-bottom:1px solid var(--line)">${e} <b>${k}</b>　${v}</div>`).join('');
     })
@@ -698,8 +705,8 @@ function renderPlans() {
       : '';
     const click = manageMode ? `togglePlanSel('${p.task_id}')` : `openPlanModal('${p.task_id}')`;
     return `<div class="ucard" onclick="${click}">${check}
-      <div class="info"><div class="t">${p.city || '行程'} · ${p.spots_planned || '?'} 个景点</div>
-      <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + p.hotel : ''}</div></div>
+      <div class="info"><div class="t">${esc(p.city) || '行程'} · ${p.spots_planned || '?'} 个景点</div>
+      <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + esc(p.hotel) : ''}</div></div>
       <div style="color:#98a2b3">›</div></div>`;
   }).join('');
 }
@@ -755,20 +762,20 @@ function openPlanModal(taskId) {
     }
     const r0 = d.result;
     const daysHtml = r0.days.map((dd, i) => dd.spots.length
-      ? `<div style="font-size:13px;margin-top:8px"><b>Day${i+1}</b>（通勤 ${dd.commute_min} 分钟）：${dd.spots.map(v=>v.name).join(' → ')}</div>`
+      ? `<div style="font-size:13px;margin-top:8px"><b>Day${i+1}</b>（通勤 ${dd.commute_min} 分钟）：${dd.spots.map(v=>esc(v.name)).join(' → ')}</div>`
       : '').join('');
     const ov = document.createElement('div');
     ov.className = 'cal-overlay'; ov.id = 'planModal';
     ov.innerHTML = `<div class="cal-sheet">
-      <div class="cal-head"><b>${r0.city || '行程'}规划预览</b>
+      <div class="cal-head"><b>${esc(r0.city) || '行程'}规划预览</b>
         <button onclick="this.closest('.cal-overlay').remove()" style="background:#f0f2f5;border:none;
           border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
       <div style="padding:0 16px 10px;overflow-y:auto;flex:1">
         <div style="color:#667085;font-size:13px">门票 ¥${r0.total_cost}
           · ${r0.check_report.stats.spots_planned} 个景点
-          ${r0.hotel ? ' · 🏨 ' + r0.hotel.name : ''}</div>
+          ${r0.hotel ? ' · 🏨 ' + esc(r0.hotel.name) : ''}</div>
         ${daysHtml}
-        ${r0.unplanned && r0.unplanned.length ? `<div style="color:#98a2b3;font-size:12px;margin-top:8px">未安排：${r0.unplanned.map(u=>u.name).join('、')}</div>` : ''}
+        ${r0.unplanned && r0.unplanned.length ? `<div style="color:#98a2b3;font-size:12px;margin-top:8px">未安排：${r0.unplanned.map(u=>esc(u.name)).join('、')}</div>` : ''}
       </div>
       <div class="cal-foot" style="display:flex;gap:8px">
         <button style="flex:1;background:var(--acc);color:#fff;border:none;border-radius:10px;
@@ -863,7 +870,7 @@ function toggleHotelMap(i, lat, lon, name) {
     pts.push(ll);
     L.circleMarker(ll, {radius: 5, color: '#fff', weight: 1.5,
       fillColor: DAY_COLORS[di % DAY_COLORS.length], fillOpacity: .9})
-      .bindPopup(`Day${di + 1} ${v.name}`).addTo(m);
+      .bindPopup(`Day${di + 1} ${esc(v.name)}`).addTo(m);
   }));
   setTimeout(() => { m.invalidateSize(); m.fitBounds(pts, {padding: [26, 26]}); }, 80);
 }
@@ -906,9 +913,9 @@ function openHotelPicker() {
             <div style="display:flex;gap:12px;align-items:center">
               ${img}
               <div class="info" style="flex:1;min-width:0" onclick="toggleHotelMap(${i},${h.lat},${h.lon},'${esc}')">
-                <div class="t" style="cursor:pointer">${h.name}
+                <div class="t" style="cursor:pointer">${esc(h.name)}
                   <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
-                <div class="s">${h.intro || ''}</div></div>
+                <div class="s">${esc(h.intro)}</div></div>
               <button onclick="pickHotel('${esc}',${h.lat},${h.lon})" style="background:var(--acc);
                 color:#fff;border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
                 font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>
@@ -1008,7 +1015,7 @@ function renderMap() {
       latlngs = [h, ...latlngs, h];
       L.marker(h, {icon: L.divIcon({className:'', html:
         `<div style="font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">🏨</div>`,
-        iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${plan.hotel.name}
+        iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${esc(plan.hotel.name)}
         <br><button onclick="openSpotDetail('${(plan.hotel.name||'').replace(/'/g,"\\'")}');
           this._map && this._map.closePopup()" style="margin-top:6px;background:#e8f1ff;
           color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
@@ -1028,7 +1035,7 @@ function renderMap() {
       const esc = v.name.replace(/'/g, "\\'");
       const btn = 'background:#e8f1ff;color:#1677ff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;margin:4px 4px 0 0';
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
-        .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${v.name}<br>
+        .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${esc(v.name)}<br>
           <button onclick="openSpotDetail('${esc}')" style="${btn}">详情</button>
           <button onclick="navToSpot('${esc}')" style="${btn}">🧭 导航</button>`)
         .addTo(layers[i]);

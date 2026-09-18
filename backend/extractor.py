@@ -8,10 +8,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import time
 
 from models import Spot
+from reliability import retry_call
+
+log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是旅游信息抽取器。从用户给的攻略文本中抽取所有景点，
 只输出 JSON，不要解释。格式：
@@ -55,15 +60,18 @@ def extract_spots(text: str) -> list[Spot]:
             "未配置 LLM_API_KEY / LLM_BASE_URL，无法做文本抽取。"
             "请先在 .env 中配置，或直接使用手工输入的景点列表。")
 
-    client = OpenAI(api_key=api_key, base_url=base_url)
-    resp = client.chat.completions.create(
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=LLM_TIMEOUT_S)
+    t0 = time.time()
+    resp = retry_call(lambda: client.chat.completions.create(
         model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"攻略文本：\n{text}\n\n参考格式：{json.dumps(_EXAMPLE, ensure_ascii=False)}"},
         ],
         temperature=0.1,
-    )
+    ), what="攻略抽取 LLM 调用")
+    log.info("攻略抽取完成：%.2fs，输入 %d 字，输出 %d 字", time.time() - t0, len(text),
+             len(resp.choices[0].message.content or ""))
     data = _tolerant_json_parse(resp.choices[0].message.content or "")
 
     spots: list[Spot] = []

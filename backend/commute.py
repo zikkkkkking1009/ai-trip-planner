@@ -10,6 +10,7 @@ Key 配置：backend/.env 里写 AMAP_KEY=xxx（文件已 gitignore）。
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import time
@@ -18,6 +19,11 @@ import urllib.request
 from pathlib import Path
 
 from models import Spot
+from reliability import retry_call
+
+log = logging.getLogger(__name__)
+
+AMAP_TIMEOUT_S = 8.0   # 单次高德请求超时（秒），失败由 reliability 重试
 from solver import COMMUTE_OVERHEAD_MIN, haversine_km
 
 BACKEND_DIR = Path(__file__).parent
@@ -84,8 +90,13 @@ class CommuteMatrix:
             "key": self.key,
         })
         url = f"https://restapi.amap.com/v3/distance?{params}"
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+
+        def once() -> dict:
+            with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        # 网络抖动/限流会重试；业务性错误（status != 1）不重试，直接走降级
+        data = retry_call(once, what=f"高德通勤({a.name}→{b.name})")
         if data.get("status") != "1" or not data.get("results"):
             raise RuntimeError(f"高德返回异常: {data.get('info')}")
         r = data["results"][0]
@@ -100,6 +111,7 @@ class CommuteMatrix:
         ck = _cache_key(a, b)
         if ck in self._mem:
             self.stats["cache_hits"] += 1
+            log.debug("通勤缓存命中（进程内）: %s → %s", a.name, b.name)
             return self._mem[ck]
 
         hit = self.cache.get(ck)

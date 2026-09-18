@@ -80,7 +80,7 @@
 
 | # | 问题 | 证据 | 影响 | 修法 | 验收 |
 |---|------|------|------|------|------|
-| A1 | 没有最优解参照，无法回答「你的解离最优多远」 | 求解器只有贪心 + 2-opt | 面试「算法部分」只能说「我写了个启发式」 | 引入 OR-Tools CP-SAT 建同款模型（时间窗 + 住宿锚点 + 预算），同场景跑对照，输出 gap | `solver_cpsat.py` + `eval_gap.json`，50 场景 gap ≤ 3% |
+| ✅ A1 | ~~没有最优解参照~~ **已完成（2026-09-18）** | `solver_cpsat.py` + `eval_gap.py` + `eval_gap.json` | 实测 gap：均值 **7.57%**、中位 5.9%、最大 24.34%、≤3% 占 46%；宽松实例 gap 0%，紧张实例（13 景点/2 天）差 21~24%。**原定「≤3%」目标不成立，据实记录**；瓶颈在"景点选择"而非"排序" | 已完成；后续改进方向见实验报告（下界约束已实现，暖启动无收益） |
 | A2 | 换模型（DeepSeek→GLM）后从未复测质量 | `eval_results.json` 为换前数据 | 免费模型的引入缺数据支撑，被问即空 | 重跑 `evaluation.py --n 50 --with-llm` 与 `eval_aligner.py` | 新旧对照表进 README |
 | A3 | 对齐标注集只有 20 条 | `eval_set.json` = 20 | F1 数字统计意义弱 | 扩到 100~200 条（覆盖同名景点、别名、连锁店等难例） | F1 + 转人工率 + 难例分布 |
 | A4 | README 停留在 v0.5 / 19 测试 | 徽章与正文过时 | 别人（含面试官）看到的是旧项目 | 重写：架构图、量化结果、快速上手、设计权衡 | README 反映当前 29 测试与最新数据 |
@@ -92,12 +92,12 @@
 |---|------|------|------|------|------|
 | B1 | 无持久化数据库，规划存 JSON 文件 | `data/plans/*.json` + 软删除 | 「多用户/并发/事务」三问全空 | SQLite + SQLAlchemy（`users` / `plans` / `favorites` 三表） | 迁移脚本 + 数据层测试 |
 | B2 | 无用户体系，收藏与历史是全局的 | `/favorites` 无 user 维度 | 同上，且无法演示多用户 | 轻量鉴权（令牌或会话）+ `user_id` 贯穿 | 两账号数据隔离可演示 |
-| B3 | 任务只进不出，内存无上限 | `MANAGER._tasks` 无淘汰 | 长跑必崩，压测会暴露 | 完成任务 TTL 淘汰 + 上限保护 | 压测 500 任务后内存平稳 |
-| B4 | 前端 32 处 `innerHTML` 直插 LLM/高德返回内容 | `static/index.html` | XSS 面（LLM 输出可含标签） | 统一 `escapeHtml()` 或改 `textContent` 渲染 | 注入用例不再执行 |
-| B5 | 无日志体系，只有内存进度 | 全项目无 `logging` | 线上问题不可追 | `logging` 结构化日志 + 请求 ID | 日志含请求链路 |
-| B6 | LLM/高德调用无重试；`extractor` 连超时都没有 | 审计结果 | 网络抖动直接失败 | 统一超时 + 指数退避重试（tenacity） | 断网注入测试通过 |
-| B7 | 依赖未锁版本、缺开发依赖 | `requirements.txt` 全 `>=` | 部署不可复现 | 拆 `requirements.txt` / `requirements-dev.txt` 并锁版本 | 全新环境一键起 |
-| B8 | 未部署，简历只能放仓库链接 | 无 Dockerfile / 无线上地址 | 转化率明显低于「可点开」 | Dockerfile + 单机部署（Render/Fly.io） | 公网链接可访问 |
+| ✅ B3 | ~~任务只进不出~~ **已完成** | `TaskManager` 容量 200 + TTL 2h，运行中任务不淘汰 | — | 惰性清理，`/health` 暴露 `in_memory/evicted_total` | ✅ 测试覆盖容量与 TTL 两条路径 |
+| 🟡 B4 | `innerHTML` 直插外部内容 | `static/index.html` | XSS 面 | 已加 `esc()` 并覆盖 **26 处**外部来源文本（景点名/评价/地址/酒店/历史预览等） | 剩余：`onclick="fn('名字')"` 内联处理器仍是 JS 注入面，需改 `data-*` + 事件委托（已登记） |
+| ✅ B5 | ~~无日志体系~~ **已完成** | `logging_setup.py` + 中间件 | — | 标准库 dictConfig，`LOG_LEVEL`/`LOG_FILE` 可控，请求 ID 贯穿 | ✅ `/health` 暴露任务表；日志含 request_id |
+| ✅ B6 | ~~无重试 / extractor 无超时~~ **已完成** | `reliability.py`（标准库实现，未引入 tenacity） | — | 只重试可重试错误（超时/429/5xx），指数退避 + 抖动，重试写日志 | ✅ LLM 超时 30s、高德 8s，均带重试 |
+| ✅ B7 | ~~依赖未锁版本~~ **已完成** | 三个文件：`requirements.txt`（运行时锁定）/`-dev`（pytest+httpx）/`-eval`（ortools 等） | — | CI 已改为安装锁定版 | ✅ 全部 `==` 精确版本 |
+| 🟡 B8 | 未部署 | **Dockerfile + docker-compose.yml + .dockerignore 已就绪**（密钥不进镜像、data 挂卷、含 healthcheck） | 还差在平台侧创建服务（需要你的账号） | Render / Fly.io 部署，README 补链接 | 公网链接可完成一次规划 |
 
 ### C 级｜锦上添花
 

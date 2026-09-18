@@ -1,0 +1,10 @@
+# 实验脚本依赖（eval_gap.py 用；CI 不安装，避免拖慢流水线）
+ortools==9.12.4544
+numpy==2.5.3
+pandas==3.0.6
+protobuf==7.36.2
+absl-py==2.5.0
+immutabledict==4.3.1
+python-dateutil==2.9.0
+six==1.17.0
+tzdata==2026.4

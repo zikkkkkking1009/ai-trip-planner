@@ -17,7 +17,9 @@ add/replace 需要网络（高德周边搜索 POI）；remove 纯本地。
 from __future__ import annotations
 
 import json
+import logging
 import os
+import time
 import re
 import time
 import urllib.parse
@@ -26,6 +28,11 @@ import urllib.request
 from aligner import type_flag
 from commute import load_env_file
 from models import Spot
+from reliability import retry_call
+
+log = logging.getLogger(__name__)
+
+LLM_TIMEOUT_S = 30.0   # 单次 LLM 调用超时（秒）
 
 
 # ---- LLM 意图解析 ----
@@ -70,14 +77,17 @@ def parse_instruction(instruction: str, plan_summary: str,
     user_content = (f"当前行程：\n{plan_summary}\n\n"
                     + (f"之前的对话记录：\n{hist_txt}\n" if hist_txt else "")
                     + f"用户指令：{instruction}")
-    resp = client.chat.completions.create(
+    _t0 = time.time()
+    resp = retry_call(lambda: client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": user_content},
         ],
         temperature=0.1,
-    )
+    ), what="意图解析 LLM 调用")
+    log.info("意图解析完成：%.2fs（模型 %s，历史 %d 轮）",
+             time.time() - _t0, model, len(history or []))
     raw = resp.choices[0].message.content or ""
     try:
         parsed = _tolerant_json_parse(raw)
@@ -380,7 +390,8 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
         client, model = _llm(fast=True)   # 轻任务走快模型通道
     except RuntimeError:
         return None
-    resp = client.chat.completions.create(
+    _t0 = time.time()
+    resp = retry_call(lambda: client.chat.completions.create(
         model=model,
         messages=[
             {"role": "system", "content": (
@@ -392,7 +403,8 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
             {"role": "user", "content": f"景点：{name}\n已知信息：{intro or '无'}"},
         ],
         temperature=0.8,
-    )
+    ), what=f"评价生成 LLM 调用（{name}）")
+    log.info("评价生成完成：%.2fs（模型 %s，%s）", time.time() - _t0, model, name)
     try:
         parsed = _tolerant_json_parse(resp.choices[0].message.content or "")
         if "good" in parsed or "bad" in parsed:
@@ -423,4 +435,4 @@ def _llm(fast: bool = False):
         model = os.environ.get("LLM_MODEL_ID", "deepseek-chat")
     if not api_key or not base_url:
         raise RuntimeError("未配置 LLM_API_KEY")
-    return OpenAI(api_key=api_key, base_url=base_url), model
+    return OpenAI(api_key=api_key, base_url=base_url, timeout=LLM_TIMEOUT_S), model
