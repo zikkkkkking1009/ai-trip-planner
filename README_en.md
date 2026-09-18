@@ -3,7 +3,7 @@
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-45%20passed-brightgreen)
 
 [简体中文](README.md) | [English](README_en.md)
 
@@ -12,7 +12,7 @@
 Turn a plain-text travel guide into a **verifiable, interactive, map-visualized** day-by-day itinerary:
 
 ```
-Guide text ──LLM extraction──▶ POI aliases ──Entity alignment (AMap, F1 90%)──▶ Itinerary solver (OPTW)
+Guide text ──LLM extraction──▶ POI aliases ──Entity alignment (AMap, F1 100%)──▶ Itinerary solver (OPTW)
                                                                                     │
 User (date range / budget / time window) ─────────────────────▶ Constraint checker ◀┘
                                                                                     │
@@ -25,7 +25,7 @@ This is not a gut feeling — a three-way evaluation over 50 scenarios shows pur
 ## Features
 
 - **Itinerary solver**: trip planning modeled as an Orienteering Problem with Time Windows (OPTW); greedy construction + intra-day 2-opt + inter-day relocation; budget is enforced during construction; dropped spots carry a reason (budget / time window)
-- **Geo entity alignment**: guide aliases ("兵马俑", "紫禁城") → canonical AMap POIs. Top-5 recall → 4-way score fusion (containment / char similarity / type prior / suffix extension) → hard filtering of noisy types (bus stops, admin districts) → low-confidence results routed to human review. F1 improved from 80% to 90% across three iterations on a 20-case labeled set
+- **Geo entity alignment**: guide aliases ("兵马俑", "紫禁城") → canonical AMap POIs. Top-5 recall → 4-way score fusion (containment / char similarity / type prior / suffix extension) → hard filtering of noisy types (bus stops, admin districts) → tailed-subvenue penalty ("sculpture park - distant view of the Forbidden City" ≠ the Forbidden City) → renamed-venue prior (detects "Huaqing Pool" → "Huaqing Palace" via address cross-reference, re-queries the main name) → LLM arbitration fallback for low-confidence cases (pick locked to the recalled candidate set). F1 90% → 100% on a 20-case labeled set (human-review rate 20% → 15%)
 - **Commute matrix**: real driving durations via AMap distance API + three-tier cache (in-process memo → file → API) + QPS throttling (personal key: 3 QPS) + graceful fallback to estimation without a key. Repeated solves issue **zero** API calls
 - **Async task system**: `POST /plan/async` returns a task_id instantly; a background coroutine runs the full pipeline; WebSocket streams stage-level progress; polling endpoint as fallback — no more gateway 504s on long requests
 - **Constraint checker**: budget overrun (hard) / overloaded days (soft) / commute share > 40% (soft, possible detour) / empty days

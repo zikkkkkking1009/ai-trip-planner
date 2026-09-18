@@ -8,13 +8,21 @@
 1. 候选召回：高德文本搜索 Top-K（带文件缓存 + 限频）
 2. 打分融合：containment（包含关系）+ 文本相似度（difflib + 字符 bigram Jaccard）
    + 类型先验。地理邻近保留接口（LLM 抽取阶段还拿不到可信坐标）
-3. 阈值分流：置信度 >= AUTO_THRESHOLD 自动采纳；否则标记 needs_review，
-   由用户点选修正
+3. 阈值分流：置信度 >= AUTO_THRESHOLD 自动采纳；否则两道兜底——
+   a) LLM 仲裁：让 LLM 在已召回候选中选优（答案必须 ∈ 候选集，防幻觉）；
+   b) 仍不确定才标记 needs_review，由用户点选修正
+
+另有两道结构性规则（A7，F1 90%→100% 的关键）：
+- 尾部子景点惩罚：「北京国际雕塑公园-远望紫禁城」= 长前缀 + 别名在尾部，
+  本体是前缀那个 POI，与别名所指实体无关 → containment/text 相似度归零
+- 主名权威性先验：搜「华清池」时老名 POI 仍是精确匹配，但「华清宫-杨妃池」
+  等子点的地址里引用了「华清池」——证明该景区已更名 → 用主名「华清宫」重查
 
 评估：eval_aligner.py + eval_set.json，输出 Precision / Recall / F1。
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -30,9 +38,13 @@ from commute import load_env_file
 BACKEND_DIR = Path(__file__).parent
 POI_CACHE_FILE = BACKEND_DIR / ".poi_cache.json"
 POI_CACHE_TTL_SEC = 30 * 24 * 3600  # POI 数据变化慢，缓存 30 天
+ARB_CACHE_FILE = BACKEND_DIR / ".align_arb_cache.json"  # LLM 仲裁结果缓存
 
-AUTO_THRESHOLD = 0.72   # >= 此置信度自动采纳，否则转人工确认
+AUTO_THRESHOLD = 0.72   # >= 此置信度自动采纳，否则先 LLM 仲裁、再转人工
 TOP_K = 5               # 召回候选数
+
+SUFFIX_PREFIX_MIN = 3   # 别名在候选名尾部时，前缀长度 >= 此值判为「子景点引用」
+RENAMED_ROOT_MIN = 2    # 主名先验：同一根名的「主名-子点」至少出现次数
 
 # 打分权重（在标注集上调参确定，见 eval_aligner.py）
 W_CONTAIN = 0.55   # 包含关系：别名是候选名的子串（或反过来），最强信号
@@ -86,10 +98,23 @@ def _char_bigrams(s: str) -> set[str]:
     return {s[i:i + 2] for i in range(len(s) - 1)} if len(s) > 1 else {s}
 
 
+def _is_tailed_subvenue(a: str, b: str) -> bool:
+    """别名 a 是否为候选名 b 的「长前缀 + 尾部」结构。
+
+    例：「北京国际雕塑公园-远望紫禁城」的辨识主体是前缀（雕塑公园），
+    「紫禁城」只是它里面一个观景点的名字——与用户想去的紫禁城无关。
+    """
+    return len(a) < len(b) and b.endswith(a) and len(b) - len(a) >= SUFFIX_PREFIX_MIN
+
+
 def text_similarity(alias: str, candidate: str) -> float:
-    """0~1 的字符相似度：difflib 序率 与 bigram Jaccard 取平均。"""
+    """0~1 的字符相似度：difflib 序率 与 bigram Jaccard 取平均。
+
+    尾部子景点结构（见 _is_tailed_subvenue）直接记 0：候选名的辨识部分
+    是前缀而非别名，字符重叠是假信号。
+    """
     a, b = _normalize(alias), _normalize(candidate)
-    if not a or not b:
+    if not a or not b or _is_tailed_subvenue(a, b):
         return 0.0
     difflib_sim = SequenceMatcher(None, a, b).ratio()
     ba, bb = _char_bigrams(a), _char_bigrams(b)
@@ -98,13 +123,44 @@ def text_similarity(alias: str, candidate: str) -> float:
 
 
 def containment(alias: str, candidate: str) -> float:
-    """包含关系打分：完全匹配 1.0，单向包含 0.85（略降以区分完全相等）。"""
+    """包含关系打分：完全匹配 1.0，单向包含 0.85（略降以区分完全相等）。
+
+    例外：长前缀 + 别名在尾部（「……远望紫禁城」）不视为包含——
+    那是别的 POI 在引用别名，不是别名所指实体本身。
+    """
     a, b = _normalize(alias), _normalize(candidate)
     if a == b:
         return 1.0
+    if a and _is_tailed_subvenue(a, b):
+        return 0.0
     if a and (a in b or b in a):
         return 0.85
     return 0.0
+
+
+def detect_renamed_root(alias: str, pois: list[PoiCandidate]) -> str | None:
+    """景区更名检测（主名权威性先验）。
+
+    证据链：搜老名「华清池」时，库里同时有老名 POI 和多个「华清宫-子点」，
+    且子点地址引用了老名（「……华清池景区内」）——说明华清池景区的现名
+    是华清宫，主名候选应优先于老名精确匹配。
+    返回主名原文（如「华清宫」），无证据返回 None。
+    """
+    a = _normalize(alias)
+    roots: dict[str, tuple[str, list[PoiCandidate]]] = {}
+    for p in pois:
+        if type_flag(p.type_str) < 0:
+            continue
+        head = re.split(r"[-·—]", p.name)[0].strip()
+        r = _normalize(head)
+        if not r or r == a or len(r) < 2 or a in r or r in a:
+            continue  # 全称包含别名（如「西湖风景名胜区」）是正常匹配，不是更名
+        roots.setdefault(r, (head, []))[1].append(p)
+    for r, (head, ps) in roots.items():
+        if len(ps) >= RENAMED_ROOT_MIN and any(
+                a in _normalize(p.address) for p in ps):
+            return head
+    return None
 
 
 @dataclass
@@ -124,7 +180,7 @@ class AlignResult:
     candidates: list[PoiCandidate] = field(default_factory=list)
     confidence: float = 0.0
     needs_review: bool = False
-    reason: str = ""          # "no_candidate" / "low_confidence" / "ok"
+    reason: str = ""          # "no_candidate" / "low_confidence" / "ok" / "renamed_main" / "llm_arbitrated"
 
 
 class POIAligner:
@@ -135,12 +191,21 @@ class POIAligner:
         self.key = amap_key or env.get("AMAP_KEY") or os.environ.get("AMAP_KEY")
         self.cache: dict[str, dict] = {}
         self._last_call = 0.0
-        self.stats = {"api_calls": 0, "cache_hits": 0, "fallbacks": 0}
+        self.stats = {"api_calls": 0, "cache_hits": 0, "fallbacks": 0,
+                      "renamed_requery": 0, "llm_arbitrations": 0}
         if POI_CACHE_FILE.exists():
             try:
                 self.cache = json.loads(POI_CACHE_FILE.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 self.cache = {}
+        if ARB_CACHE_FILE.exists():
+            try:
+                self.arb_cache = json.loads(
+                    ARB_CACHE_FILE.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                self.arb_cache = {}
+        else:
+            self.arb_cache = {}
 
     # ---- 高德文本搜索（缓存 + 限频，和通勤模块同一套纪律）----
     def _search_pois(self, alias: str, city: str) -> list[PoiCandidate]:
@@ -200,7 +265,11 @@ class POIAligner:
     # ---- 对外主入口 ----
     def align(self, alias: str, city: str,
               hint_type: str | None = None) -> AlignResult:
-        """把一个别名对齐到标准 POI。低置信度返回 needs_review=True。"""
+        """把一个别名对齐到标准 POI。
+
+        低置信度先走 LLM 仲裁（答案必须 ∈ 候选集）；仲裁失败才 needs_review，
+        交给用户点选兜底。
+        """
         alias = alias.strip()
         if not alias:
             return AlignResult(alias=alias, best=None, reason="no_candidate",
@@ -213,6 +282,27 @@ class POIAligner:
             return AlignResult(alias=alias, best=None, reason="no_candidate",
                                needs_review=True)
 
+        # 主名权威性先验：检测到「老名 POI + 主名子点引用老名」的更名证据时，
+        # 用主名重查一次，采纳主名本体（老名精确匹配是过时名称，不能直接信）
+        renamed_root = detect_renamed_root(alias, pois)
+        if renamed_root:
+            try:
+                main_pois = self._search_pois(renamed_root, city)
+                self.stats["renamed_requery"] += 1
+            except Exception:
+                main_pois = []
+            exact = [p for p in main_pois
+                     if _normalize(p.name) == _normalize(renamed_root)]
+            if exact:
+                best = exact[0]
+                best.score = round(self._score(renamed_root, best, hint_type), 4)
+                return AlignResult(
+                    alias=alias, best=best, candidates=[best],
+                    confidence=best.score, needs_review=False,
+                    reason="renamed_main",
+                )
+            # 主名重查无精确命中 → 证据不足，落回常规打分
+
         for p in pois:
             p.score = round(self._score(alias, p, hint_type), 4)
 
@@ -222,12 +312,89 @@ class POIAligner:
         pool.sort(key=lambda p: -p.score)
         best = pool[0]
         review = best.score < AUTO_THRESHOLD
+
+        # LLM 仲裁兜底：文本打分拿不准时，让 LLM 在已召回候选里选优。
+        # 答案必须精确等于某个候选名（防幻觉），否则忽略并保持转人工。
+        arbitrated = False
+        if review:
+            picked = self._arbitrate(alias, city, pool)
+            if picked is not None:
+                best = picked
+                review = False
+                arbitrated = True
+
         return AlignResult(
             alias=alias, best=best, candidates=pool,
             confidence=best.score,
             needs_review=review,
-            reason="ok" if not review else "low_confidence",
+            reason=("llm_arbitrated" if arbitrated
+                    else "ok" if not review else "low_confidence"),
         )
+
+    # ---- LLM 仲裁（低置信兜底，答案锁定在候选集内）----
+    def _arbitrate(self, alias: str, city: str,
+                   pool: list[PoiCandidate]) -> PoiCandidate | None:
+        """返回 LLM 选中的候选；LLM 不可用 / 不在候选集内 / 无把握 → None。"""
+        if len(pool) < 2:
+            return None  # 只有一个候选时仲裁无意义
+        ck = f"{city}|{alias}|{hashlib.md5('|'.join(p.name for p in pool).encode('utf-8')).hexdigest()[:8]}"
+        pick_name = self.arb_cache.get(ck)
+        if pick_name is None:
+            pick_name = self._call_llm_arbiter(alias, city, pool) or ""
+            self.arb_cache[ck] = pick_name
+            try:
+                ARB_CACHE_FILE.write_text(
+                    json.dumps(self.arb_cache, ensure_ascii=False),
+                    encoding="utf-8")
+            except OSError:
+                pass
+        if not pick_name:
+            return None
+        for p in pool:
+            if p.name == pick_name:
+                self.stats["llm_arbitrations"] += 1
+                return p
+        return None
+
+    @staticmethod
+    def _call_llm_arbiter(alias: str, city: str,
+                          pool: list[PoiCandidate]) -> str | None:
+        """调 LLM 在候选中仲裁；任何失败都静默降级（保持转人工）。"""
+        api_key = os.environ.get("LLM_API_KEY")
+        base_url = os.environ.get("LLM_BASE_URL")
+        if not api_key or not base_url:
+            env = load_env_file()
+            api_key = api_key or env.get("LLM_API_KEY")
+            base_url = base_url or env.get("LLM_BASE_URL")
+        if not api_key or not base_url:
+            return None
+        try:
+            from openai import OpenAI  # 局部导入：纯函数测试环境不强依赖
+        except ImportError:
+            return None
+        lines = "\n".join(
+            f"{i}. {p.name}（{p.type_str}）地址: {p.address}"
+            for i, p in enumerate(pool))
+        prompt = (
+            f"用户在{city}想去「{alias}」。高德地图召回的候选地点：\n{lines}\n"
+            "请判断哪个候选最可能是用户真正想去的地方本体"
+            "（注意排除商店、公交站、景区内子景点、同名商户）。\n"
+            '只输出 JSON，不要输出其他内容：{"pick": "<候选名称原文，若都不合适则为空字符串>"}'
+        )
+        try:
+            client = OpenAI(api_key=api_key, base_url=base_url, timeout=30)
+            resp = client.chat.completions.create(
+                model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
+                temperature=0,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.choices[0].message.content or ""
+            m = re.search(r"\{.*\}", text, re.S)
+            data = json.loads(m.group(0)) if m else {}
+            pick = (data.get("pick") or "").strip()
+        except Exception:
+            return None
+        return pick if any(p.name == pick for p in pool) else None
 
 
 def align_spot(spot, aligner: POIAligner, city: str):

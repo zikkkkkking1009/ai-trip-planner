@@ -2,6 +2,7 @@
 .env
 .commute_cache.json
 .poi_cache.json
+.align_arb_cache.json
 __pycache__/
 *.pyc
 .venv/

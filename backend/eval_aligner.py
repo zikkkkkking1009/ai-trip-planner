@@ -28,6 +28,15 @@ def is_correct(expected: str, predicted: str) -> bool:
     return e == p or e in p or p in e
 
 
+_NOTE_MAP = {"renamed_main": "主名重查", "llm_arbitrated": "LLM仲裁", "ok": ""}
+
+
+def _note(r) -> str:
+    if r.needs_review:
+        return "转人工"
+    return _NOTE_MAP.get(r.reason, "")
+
+
 def main() -> None:
     cases = json.loads(EVAL_SET.read_text(encoding="utf-8"))
     aligner = POIAligner()
@@ -45,7 +54,7 @@ def main() -> None:
             correct += 1
         rows.append((c["alias"], c["city"], c["expected"], pred,
                      f"{r.confidence:.2f}", "✅" if ok else "❌",
-                     "转人工" if r.needs_review else ""))
+                     _note(r)))
 
     print(f"{'别名':<8}{'城市':<5}{'标注':<14}{'对齐结果':<24}{'置信':<6}{'判定':<4}备注")
     for row in rows:
