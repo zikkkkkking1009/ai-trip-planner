@@ -113,6 +113,8 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
         }
         task.status = "completed"
         task.version += 1
+        from main import save_plan_snapshot
+        save_plan_snapshot(task)
     except Exception as e:  # 后台任务不能静默死掉
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
@@ -375,6 +377,8 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         task.request_spots = [s.model_dump() for s in new_spots]
         task.status = "completed"
         task.version += 1
+        from main import save_plan_snapshot
+        save_plan_snapshot(task)
     except Exception as e:
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"

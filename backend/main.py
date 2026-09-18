@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from pathlib import Path
 
@@ -37,6 +38,17 @@ app = FastAPI(title="AI 行程规划 API", version="0.5.1")
 STATIC_DIR = Path(__file__).parent.parent / "static"
 from fastapi.staticfiles import StaticFiles
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+PLANS_DIR = DATA_DIR / "plans"
+FAV_FILE = DATA_DIR / "favorites.json"
+MEDIA_FILE = Path(__file__).parent / "spot_media.json"
+
+
+def _load_favorites() -> list[dict]:
+    if FAV_FILE.exists():
+        return json.loads(FAV_FILE.read_text(encoding="utf-8"))
+    return []
 
 
 @app.get("/health")
@@ -105,7 +117,82 @@ def index():
 
 @app.get("/demo/spots")
 def demo_spots() -> dict:
-    return {"city": "西安", "spots": [s.model_dump() for s in XI_AN_SPOTS]}
+    """演示景点，富化高德实景图与介绍（spot_media.json，预抓取零 Key 可用）。"""
+    media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
+    spots = []
+    for s in XI_AN_SPOTS:
+        d = s.model_dump()
+        m = media.get(s.name) or {}
+        d["image"] = m.get("image", "")
+        d["intro"] = m.get("intro", "")
+        spots.append(d)
+    return {"city": "西安", "spots": spots}
+
+
+# ---------- 用户页：历史规划 + 收藏 ----------
+
+@app.get("/plans")
+def list_plans() -> dict:
+    """历史规划列表（落盘持久化，重启不丢）。"""
+    plans = []
+    if PLANS_DIR.exists():
+        for f in sorted(PLANS_DIR.glob("*.json"),
+                        key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                d = json.loads(f.read_text(encoding="utf-8"))
+                r = d.get("result") or {}
+                plans.append({
+                    "task_id": d.get("task_id"),
+                    "created_at": d.get("created_at"),
+                    "city": r.get("city"),
+                    "total_cost": r.get("total_cost"),
+                    "spots_planned": (r.get("check_report") or {})
+                        .get("stats", {}).get("spots_planned"),
+                    "hotel": (r.get("hotel") or {}).get("name"),
+                })
+            except Exception:
+                continue
+    return {"plans": plans}
+
+
+def save_plan_snapshot(task) -> None:
+    """规划完成后落盘，供「我的-历史规划」随时回看。"""
+    try:
+        PLANS_DIR.mkdir(parents=True, exist_ok=True)
+        (PLANS_DIR / f"{task.id}.json").write_text(
+            json.dumps({"task_id": task.id, "created_at": task.created_at,
+                        "params": task.req_params, "result": task.result},
+                       ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass  # 持久化失败不影响主流程
+
+
+@app.get("/favorites")
+def get_favorites() -> dict:
+    return {"favorites": _load_favorites()}
+
+
+@app.post("/favorites")
+def mod_favorites(body: dict) -> dict:
+    action = body.get("action")
+    spot = body.get("spot") or {}
+    if not spot.get("name"):
+        raise HTTPException(400, "需要 spot.name")
+    favs = _load_favorites()
+    if action == "add":
+        if not any(f["name"] == spot["name"] for f in favs):
+            favs.insert(0, {"name": spot["name"], "lat": spot.get("lat"),
+                            "lon": spot.get("lon"), "image": spot.get("image", ""),
+                            "desc": spot.get("desc", ""), "intro": spot.get("intro", ""),
+                            "city": spot.get("city", "")})
+    elif action == "remove":
+        favs = [f for f in favs if f["name"] != spot["name"]]
+    else:
+        raise HTTPException(400, "action 需要 add 或 remove")
+    FAV_FILE.parent.mkdir(parents=True, exist_ok=True)
+    FAV_FILE.write_text(json.dumps(favs, ensure_ascii=False, indent=1),
+                        encoding="utf-8")
+    return {"favorites": favs}
 
 
 @app.get("/demo/config")
@@ -138,12 +225,18 @@ async def create_async_plan(req: PlanRequest) -> dict:
 
 @app.get("/task/{task_id}")
 def get_task(task_id: str) -> dict:
-    """轮询接口（WebSocket 不可用时的降级方案）。"""
+    """轮询接口；历史任务（内存已清）从磁盘快照兜底。"""
     from tasks import MANAGER
     task = MANAGER.get(task_id)
-    if task is None:
-        raise HTTPException(404, "任务不存在")
-    return task.snapshot()
+    if task is not None:
+        return task.snapshot()
+    f = PLANS_DIR / f"{task_id}.json"
+    if f.exists():
+        d = json.loads(f.read_text(encoding="utf-8"))
+        return {"task_id": task_id, "status": "completed",
+                "progress": [], "result": d.get("result"),
+                "error": None}
+    raise HTTPException(404, "任务不存在")
 
 
 @app.post("/plan/edit")
