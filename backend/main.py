@@ -187,6 +187,46 @@ def poi_detail(name: str) -> dict:
     return m
 
 
+@app.post("/hotel/search")
+def hotel_search(body: dict) -> dict:
+    """酒店搜索（携程式选择器用）：名称/区域均可。"""
+    from editor import poi_search, text_search
+    query = (body.get("query") or "").strip()
+    if not query:
+        raise HTTPException(400, "需要 query")
+    city = body.get("city", "西安")
+    cands = text_search(query, city) or poi_search(query, 34.26, 108.94, radius=10000)
+    return {"results": [{"name": c["name"], "lat": c["lat"], "lon": c["lon"],
+                         "intro": c.get("type_str", "").split(";")[0]}
+                        for c in cands[:8]]}
+
+
+@app.post("/hotel/set")
+async def hotel_set(body: dict) -> dict:
+    """界面选择酒店 → 设住宿锚点 → 异步重排（返回新 task_id）。"""
+    from tasks import MANAGER, run_set_hotel
+    base_task_id = body.get("task_id", "")
+    hotel = {"name": body.get("name"), "lat": body.get("lat"), "lon": body.get("lon")}
+    if not base_task_id or not hotel["name"]:
+        raise HTTPException(400, "需要 task_id 和酒店信息")
+    if MANAGER.get(base_task_id) is None or MANAGER.get(base_task_id).status != "completed":
+        raise HTTPException(404, "基准任务不存在或未完成")
+    task = MANAGER.create()
+    asyncio.create_task(run_set_hotel(task.id, base_task_id, hotel))
+    return {"task_id": task.id, "poll_url": f"/task/{task.id}"}
+
+
+@app.delete("/plans/{task_id}")
+def delete_plan(task_id: str) -> dict:
+    f = PLANS_DIR / f"{task_id}.json"
+    if not f.exists():
+        raise HTTPException(404, "该规划不存在")
+    f.unlink()
+    from tasks import MANAGER
+    MANAGER._tasks.pop(task_id, None)
+    return {"deleted": task_id}
+
+
 @app.get("/favorites")
 def get_favorites() -> dict:
     return {"favorites": _load_favorites()}

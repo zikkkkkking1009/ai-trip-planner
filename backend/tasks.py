@@ -35,6 +35,8 @@ class Task:
     # 编辑流水线需要：原始请求参数与景点列表（dict 形式，便于序列化）
     req_params: dict = field(default_factory=dict)
     request_spots: list[dict] = field(default_factory=list)
+    # 对话记忆：[{q, ops, reply}]——跨指令指代（"换到西安站"）靠它
+    chat_history: list[dict] = field(default_factory=list)
 
     def snapshot(self) -> dict:
         return {"task_id": self.id, "status": self.status,
@@ -142,8 +144,12 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         plan_summary = "\n".join(
             f"Day{d['day']}: " + "、".join(v["name"] for v in d["spots"])
             for d in base.result["days"])
+        hotel_now = (base.result.get("hotel") or {}).get("name")
+        if hotel_now:
+            plan_summary += f"\n当前住宿：{hotel_now}"
         def work_parse():
-            return editor.parse_instruction(instruction, plan_summary)
+            return editor.parse_instruction(instruction, plan_summary,
+                                            history=list(base.chat_history))
         parsed = await asyncio.to_thread(work_parse)
         ops, reply = parsed.get("ops", []), parsed.get("reply", "")
         # 调试可见性：把模型原始输出暴露到进度日志（排查「不聪明」问题的第一现场）
@@ -165,6 +171,8 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                            "changes": []}
             task.status = "completed"
             task.version += 1
+            task.chat_history = list(base.chat_history) + \
+                [{"q": instruction, "ops": [], "reply": reply}]
             return
         for op in ops:
             MANAGER.say(task, "理解", f"识别到操作: {json.dumps(op, ensure_ascii=False)}")
@@ -375,6 +383,65 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         }
         task.req_params = params
         task.request_spots = [s.model_dump() for s in new_spots]
+        task.status = "completed"
+        task.version += 1
+        task.chat_history = list(base.chat_history) + \
+            [{"q": instruction, "ops": ops, "reply": reply}]
+        from main import save_plan_snapshot
+        save_plan_snapshot(task)
+    except Exception as e:
+        task.status = "failed"
+        task.error = f"{type(e).__name__}: {e}"
+        task.version += 1
+
+
+async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
+    """界面选择酒店（不走 LLM）：设住宿锚点 → 全局重排 → 校验。"""
+    task = MANAGER.get(task_id)
+    base = MANAGER.get(base_task_id)
+    if task is None or base is None or base.result is None:
+        if task:
+            task.status = "failed"
+            task.error = "基准任务不存在或未完成"
+            task.version += 1
+        return
+    task.status = "running"
+    try:
+        params = dict(base.req_params)
+        params["hotel"] = {**hotel, "desc": "住宿锚点"}
+        MANAGER.say(task, "执行", f"住宿设为「{hotel['name']}」，重新规划…")
+        from models import Spot as SpotModel, Hotel
+        base_spots = [SpotModel(**s) for s in base.request_spots]
+        cm = CommuteMatrix()
+        new_req = PlanRequest(city=params.get("city", "西安"),
+                              days=params.get("days", 2),
+                              budget=params.get("budget"),
+                              daily_start_h=params.get("daily_start_h", 9.0),
+                              daily_end_h=params.get("daily_end_h", 18.0),
+                              spots=base_spots, hotel=Hotel(**params["hotel"]))
+        def work():
+            return Solver(new_req, cm.minutes).solve(
+                lambda st, info: MANAGER.say(task, st, info.get("msg", "")))
+        day_plans, unplanned, total_cost, total_score = await asyncio.to_thread(work)
+        report = check_plan(new_req, day_plans, total_cost)
+        report["stats"]["commute_api"] = cm.stats
+        report["stats"]["cache_hit_rate"] = round(cm.hit_rate(), 3)
+        MANAGER.say(task, "校验", "约束校验通过 ✅" if report["passed"]
+                    else f"发现违规：{'; '.join(report['violations'])}")
+        changes = [f"住宿设为「{hotel['name']}」"]
+        task.result = {
+            "city": new_req.city, "days": [d.model_dump() for d in day_plans],
+            "total_cost": total_cost, "total_score": total_score,
+            "unplanned": [u.model_dump() for u in unplanned],
+            "check_report": report,
+            "reply": f"住宿已设为「{hotel['name']}」",
+            "changes": changes, "hotel": params["hotel"],
+        }
+        task.req_params = params
+        task.request_spots = [s.model_dump() for s in base_spots]
+        task.chat_history = list(base.chat_history) + \
+            [{"q": f"（界面选择住宿：{hotel['name']}）", "ops": [],
+              "reply": f"住宿已设为「{hotel['name']}」"}]
         task.status = "completed"
         task.version += 1
         from main import save_plan_snapshot

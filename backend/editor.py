@@ -49,11 +49,13 @@ ops 支持五种操作：
 - 可以一次给多个 ops；无法理解时输出 {"ops":[],"reply":"没听懂，试试：把XX换成XX / 住未央区的酒店"}"""
 
 
-def parse_instruction(instruction: str, plan_summary: str) -> dict:
+def parse_instruction(instruction: str, plan_summary: str,
+                      history: list[dict] | None = None) -> dict:
     """调 LLM 把自然语言指令解析成结构化操作。需要 LLM_API_KEY。
 
-    返回 {"ops": [...], "reply": "...", "_raw": 模型原始输出(截断)}，
-    _raw 用于调试「模型到底返回了什么」。
+    history：之前几轮对话 [{q, ops, reply}]——支撑「换到西安站」这类
+    指代之前内容的多轮指令。
+    返回 {"ops": [...], "reply": "...", "_raw": 模型原始输出(截断)}。
     """
     from extractor import _tolerant_json_parse
     from openai import OpenAI
@@ -62,13 +64,20 @@ def parse_instruction(instruction: str, plan_summary: str) -> dict:
     base_url = os.environ.get("LLM_BASE_URL")
     if not api_key or not base_url:
         raise RuntimeError("未配置 LLM_API_KEY，无法解析编辑指令")
+    hist_txt = ""
+    for h in (history or [])[-6:]:
+        hist_txt += (f"用户：{h.get('q', '')}\n"
+                     f"助手：{h.get('reply', '')}"
+                     f"（操作：{json.dumps(h.get('ops', []), ensure_ascii=False)}）\n")
+    user_content = (f"当前行程：\n{plan_summary}\n\n"
+                    + (f"之前的对话记录：\n{hist_txt}\n" if hist_txt else "")
+                    + f"用户指令：{instruction}")
     client = OpenAI(api_key=api_key, base_url=base_url)
     resp = client.chat.completions.create(
         model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
         messages=[
             {"role": "system", "content": _SYSTEM},
-            {"role": "user", "content":
-                f"当前行程：\n{plan_summary}\n\n用户指令：{instruction}"},
+            {"role": "user", "content": user_content},
         ],
         temperature=0.1,
     )

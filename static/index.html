@@ -173,6 +173,12 @@
       </div>
       <input type="hidden" id="startDate">
       <input type="hidden" id="endDate">
+      <div class="field datefield" onclick="openHotelPicker()">
+        <label>住宿酒店</label>
+        <div class="datebox">
+          <b id="hotelText">未设置（点此搜索选择）</b><span>🏨</span>
+        </div>
+      </div>
       <div class="grid3">
         <div class="field"><label>每天出发</label><input id="start" type="time" value="09:00"></div>
         <div class="field"><label>每天返回</label><input id="end" type="time" value="18:00"></div>
@@ -399,6 +405,7 @@ function render() {
     (plan.hotel ? `<span class="chip">🏨 ${plan.hotel.name}</span>` : '') +
     `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
     `<span class="chip">🛰 API ${c.stats.commute_api.api_calls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
+  $('hotelText').textContent = plan.hotel ? plan.hotel.name : '未设置（点此搜索选择）';
   $('daytabs').style.display = 'flex';
   $('viewSeg').style.display = 'flex';
   $('daytabs').innerHTML = `<div class="tab" data-day="0">总览</div>`
@@ -540,7 +547,7 @@ function loadPlans() {
     el.innerHTML = d.plans.map(p => {
       const dt = new Date((p.created_at || 0) * 1000);
       const when = `${dt.getMonth()+1}.${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
-      return `<div class="ucard" onclick="openPlan('${p.task_id}')">
+      return `<div class="ucard" onclick="openPlanModal('${p.task_id}')">
         <div class="info"><div class="t">${p.city || '行程'} · ${p.spots_planned || '?'} 个景点</div>
         <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + p.hotel : ''}</div></div>
         <div style="color:#98a2b3">›</div></div>`;
@@ -548,12 +555,115 @@ function loadPlans() {
   });
 }
 
+// 历史规划：弹窗预览，不直接覆盖当前行程；载入/删除均二次确认
+function openPlanModal(taskId) {
+  fetch(`/task/${taskId}`).then(r => r.json()).then(d => {
+    if (d.status !== 'completed' || !d.result || !d.result.days) {
+      alert('这条规划的数据已不可用'); loadPlans(); return;
+    }
+    const r0 = d.result;
+    const daysHtml = r0.days.map((dd, i) => dd.spots.length
+      ? `<div style="font-size:13px;margin-top:8px"><b>Day${i+1}</b>（通勤 ${dd.commute_min} 分钟）：${dd.spots.map(v=>v.name).join(' → ')}</div>`
+      : '').join('');
+    const ov = document.createElement('div');
+    ov.className = 'cal-overlay'; ov.id = 'planModal';
+    ov.innerHTML = `<div class="cal-sheet">
+      <div class="cal-head"><b>${r0.city || '行程'}规划预览</b>
+        <button onclick="this.closest('.cal-overlay').remove()" style="background:#f0f2f5;border:none;
+          border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
+      <div style="padding:0 16px 10px;overflow-y:auto;flex:1">
+        <div style="color:#667085;font-size:13px">门票 ¥${r0.total_cost}
+          · ${r0.check_report.stats.spots_planned} 个景点
+          ${r0.hotel ? ' · 🏨 ' + r0.hotel.name : ''}</div>
+        ${daysHtml}
+        ${r0.unplanned && r0.unplanned.length ? `<div style="color:#98a2b3;font-size:12px;margin-top:8px">未安排：${r0.unplanned.map(u=>u.name).join('、')}</div>` : ''}
+      </div>
+      <div class="cal-foot" style="display:flex;gap:8px">
+        <button style="flex:1;background:var(--acc);color:#fff;border:none;border-radius:10px;
+          padding:12px;font-size:14px;font-weight:700;cursor:pointer" id="pmLoad">载入为当前行程</button>
+        <button style="flex:0 0 110px;background:#fff;color:#e03131;border:1px solid #e03131;
+          border-radius:10px;font-size:14px;cursor:pointer" id="pmDel">删除此规划</button>
+      </div></div>`;
+    ov.onclick = e => { if (e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+    ov.querySelector('#pmLoad').onclick = () => {
+      if (plan && lastTaskId && lastTaskId !== taskId
+          && !confirm('载入会替换规划页当前的行程，继续？')) return;
+      ov.remove();
+      openPlan(taskId);
+    };
+    ov.querySelector('#pmDel').onclick = () => {
+      if (!confirm('确定删除这条历史规划？删除后不可恢复')) return;
+      fetch(`/plans/${taskId}`, {method: 'DELETE'})
+        .then(() => { ov.remove(); loadPlans();
+          if (lastTaskId === taskId) lastTaskId = null; });
+    };
+  });
+}
+
+// 载入历史行程到规划页（弹窗「载入为当前行程」调用）
 function openPlan(taskId) {
   fetch(`/task/${taskId}`).then(r => r.json()).then(d => {
     if (d.status !== 'completed' || !d.result || !d.result.days) return;
     plan = d.result; lastTaskId = taskId; currentDay = 0;
     render(); switchPage('plan');
   });
+}
+
+// ---- 酒店搜索选择器（携程式：搜 → 选 → 设为住宿锚点）----
+function openHotelPicker() {
+  if (!lastTaskId) { log('提示', '先规划一次行程，再选酒店'); return; }
+  const ov = document.createElement('div');
+  ov.className = 'cal-overlay'; ov.id = 'hotelModal';
+  ov.innerHTML = `<div class="cal-sheet" style="height:70vh">
+    <div class="cal-head"><b>选择住宿酒店</b>
+      <button onclick="this.closest('.cal-overlay').remove()" style="background:#f0f2f5;border:none;
+        border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
+    <div style="display:flex;gap:8px;padding:0 16px 10px">
+      <input id="hotelQ" placeholder="酒店名 / 区域，如：未央区、钟楼">
+      <button id="hotelSearchBtn" style="background:var(--acc);color:#fff;border:none;
+        border-radius:9px;padding:8px 18px;cursor:pointer;font-weight:600">搜索</button></div>
+    <div id="hotelResults" style="overflow-y:auto;flex:1;padding:0 16px 12px">
+      <div class="uempty">输入关键词搜索高德酒店</div></div>
+  </div>`;
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+  const doSearch = () => {
+    const q = $('hotelQ').value.trim(); if (!q) return;
+    $('hotelResults').innerHTML = '<div class="uempty">搜索中…</div>';
+    fetch('/hotel/search', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({query: q, city: '西安'})})
+      .then(r => r.json()).then(d => {
+        if (!d.results.length) { $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>'; return; }
+        $('hotelResults').innerHTML = d.results.map(h =>
+          `<div class="ucard" onclick="pickHotel('${h.name.replace(/'/g,"\\'")}',${h.lat},${h.lon})">
+            <div class="info"><div class="t">${h.name}</div>
+            <div class="s">${h.intro || ''}</div></div>
+            <div style="color:var(--acc);font-size:13px;font-weight:700">选择</div></div>`).join('');
+      });
+  };
+  $('hotelSearchBtn').onclick = doSearch;
+  $('hotelQ').onkeydown = e => { if (e.key === 'Enter') doSearch(); };
+}
+
+function pickHotel(name, lat, lon) {
+  $('hotelResults').innerHTML = '<div class="uempty">正在设为住宿并重新规划…</div>';
+  fetch('/hotel/set', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({task_id: lastTaskId, name, lat, lon})})
+    .then(async r => {
+      const d = await r.json();
+      if (!r.ok) { log('错误', d.detail || '设置失败'); $('hotelResults').innerHTML = '<div class="uempty">设置失败</div>'; return; }
+      const timer = setInterval(() => {
+        fetch(d.poll_url).then(r => r.json()).then(s => {
+          if (s.status === 'completed') {
+            clearInterval(timer);
+            plan = s.result; lastTaskId = d.task_id;
+            $('hotelModal').remove(); render();
+          }
+          if (s.status === 'failed') { clearInterval(timer); log('失败', s.error); }
+        });
+      }, 600);
+    });
 }
 
 // ---- 页面切换 ----
@@ -624,7 +734,11 @@ function renderMap() {
       iconSize:null});
     L.marker(mid, {icon: pill}).addTo(layers[i]);
   });
-  if (all.length) map.fitBounds(all, {padding:[30,30]});
+  // 容器尺寸就绪后再 fitBounds，保证打开地图第一眼是完整路线
+  setTimeout(() => {
+    map.invalidateSize();
+    if (all.length) map.fitBounds(all, {padding:[30,30]});
+  }, 60);
 }
 
 function haversineKm(d) {
