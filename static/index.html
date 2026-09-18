@@ -771,52 +771,70 @@ function resetPlanView() {
     $('mapEmpty').style.display = 'block'; $('legend').innerHTML = ''; }
 }
 
-// ---- 酒店搜索选择器（缩略图 + 点名称看位置，地图同时标出行程景点）----
-let hotelMiniMap = null;
+// ---- 酒店搜索选择器（缩略图 + 点名称就地展开位置小地图，同时只开一个）----
+let hotelMaps = {}, openMiniIdx = null;
 function closeHotelPicker() {
-  if (hotelMiniMap) { hotelMiniMap.remove(); hotelMiniMap = null; }
+  Object.values(hotelMaps).forEach(m => m.remove());
+  hotelMaps = {}; openMiniIdx = null;
   const ov = $('hotelModal'); if (ov) ov.remove();
 }
-function previewHotel(lat, lon, name) {
-  $('hotelPreviewName').textContent = name;
-  $('hotelPreview').style.display = 'block';
-  if (hotelMiniMap) { hotelMiniMap.remove(); hotelMiniMap = null; }
-  hotelMiniMap = L.map('hotelMiniMap', {attributionControl: false, zoomControl: true});
-  L.tileLayer(tileCfg.tile_url, {subdomains: tileCfg.subdomains, maxZoom: 18}).addTo(hotelMiniMap);
+function toggleHotelMap(i, lat, lon, name) {
+  // 同时只展开一个：先收起其他（并销毁实例，避免容器隐藏后尺寸错乱）
+  Object.keys(hotelMaps).forEach(k => {
+    if (Number(k) !== i) {
+      hotelMaps[k].remove(); delete hotelMaps[k];
+      const el = $('hmap-' + k); if (el) el.style.display = 'none';
+    }
+  });
+  const box = $('hmap-' + i);
+  if (openMiniIdx === i) {   // 再点一次收起
+    if (hotelMaps[i]) { hotelMaps[i].remove(); delete hotelMaps[i]; }
+    box.style.display = 'none'; openMiniIdx = null;
+    return;
+  }
+  box.style.display = 'block';
+  openMiniIdx = i;
+  if (hotelMaps[i]) hotelMaps[i].remove();
+  const m = L.map('hmap-' + i, {attributionControl: false});
+  hotelMaps[i] = m;
+  L.tileLayer(tileCfg.tile_url, {subdomains: tileCfg.subdomains, maxZoom: 18}).addTo(m);
   const pts = [[lat, lon]];
-  L.circleMarker([lat, lon], {radius: 8, color: '#fff', weight: 2,
-    fillColor: '#e8590c', fillOpacity: 1}).bindPopup(`🏨 ${name}`).addTo(hotelMiniMap).openPopup();
-  // 当前行程的景点一起标出来，一眼看出住这里方不方便
-  if (plan) plan.days.forEach((d, i) => d.spots.forEach(v => {
+  // 酒店：橙点 + 小标注「酒店」
+  L.marker([lat, lon], {icon: L.divIcon({className: '', iconSize: [0, 0], html:
+    `<div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%)">
+       <div style="width:14px;height:14px;border-radius:50%;background:#e8590c;border:2px solid #fff;
+         box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>
+       <div style="background:#e8590c;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;
+         white-space:nowrap;margin-top:2px;box-shadow:0 1px 3px rgba(0,0,0,.25)">酒店</div>
+     </div>`})}).addTo(m).bindPopup(`🏨 ${name}`);
+  // 当前行程景点一起标出，判断住宿顺不顺手
+  if (plan) plan.days.forEach((d, di) => d.spots.forEach(v => {
     const s = spots.find(s => s.name === v.name);
     if (!s) return;
     const ll = tileCfg.gcj ? [s.lat, s.lon] : gcj2wgs(s.lat, s.lon);
     pts.push(ll);
     L.circleMarker(ll, {radius: 5, color: '#fff', weight: 1.5,
-      fillColor: DAY_COLORS[i % DAY_COLORS.length], fillOpacity: .9})
-      .bindPopup(`Day${i + 1} ${v.name}`).addTo(hotelMiniMap);
+      fillColor: DAY_COLORS[di % DAY_COLORS.length], fillOpacity: .9})
+      .bindPopup(`Day${di + 1} ${v.name}`).addTo(m);
   }));
-  setTimeout(() => { hotelMiniMap.invalidateSize();
-    hotelMiniMap.fitBounds(pts, {padding: [24, 24]}); }, 80);
+  setTimeout(() => { m.invalidateSize(); m.fitBounds(pts, {padding: [26, 26]}); }, 80);
 }
 
 function openHotelPicker() {
   if (!lastTaskId) { log('提示', '先规划一次行程，再选酒店'); return; }
+  hotelMaps = {}; openMiniIdx = null;
   const ov = document.createElement('div');
   ov.className = 'cal-overlay'; ov.id = 'hotelModal';
-  ov.innerHTML = `<div class="cal-sheet" style="height:76vh">
+  ov.innerHTML = `<div class="cal-sheet" style="height:78vh">
     <div class="cal-head"><b>选择住宿酒店</b>
       <button onclick="closeHotelPicker()" style="background:#f0f2f5;border:none;
         border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
-    <div style="display:flex;gap:8px;padding:0 16px 10px">
+    <div style="display:flex;gap:8px;padding:0 16px 6px">
       <input id="hotelQ" placeholder="酒店名 / 区域，如：未央区、钟楼">
       <button id="hotelSearchBtn" style="background:var(--acc);color:#fff;border:none;
         border-radius:9px;padding:8px 18px;cursor:pointer;font-weight:600">搜索</button></div>
-    <div id="hotelPreview" style="display:none;padding:0 16px 10px">
-      <div style="font-size:12px;color:#667085;margin-bottom:6px">
-        📍 <span id="hotelPreviewName"></span>
-        <span style="color:#98a2b3">（橙点=酒店，彩点=当前行程景点）</span></div>
-      <div id="hotelMiniMap" style="height:190px;border-radius:12px;overflow:hidden"></div></div>
+    <div style="padding:0 16px 8px;font-size:11.5px;color:#98a2b3">
+      点酒店名就地看位置（橙点=酒店，彩点=当前行程景点）</div>
     <div id="hotelResults" style="overflow-y:auto;flex:1;padding:0 16px 12px">
       <div class="uempty">输入关键词搜索高德酒店</div></div>
   </div>`;
@@ -824,26 +842,30 @@ function openHotelPicker() {
   document.body.appendChild(ov);
   const doSearch = () => {
     const q = $('hotelQ').value.trim(); if (!q) return;
-    $('hotelPreview').style.display = 'none';
+    Object.values(hotelMaps).forEach(m => m.remove());
+    hotelMaps = {}; openMiniIdx = null;
     $('hotelResults').innerHTML = '<div class="uempty">搜索中…</div>';
     fetch('/hotel/search', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({query: q, city: '西安'})})
       .then(r => r.json()).then(d => {
         if (!d.results.length) { $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>'; return; }
-        $('hotelResults').innerHTML = d.results.map(h => {
+        $('hotelResults').innerHTML = d.results.map((h, i) => {
           const esc = h.name.replace(/'/g, "\\'");
           const img = h.image
             ? `<img src="${h.image}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;flex-shrink:0" loading="lazy" onerror="this.style.display='none'">`
             : `<div style="width:56px;height:56px;border-radius:9px;background:#eef1f5;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏨</div>`;
-          return `<div class="ucard" style="align-items:flex-start">
-            ${img}
-            <div class="info" onclick="previewHotel(${h.lat},${h.lon},'${esc}')">
-              <div class="t" style="cursor:pointer">${h.name}
-                <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
-              <div class="s">${h.intro || ''}</div></div>
-            <button onclick="pickHotel('${esc}',${h.lat},${h.lon})" style="background:var(--acc);
-              color:#fff;border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
-              font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>`;
+          return `<div style="border-top:1px dashed #eef1f5;padding:10px 0">
+            <div style="display:flex;gap:12px;align-items:center">
+              ${img}
+              <div class="info" style="flex:1;min-width:0" onclick="toggleHotelMap(${i},${h.lat},${h.lon},'${esc}')">
+                <div class="t" style="cursor:pointer">${h.name}
+                  <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
+                <div class="s">${h.intro || ''}</div></div>
+              <button onclick="pickHotel('${esc}',${h.lat},${h.lon})" style="background:var(--acc);
+                color:#fff;border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
+                font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>
+            <div id="hmap-${i}" style="display:none;margin-top:8px;height:180px;border-radius:12px;overflow:hidden"></div>
+          </div>`;
         }).join('');
       });
   };
