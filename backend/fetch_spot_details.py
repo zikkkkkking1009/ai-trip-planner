@@ -33,7 +33,7 @@ def amap_get(path: str, **params) -> dict:
 
 
 def fetch(name: str, city: str = "西安") -> dict:
-    out = {"image": "", "intro": ""}
+    out = {"image": "", "intro": "", "photos": [], "opentime": "", "address": ""}
     try:
         text = amap_get("v3/place/text", keywords=name, city=city,
                         citylimit="true", offset=1, page=1)
@@ -41,17 +41,17 @@ def fetch(name: str, city: str = "西安") -> dict:
         if not pois:
             return out
         poi = pois[0]
-        photos = poi.get("photos") or []
-        if photos and photos[0].get("url"):
-            out["image"] = photos[0]["url"]
-        # 深度信息（评分/人均/类型）
+        photos = [ph["url"] for ph in (poi.get("photos") or []) if ph.get("url")]
+        # 深度信息（评分/人均/类型/营业时间/地址）
         detail = amap_get("v3/place/detail", id=poi["id"])
         dp = (detail.get("pois") or [{}])[0]
-        if not out["image"]:
-            for ph in dp.get("photos") or []:
-                if ph.get("url"):
-                    out["image"] = ph["url"]
-                    break
+        photos += [ph["url"] for ph in (dp.get("photos") or []) if ph.get("url")]
+        photos = list(dict.fromkeys(photos))[:4]
+        out["photos"] = photos
+        if photos:
+            out["image"] = photos[0]
+        out["opentime"] = str(dp.get("opentime") or dp.get("opentime2") or "")
+        out["address"] = str(dp.get("address") or "")
         bits = []
         if dp.get("type"):
             bits.append(dp["type"].split(";")[0])

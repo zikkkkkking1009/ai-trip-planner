@@ -167,6 +167,16 @@ def save_plan_snapshot(task) -> None:
         pass  # 持久化失败不影响主流程
 
 
+@app.get("/poi/detail")
+def poi_detail(name: str) -> dict:
+    """景点媒体详情：图片组/介绍/营业时间/地址（spot_media.json）。"""
+    media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
+    m = media.get(name)
+    if not m:
+        raise HTTPException(404, "未收录该景点的媒体数据")
+    return m
+
+
 @app.get("/favorites")
 def get_favorites() -> dict:
     return {"favorites": _load_favorites()}
