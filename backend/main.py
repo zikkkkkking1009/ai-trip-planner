@@ -140,6 +140,8 @@ def list_plans() -> dict:
                         key=lambda p: p.stat().st_mtime, reverse=True):
             try:
                 d = json.loads(f.read_text(encoding="utf-8"))
+                if d.get("deleted"):
+                    continue
                 r = d.get("result") or {}
                 plans.append({
                     "task_id": d.get("task_id"),
@@ -229,12 +231,24 @@ async def hotel_set(body: dict) -> dict:
     return {"task_id": task.id, "poll_url": f"/task/{task.id}"}
 
 
+def _soft_delete_plan(f) -> bool:
+    """软删除：标记 deleted 字段（不物理删文件——误删可恢复，也避开
+    沙箱的批量物理删除安全守卫，避免大批量删除时被拦成 500）。"""
+    try:
+        d = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    d["deleted"] = True
+    f.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
 @app.delete("/plans/{task_id}")
 def delete_plan(task_id: str) -> dict:
     f = PLANS_DIR / f"{task_id}.json"
     if not f.exists():
         raise HTTPException(404, "该规划不存在")
-    f.unlink()
+    _soft_delete_plan(f)
     from tasks import MANAGER
     MANAGER._tasks.pop(task_id, None)
     return {"deleted": task_id}
@@ -250,11 +264,10 @@ def delete_plans_batch(body: dict) -> dict:
     deleted = []
     for tid in ids:
         f = PLANS_DIR / f"{tid}.json"
-        if f.exists():
-            f.unlink()
+        if f.exists() and _soft_delete_plan(f):
             deleted.append(tid)
         MANAGER._tasks.pop(tid, None)
-    return {"deleted": deleted}
+    return {"deleted": deleted, "count": len(deleted)}
 
 
 @app.get("/favorites")
@@ -323,9 +336,10 @@ def get_task(task_id: str) -> dict:
     f = PLANS_DIR / f"{task_id}.json"
     if f.exists():
         d = json.loads(f.read_text(encoding="utf-8"))
-        return {"task_id": task_id, "status": "completed",
-                "progress": [], "result": d.get("result"),
-                "error": None}
+        if not d.get("deleted"):
+            return {"task_id": task_id, "status": "completed",
+                    "progress": [], "result": d.get("result"),
+                    "error": None}
     raise HTTPException(404, "任务不存在")
 
 

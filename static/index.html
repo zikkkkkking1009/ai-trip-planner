@@ -228,9 +228,17 @@
         <button id="manageBtn" onclick="toggleManage()" style="display:none;background:none;
           border:none;color:var(--acc);font-size:13px;cursor:pointer;font-weight:600">管理</button></h2>
       <div id="plansList"><div class="uempty">加载中…</div></div>
-      <button id="delSelBtn" onclick="deleteSelectedPlans()" style="display:none;width:100%;
-        margin-top:10px;background:#fff;color:#e03131;border:1px solid #e03131;border-radius:10px;
-        padding:10px;cursor:pointer;font-size:14px;font-weight:600"></button>
+      <div id="planBtns" style="display:none;margin-top:10px;display:none;gap:8px">
+        <button id="selAllBtn" onclick="toggleSelectAll()" style="flex:1;background:#f4f6fa;
+          color:#1d2939;border:none;border-radius:10px;padding:10px;cursor:pointer;
+          font-size:13.5px;font-weight:600">全选</button>
+        <button id="delSelBtn" onclick="deleteSelectedPlans()" style="flex:1.4;background:#fff;
+          color:#e03131;border:1px solid #e03131;border-radius:10px;padding:10px;cursor:pointer;
+          font-size:13.5px;font-weight:600">删除所选</button>
+        <button id="clearAllBtn" onclick="deleteAllPlans()" style="flex:1;background:#e03131;
+          color:#fff;border:none;border-radius:10px;padding:10px;cursor:pointer;
+          font-size:13.5px;font-weight:600">清空全部</button>
+      </div>
     </div>
     <div class="usection">
       <h2>⭐ 收藏的景点</h2>
@@ -652,15 +660,17 @@ function loadPlans() {
 }
 
 function renderPlans() {
-  const el = $('plansList'), mb = $('manageBtn'), db = $('delSelBtn');
+  const el = $('plansList'), mb = $('manageBtn'), box = $('planBtns');
   if (!plansCache.length) {
-    mb.style.display = 'none'; db.style.display = 'none';
+    mb.style.display = 'none'; box.style.display = 'none';
     el.innerHTML = '<div class="uempty">还没有历史规划</div>'; return;
   }
   mb.style.display = 'inline-block';
   mb.textContent = manageMode ? '完成' : '管理';
-  db.style.display = (manageMode && selectedPlans.size) ? 'block' : 'none';
-  db.textContent = `删除所选(${selectedPlans.size})`;
+  box.style.display = manageMode ? 'flex' : 'none';
+  $('selAllBtn').textContent = (selectedPlans.size === plansCache.length) ? '取消全选' : '全选';
+  $('delSelBtn').textContent = selectedPlans.size ? `删除所选(${selectedPlans.size})` : '删除所选';
+  $('delSelBtn').style.opacity = selectedPlans.size ? 1 : .5;
   el.innerHTML = plansCache.map(p => {
     const dt = new Date((p.created_at || 0) * 1000);
     const when = `${dt.getMonth()+1}.${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
@@ -678,6 +688,26 @@ function renderPlans() {
   }).join('');
 }
 
+function toggleSelectAll() {
+  if (selectedPlans.size === plansCache.length) selectedPlans.clear();
+  else plansCache.forEach(p => selectedPlans.add(p.task_id));
+  renderPlans();
+}
+
+function deleteAllPlans() {
+  const n = plansCache.length;
+  if (!n) return;
+  if (!confirm(`确定清空全部 ${n} 条历史规划？`)) return;
+  const ids = plansCache.map(p => p.task_id);
+  if (ids.includes(lastTaskId)) window.__willClearCurrent = true;
+  fetch('/plans/delete', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({task_ids: ids})})
+    .then(() => {
+      if (window.__willClearCurrent) { window.__willClearCurrent = false; resetPlanView(); }
+      selectedPlans.clear(); manageMode = false; loadPlans();
+    });
+}
+
 function toggleManage() {
   manageMode = !manageMode;
   selectedPlans.clear();
@@ -690,12 +720,13 @@ function togglePlanSel(id) {
 }
 
 function deleteSelectedPlans() {
-  if (!selectedPlans.size) return;
-  if (!confirm(`确定删除选中的 ${selectedPlans.size} 条规划？不可恢复`)) return;
+  if (!selectedPlans.size) { alert('先点选要删除的规划（可点「全选」）'); return; }
+  if (!confirm(`确定删除选中的 ${selectedPlans.size} 条规划？`)) return;
+  const willClearCurrent = selectedPlans.has(lastTaskId);
   fetch('/plans/delete', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({task_ids: [...selectedPlans]})})
     .then(() => {
-      if (selectedPlans.has(lastTaskId)) resetPlanView();
+      if (willClearCurrent) resetPlanView();
       selectedPlans.clear(); manageMode = false; loadPlans();
     });
 }
@@ -765,6 +796,7 @@ function resetPlanView() {
   $('chatbar').style.display = 'none';
   $('chips').innerHTML = '<span class="chip">🎒 高德真实通勤</span>' +
     '<span class="chip">🧭 三级缓存</span><span class="chip">✅ 约束校验</span>';
+  $('hotelText').textContent = '未设置（点此搜索选择）';  // 住宿字段一起清空
   $('log').textContent = '';
   $('view').innerHTML = '<div class="uempty">行程已删除 —— 点「开始规划」生成新的行程</div>';
   if (map) { Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
