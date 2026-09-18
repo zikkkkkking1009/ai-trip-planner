@@ -9,20 +9,8 @@
     ],
     "opentime": "",
     "address": "秦陵北路",
-    "reviews": {
-      "good": [
-        "震撼: 一号坑千军万马扑面而来，两千年前的气势直接把你镇住",
-        "细节: 跪射俑的鞋底针脚、将军俑的铠甲纹路都清晰可见，像穿越了",
-        "铜车马: 展厅里的青铜之冠，工艺精细到让人怀疑是不是现代仿品"
-      ],
-      "bad": [
-        "人海: 一号坑前排全是后脑勺，想拍张单人照得靠见缝插针",
-        "暴晒: 从停车场到检票口一路无遮无挡，夏天走一趟能晒脱皮",
-        "交通: 秦陵北路堵起来没脾气，回程公交挤到怀疑人生，建议赶早"
-      ],
-      "intro_long": "秦始皇兵马俑博物馆位于西安临潼区秦陵北路，是秦始皇陵的陪葬坑，也是世界第八大奇迹。目前开放三个俑坑，一号坑最大，数千陶俑陶马按军阵排列，气势磅礴；二号坑是精华，跪射俑、将军俑姿态各异；三号坑为指挥部。还有铜车马展厅，两乘彩绘铜车马工艺绝伦。评分4.8，但旺季人山人海，建议早上开门就冲一号坑，下午再看铜车马，避开暴晒和高峰。"
-    },
-    "reviews_ai": true
+    "lat": 34.386214,
+    "lon": 109.28196
   },
   "陕西历史博物馆": {
     "image": "http://store.is.autonavi.com/showpic/62a12f5596a19455be8bddea89f87bb3",
@@ -33,7 +21,9 @@
       "http://store.is.autonavi.com/showpic/f2bb35105a79341302aaa0a329b29c25"
     ],
     "opentime": "",
-    "address": "小寨东路91号"
+    "address": "小寨东路91号",
+    "lat": 34.224199,
+    "lon": 108.955044
   },
   "西安城墙": {
     "image": "http://store.is.autonavi.com/showpic/f858d7753932ea21d02a7990a5bec413",
@@ -44,7 +34,9 @@
       "http://store.is.autonavi.com/showpic/68757b6cc3e1ab435e83e35150572c94"
     ],
     "opentime": "",
-    "address": "南大街2号"
+    "address": "南大街2号",
+    "lat": 34.2759,
+    "lon": 108.948183
   },
   "大雁塔": {
     "image": "http://store.is.autonavi.com/showpic/00f713e61c99c4956ab27df73afdde71",
@@ -55,7 +47,9 @@
       "http://store.is.autonavi.com/showpic/63a9a15aab2376a24fb3179326d28a55"
     ],
     "opentime": "",
-    "address": "慈恩路1号大慈恩寺内"
+    "address": "慈恩路1号大慈恩寺内",
+    "lat": 34.218229,
+    "lon": 108.964176
   },
   "回民街": {
     "image": "http://store.is.autonavi.com/showpic/d26415f3cec64b43dec8326299534486",
@@ -66,7 +60,9 @@
       "https://store.is.autonavi.com/showpic/9996841297cddff50000003158768812?type=pic"
     ],
     "opentime": "",
-    "address": "北院门125号1-51(钟楼地铁站出入口步行430米)"
+    "address": "北院门125号1-51(钟楼地铁站出入口步行430米)",
+    "lat": 34.264587,
+    "lon": 108.936378
   },
   "华清宫": {
     "image": "http://store.is.autonavi.com/showpic/c1efff5e304ae265cded3a64ac6a4dc5",
@@ -77,7 +73,9 @@
       "http://store.is.autonavi.com/showpic/f1fa58217ba4bdad38ab04959c49d7f5"
     ],
     "opentime": "",
-    "address": "华清路38号"
+    "address": "华清路38号",
+    "lat": 34.356728,
+    "lon": 109.215759
   },
   "钟楼": {
     "image": "http://store.is.autonavi.com/showpic/5d751d269b840f620b9f2deb768698a8",
@@ -88,7 +86,9 @@
       "http://store.is.autonavi.com/showpic/ac2ed4de49dc97fe83bf7b5cd008a38b"
     ],
     "opentime": "",
-    "address": "西安地铁2号线钟楼站C出口正对面"
+    "address": "西安地铁2号线钟楼站C出口正对面",
+    "lat": 34.25943,
+    "lon": 108.94703
   },
   "大唐不夜城": {
     "image": "http://store.is.autonavi.com/showpic/f90b753858943d71771aec94e12fa93c",
@@ -100,20 +100,8 @@
     ],
     "opentime": "",
     "address": "雁塔南路428号",
-    "reviews": {
-      "good": [
-        "夜景: 华灯初上时整条街金碧辉煌，仿唐建筑配上灯光秀，真像穿越回盛唐",
-        "演出: 不倒翁小姐姐和盛唐密盒互动感超强，免费看还能上台参与，氛围拉满",
-        "文化: 沿途雕塑和诗歌灯牌细节考究，边走边读李白杜甫，遛弯也能涨知识"
-      ],
-      "bad": [
-        "人流: 晚上八点后几乎被人流推着走，带小孩或老人千万牵好，容易走散",
-        "交通: 雁塔南路地铁站排队进站要半小时，打车也堵得一动不动，建议骑共享单车到外围",
-        "消费: 街边小吃比外面贵一倍，味道一般，想吃饱不如去旁边大悦城"
-      ],
-      "intro_long": "大唐不夜城步行街位于大雁塔脚下，雁塔南路428号，是一条以盛唐文化为主题的免费开放式街区。整条街仿唐建筑群绵延1.5公里，白天看着庄重古朴，一到晚上灯光全开，金顶红柱配上诗词灯牌，瞬间梦回长安。这里最出名的是各种街头表演，不倒翁小姐姐、盛唐密盒、石头人等等，全部免费围观还能互动。沿途还有开元广场、贞观纪念碑等雕塑群，边走边看能逛两三个小时。不过人气实在太旺，尤其节假日晚上人山人海，建议错峰下午来先逛大雁塔，傍晚吃点东西再进街看夜景，体验会好很多。"
-    },
-    "reviews_ai": true
+    "lat": 34.213866,
+    "lon": 108.964046
   },
   "小雁塔": {
     "image": "http://store.is.autonavi.com/showpic/cf0b424e61f5ab9a7c40c4dd0a410758",
@@ -124,7 +112,9 @@
       "http://store.is.autonavi.com/showpic/070c97f55be9f9829a77638a3c526785"
     ],
     "opentime": "",
-    "address": "友谊西路74号"
+    "address": "友谊西路74号",
+    "lat": 34.239195,
+    "lon": 108.942011
   },
   "碑林博物馆": {
     "image": "http://store.is.autonavi.com/showpic/31b765e59af511398d4be0efcecd1598",
@@ -135,7 +125,9 @@
       "http://store.is.autonavi.com/showpic/be25df6f462800762bb42ca1a897eb59"
     ],
     "opentime": "",
-    "address": "三学街15号"
+    "address": "三学街15号",
+    "lat": 34.254497,
+    "lon": 108.95286
   },
   "大明宫国家遗址公园": {
     "image": "http://store.is.autonavi.com/showpic/b8e2ab87ada50a64f4697ca58c527097",
@@ -146,7 +138,9 @@
       "http://store.is.autonavi.com/showpic/d39d883b57deb9595d36d7f9ccd0e2b8"
     ],
     "opentime": "",
-    "address": "自强东路585号"
+    "address": "自强东路585号",
+    "lat": 34.292586,
+    "lon": 108.96353
   },
   "永兴坊": {
     "image": "http://store.is.autonavi.com/showpic/d3dd18fa5fb617d02cf7f1aabae80b78",
@@ -157,7 +151,9 @@
       "http://store.is.autonavi.com/showpic/4a345c9ba6888493b79f8be4b52ad0e4"
     ],
     "opentime": "",
-    "address": "永兴坊关中巷1-5号"
+    "address": "永兴坊关中巷1-5号",
+    "lat": 34.2649,
+    "lon": 108.970162
   },
   "西安博物院": {
     "image": "http://store.is.autonavi.com/showpic/79db7fd7451da35ee939cb797c8f22e9",
@@ -168,7 +164,9 @@
       "http://store.is.autonavi.com/showpic/9202d90c717b42509292a1431cdf82fe"
     ],
     "opentime": "",
-    "address": "友谊西路72号"
+    "address": "友谊西路72号",
+    "lat": 34.238589,
+    "lon": 108.941673
   },
   "青龙寺": {
     "image": "https://aos-comment.amap.com/BV10070682/comment/content_media_external_file_1000126871_ss__1767103692896_79919711.jpg",
@@ -179,42 +177,8 @@
       "https://aos-comment.amap.com/BV10070682/comment/6809DB11_4B70_4927_88C0_3D816D2B9864_L0_001_2000_138_1770826761130_86365695.jpg"
     ],
     "opentime": "",
-    "address": "3号线;5号线"
-  },
-  "全季酒店(西安钟楼店)": {
-    "image": "https://store.is.autonavi.com/showpic/508abda965b18fd830b6791431f09114",
-    "intro": "住宿服务 · 评分4.7 · 新城广场",
-    "photos": [
-      "https://store.is.autonavi.com/showpic/508abda965b18fd830b6791431f09114",
-      "https://aos-comment.amap.com/B0FFHSH4Q2/comment/content_media_external_file_100000338_1763106168556_93073798.jpg",
-      "https://store.is.autonavi.com/showpic/26344ebe754453d78aab951c29e5e8b7"
-    ],
-    "opentime": "",
-    "address": "南新街2号东方之星商厦5、6楼"
-  },
-  "汉庭酒店(西安北站店)": {
-    "image": "https://aos-comment.amap.com/B0FFKBVKVQ/comment/content_media_external_images_media_100000253_1743693776857_11643847.jpg",
-    "intro": "住宿服务 · 评分4.5",
-    "photos": [
-      "https://aos-comment.amap.com/B0FFKBVKVQ/comment/content_media_external_images_media_100000253_1743693776857_11643847.jpg",
-      "http://store.is.autonavi.com/showpic/9b2e8f022949ac7a813d78245e269bee",
-      "https://store.is.autonavi.com/showpic/c2b9b26cadbb3ac1a87d23ede18b8023"
-    ],
-    "opentime": "",
-    "address": "北三环与明光路十字东南角",
-    "reviews": {
-      "good": [
-        "位置便利: 离西安北站步行约10分钟，赶高铁非常方便，周边也有公交站和便利店。",
-        "性价比高: 房间干净整洁，床品舒适，价格在同类酒店中很有竞争力，适合预算有限的旅客。",
-        "服务贴心: 前台办理入住迅速，还主动提供了出行建议，免费寄存行李很实用。"
-      ],
-      "bad": [
-        "隔音堪忧: 部分房间临街，晚上能听到车流声，浅眠者建议自备耳塞。",
-        "早餐简陋: 早餐种类少且味道一般，不如去附近小吃店解决。",
-        "周边荒凉: 晚上周边餐饮选择不多，离市区景点较远，打车去钟楼要半小时以上。"
-      ],
-      "intro_long": "汉庭酒店(西安北站店)位于北三环与明光路十字东南角，紧邻西安北站，步行约10分钟即可到达，是赶高铁或短途落脚的高性价比选择。酒店评分4.5，房间虽不大但干净整洁，床品舒适，前台服务高效，还提供行李寄存。周边有便利店和公交站，但餐饮选择较少，离市区景点较远。需要注意的是，部分临街房间隔音一般，早餐也比较简单。总体而言，适合对位置和价格敏感、对住宿要求不高的旅客。"
-    },
-    "reviews_ai": true
+    "address": "3号线;5号线",
+    "lat": 34.230823,
+    "lon": 108.993929
   }
 }

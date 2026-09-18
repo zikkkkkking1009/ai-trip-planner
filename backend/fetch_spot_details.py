@@ -33,7 +33,8 @@ def amap_get(path: str, **params) -> dict:
 
 
 def fetch(name: str, city: str = "西安") -> dict:
-    out = {"image": "", "intro": "", "photos": [], "opentime": "", "address": ""}
+    out = {"image": "", "intro": "", "photos": [], "opentime": "", "address": "",
+           "lat": 0.0, "lon": 0.0}
     try:
         text = amap_get("v3/place/text", keywords=name, city=city,
                         citylimit="true", offset=1, page=1)
@@ -41,6 +42,11 @@ def fetch(name: str, city: str = "西安") -> dict:
         if not pois:
             return out
         poi = pois[0]
+        try:  # GCJ-02 坐标，导航 URI 直接可用
+            lon, lat = map(float, poi["location"].split(","))
+            out["lat"], out["lon"] = lat, lon
+        except (KeyError, ValueError):
+            pass
         photos = [ph["url"] for ph in (poi.get("photos") or []) if ph.get("url")]
         # 深度信息（评分/人均/类型/营业时间/地址）
         detail = amap_get("v3/place/detail", id=poi["id"])

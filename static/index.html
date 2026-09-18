@@ -492,6 +492,44 @@ function loadFavorites() {
   });
 }
 
+// ---- 高德导航 URI：网页看位置/路线，手机上唤起高德 App ----
+function navTo(lon, lat, name) {
+  window.open(`https://uri.amap.com/navigation?to=${lon},${lat},${encodeURIComponent(name)}&mode=car&policy=1&src=ai-trip-planner&coordinate=gaode&callnative=0`, '_blank');
+}
+function navToSpot(name) {
+  const s = spots.find(s => s.name === name);
+  if (s) navTo(s.lon, s.lat, name);
+}
+
+// ---- 图片灯箱：详情页图片点击放大，支持左右切换 ----
+let lbUrls = [], lbIdx = 0;
+function openLightbox(idx) {
+  lbIdx = idx;
+  const ov = document.createElement('div');
+  ov.id = 'lightbox';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1000;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = `<img id="lbImg" style="max-width:94vw;max-height:80vh;border-radius:8px">
+    <button onclick="document.getElementById('lightbox').remove()" style="position:absolute;top:16px;right:16px;
+      background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:50%;width:36px;height:36px;
+      cursor:pointer;font-size:16px">✕</button>
+    <button id="lbPrev" style="position:absolute;left:10px;background:rgba(255,255,255,.12);color:#fff;
+      border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:18px">‹</button>
+    <button id="lbNext" style="position:absolute;right:10px;background:rgba(255,255,255,.12);color:#fff;
+      border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:18px">›</button>
+    <div id="lbCount" style="position:absolute;bottom:24px;color:#fff;font-size:13px"></div>`;
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+  const render = () => {
+    $('lbImg').src = lbUrls[lbIdx];
+    $('lbCount').textContent = `${lbIdx + 1} / ${lbUrls.length}`;
+    $('lbPrev').style.display = lbUrls.length > 1 ? 'block' : 'none';
+    $('lbNext').style.display = lbUrls.length > 1 ? 'block' : 'none';
+  };
+  $('lbPrev').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx - 1 + lbUrls.length) % lbUrls.length; render(); };
+  $('lbNext').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx + 1) % lbUrls.length; render(); };
+  render();
+}
+
 // ---- 景点详情卡（圆周旅迹式：图片组/AI介绍/好评避雷双卡/信息行/底部操作栏）----
 function openSpotDetail(name) {
   const base = (plan ? [...plan.days.flatMap(d => d.spots)] : [])
@@ -540,8 +578,9 @@ function openSpotDetail(name) {
       const ph = $('spotPhotos');
       const urls = (d.photos && d.photos.length) ? d.photos
         : (base.image ? [base.image] : []);
+      window.__spotPhotos = urls;   // 灯箱数据源
       ph.innerHTML = urls.length
-        ? urls.map(u => `<img src="${u}" style="width:260px;height:170px;object-fit:cover;border-radius:12px;flex-shrink:0" loading="lazy" onerror="this.remove()">`).join('')
+        ? urls.map((u, k) => `<img src="${u}" style="width:260px;height:170px;object-fit:cover;border-radius:12px;flex-shrink:0;cursor:zoom-in" loading="lazy" onclick="openLightbox(${k})" onerror="this.remove()">`).join('')
         : '<div style="color:#98a2b3;font-size:12px">暂无图片</div>';
       const chips = $('spotChips');
       if (d.intro) chips.innerHTML = `<span style="background:#fff4e6;color:#e8590c;
@@ -567,8 +606,11 @@ function openSpotDetail(name) {
           : '';
       }
       const rows = [];
+      const esc = name.replace(/'/g, "\\'");
+      const navLink = (d.lon && d.lat)
+        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" onclick="navTo(${d.lon},${d.lat},'${esc}')">🧭 导航</a>` : '';
       if (d.opentime) rows.push(['🕘', '营业时间', d.opentime]);
-      if (d.address) rows.push(['📍', '地址', d.address]);
+      if (d.address) rows.push(['📍', '地址', `${d.address}${navLink}`]);
       $('spotRows').innerHTML = rows.map(([e, k, v]) =>
         `<div style="padding:9px 0;border-bottom:1px solid var(--line)">${e} <b>${k}</b>　${v}</div>`).join('');
     })
@@ -806,7 +848,10 @@ function renderMap() {
         iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${plan.hotel.name}
         <br><button onclick="openSpotDetail('${(plan.hotel.name||'').replace(/'/g,"\\'")}');
           this._map && this._map.closePopup()" style="margin-top:6px;background:#e8f1ff;
-          color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>`).addTo(map);
+          color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
+        <button onclick="navTo(${plan.hotel.lon},${plan.hotel.lat},'${(plan.hotel.name||'').replace(/'/g,"\\'")}');
+          this._map && this._map.closePopup()" style="margin-top:6px;background:#e8f1ff;
+          color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">🧭 导航</button>`).addTo(map);
       all.push(h);
     }
     if (latlngs.length < 1) return;
@@ -817,8 +862,12 @@ function renderMap() {
       if (plan.hotel && (k === 0 || k === latlngs.length - 1)) return;
       const v = d.spots[plan.hotel ? k - 1 : k];
       if (!v) return;
+      const esc = v.name.replace(/'/g, "\\'");
+      const btn = 'background:#e8f1ff;color:#1677ff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;margin:4px 4px 0 0';
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
-        .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${v.name}`)
+        .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${v.name}<br>
+          <button onclick="openSpotDetail('${esc}')" style="${btn}">详情</button>
+          <button onclick="navToSpot('${esc}')" style="${btn}">🧭 导航</button>`)
         .addTo(layers[i]);
       all.push(ll);
     });
