@@ -239,6 +239,23 @@ def delete_plan(task_id: str) -> dict:
     return {"deleted": task_id}
 
 
+@app.post("/plans/delete")
+def delete_plans_batch(body: dict) -> dict:
+    """批量删除（我的页管理模式）。"""
+    ids = body.get("task_ids") or []
+    if not ids:
+        raise HTTPException(400, "task_ids 为空")
+    from tasks import MANAGER
+    deleted = []
+    for tid in ids:
+        f = PLANS_DIR / f"{tid}.json"
+        if f.exists():
+            f.unlink()
+            deleted.append(tid)
+        MANAGER._tasks.pop(tid, None)
+    return {"deleted": deleted}
+
+
 @app.get("/favorites")
 def get_favorites() -> dict:
     return {"favorites": _load_favorites()}

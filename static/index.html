@@ -213,8 +213,13 @@
       <div class="meta">历史规划与收藏的景点</div>
     </header>
     <div class="usection">
-      <h2>🕘 历史规划</h2>
+      <h2 style="display:flex;justify-content:space-between;align-items:center">🕘 历史规划
+        <button id="manageBtn" onclick="toggleManage()" style="display:none;background:none;
+          border:none;color:var(--acc);font-size:13px;cursor:pointer;font-weight:600">管理</button></h2>
       <div id="plansList"><div class="uempty">加载中…</div></div>
+      <button id="delSelBtn" onclick="deleteSelectedPlans()" style="display:none;width:100%;
+        margin-top:10px;background:#fff;color:#e03131;border:1px solid #e03131;border-radius:10px;
+        padding:10px;cursor:pointer;font-size:14px;font-weight:600"></button>
     </div>
     <div class="usection">
       <h2>⭐ 收藏的景点</h2>
@@ -575,19 +580,60 @@ function openSpotDetail(name) {
 }
 
 // ---- 历史规划 ----
+// ---- 历史规划（支持批量删除：管理模式 → 勾选 → 删除所选）----
+let plansCache = [], manageMode = false, selectedPlans = new Set();
+
 function loadPlans() {
-  fetch('/plans').then(r => r.json()).then(d => {
-    const el = $('plansList');
-    if (!d.plans.length) { el.innerHTML = '<div class="uempty">还没有历史规划</div>'; return; }
-    el.innerHTML = d.plans.map(p => {
-      const dt = new Date((p.created_at || 0) * 1000);
-      const when = `${dt.getMonth()+1}.${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
-      return `<div class="ucard" onclick="openPlanModal('${p.task_id}')">
-        <div class="info"><div class="t">${p.city || '行程'} · ${p.spots_planned || '?'} 个景点</div>
-        <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + p.hotel : ''}</div></div>
-        <div style="color:#98a2b3">›</div></div>`;
-    }).join('');
-  });
+  fetch('/plans').then(r => r.json()).then(d => { plansCache = d.plans; renderPlans(); });
+}
+
+function renderPlans() {
+  const el = $('plansList'), mb = $('manageBtn'), db = $('delSelBtn');
+  if (!plansCache.length) {
+    mb.style.display = 'none'; db.style.display = 'none';
+    el.innerHTML = '<div class="uempty">还没有历史规划</div>'; return;
+  }
+  mb.style.display = 'inline-block';
+  mb.textContent = manageMode ? '完成' : '管理';
+  db.style.display = (manageMode && selectedPlans.size) ? 'block' : 'none';
+  db.textContent = `删除所选(${selectedPlans.size})`;
+  el.innerHTML = plansCache.map(p => {
+    const dt = new Date((p.created_at || 0) * 1000);
+    const when = `${dt.getMonth()+1}.${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+    const sel = selectedPlans.has(p.task_id);
+    const check = manageMode
+      ? `<div style="width:20px;height:20px;border-radius:50%;flex-shrink:0;
+          border:2px solid ${sel ? 'var(--acc)' : '#ccd3dc'};background:${sel ? 'var(--acc)' : '#fff'};
+          color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center">✓</div>`
+      : '';
+    const click = manageMode ? `togglePlanSel('${p.task_id}')` : `openPlanModal('${p.task_id}')`;
+    return `<div class="ucard" onclick="${click}">${check}
+      <div class="info"><div class="t">${p.city || '行程'} · ${p.spots_planned || '?'} 个景点</div>
+      <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + p.hotel : ''}</div></div>
+      <div style="color:#98a2b3">›</div></div>`;
+  }).join('');
+}
+
+function toggleManage() {
+  manageMode = !manageMode;
+  selectedPlans.clear();
+  renderPlans();
+}
+
+function togglePlanSel(id) {
+  selectedPlans.has(id) ? selectedPlans.delete(id) : selectedPlans.add(id);
+  renderPlans();
+}
+
+function deleteSelectedPlans() {
+  if (!selectedPlans.size) return;
+  if (!confirm(`确定删除选中的 ${selectedPlans.size} 条规划？不可恢复`)) return;
+  fetch('/plans/delete', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({task_ids: [...selectedPlans]})})
+    .then(() => {
+      if (selectedPlans.has(lastTaskId)) resetPlanView();
+      selectedPlans.clear(); manageMode = false; loadPlans();
+    });
 }
 
 // 历史规划：弹窗预览，不直接覆盖当前行程；载入/删除均二次确认
