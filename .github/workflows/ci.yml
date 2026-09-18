@@ -28,6 +28,11 @@ jobs:
       - name: Frontend static check (syntax + shadowing guard)
         run: python tools/check_frontend.py
 
+      - name: Frontend runtime smoke test (jsdom)
+        run: |
+          npm install jsdom --no-save --prefix tools
+          NODE_PATH=tools/node_modules node tools/frontend_smoke.js
+
       - name: Run unit tests
         working-directory: backend
         run: |

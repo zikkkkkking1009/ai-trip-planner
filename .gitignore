@@ -10,3 +10,4 @@ __pycache__/
 local-notes/
 data/
 *.log
+node_modules/

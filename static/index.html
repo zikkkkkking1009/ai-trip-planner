@@ -483,7 +483,7 @@ function renderItin() {
       <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟</div></div>`
       + (plan.hotel ? (() => { const hn = plan.hotel.name.replace(/'/g,"\\'"); return `<div class="entry"><div class="bar" style="background:#7048e8"></div>
           <div class="body"><div><span class="tag" style="color:#7048e8">住宿</span>
-          <span class="name" style="cursor:pointer" onclick="openSpotDetail('${hn}')">🏨 ${esc(plan.hotel.name)}</span></div>
+          <span class="name" style="cursor:pointer" data-act="detail" data-name="${esc(plan.hotel.name)}">🏨 ${esc(plan.hotel.name)}</span></div>
           <div class="desc">点击查看详情 · 每天从这里出发、傍晚回到这里</div></div></div>`; })() : '')
       + d.spots.map(v => {
         const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
@@ -493,11 +493,11 @@ function renderItin() {
         return `<div class="entry"><div class="bar" style="background:${color}"></div>${img}
           <div class="body">
           <div class="toprow"><span class="tag">景点</span>
-          <span class="name" style="cursor:pointer" onclick="openSpotDetail('${v.name.replace(/'/g,"\\'")}')">${esc(v.name)}</span>
+          <span class="name" style="cursor:pointer" data-act="detail" data-name="${esc(v.name)}">${esc(v.name)}</span>
           ${v.ticket ? `<span class="ticket">¥${v.ticket}</span>` : ''}</div>
           <div class="time">${fmt(v.arrive_h)} – ${fmt(v.depart_h)}</div>
           ${v.desc ? `<div class="desc">${esc(v.desc)}</div>` : ''}${intro}</div>
-          <button class="fav" title="收藏" onclick="toggleFav('${v.name.replace(/'/g,"\\'")}')">${isFav?'⭐':'☆'}</button></div>`; }).join('');
+          <button class="fav" title="收藏" data-act="fav" data-name="${esc(v.name)}">${isFav?'⭐':'☆'}</button></div>`; }).join('');
     v.appendChild(blk);
   });
   if (currentDay === 0)
@@ -525,10 +525,10 @@ function loadFavorites() {
     const el = $('favsList');
     if (!d.favorites.length) { el.innerHTML = '<div class="uempty">还没有收藏 —— 在行程里点 ☆ 收藏景点</div>'; return; }
     el.innerHTML = d.favorites.map(f =>
-      `<div class="ucard" onclick="openSpotDetail('${f.name.replace(/'/g,"\\'")}')">${f.image ? `<img class="img" src="${f.image}" style="width:56px;height:56px;border-radius:9px;object-fit:cover" onerror="this.style.display='none'">` : ''}
+      `<div class="ucard" data-act="detail" data-name="${esc(f.name)}">${f.image ? `<img class="img" src="${f.image}" style="width:56px;height:56px;border-radius:9px;object-fit:cover" onerror="this.style.display='none'">` : ''}
         <div class="info"><div class="t">${esc(f.name)}</div>
         <div class="s">${esc(f.intro || f.desc)}</div></div>
-        <button class="del" onclick="event.stopPropagation(); toggleFav('${f.name.replace(/'/g,"\\'")}')">✕</button></div>`).join('');
+        <button class="del" data-act="fav" data-name="${esc(f.name)}">✕</button></div>`).join('');
     if (plan) renderItin();
   });
 }
@@ -661,7 +661,7 @@ function openSpotDetail(name) {
       const rows = [];
       const qn = name.replace(/'/g, "\\'");
       const navLink = (d.lon && d.lat)
-        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" onclick="navTo(${d.lon},${d.lat},'${qn}')">🧭 导航</a>` : '';
+        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" data-act="nav" data-lon="${d.lon}" data-lat="${d.lat}" data-name="${esc(name)}">🧭 导航</a>` : '';
       if (d.opentime) rows.push(['🕘', '营业时间', d.opentime]);
       if (d.address) rows.push(['📍', '地址', `${esc(d.address)}${navLink}`]);
       $('spotRows').innerHTML = rows.map(([e, k, v]) =>
@@ -703,8 +703,10 @@ function renderPlans() {
           border:2px solid ${sel ? 'var(--acc)' : '#ccd3dc'};background:${sel ? 'var(--acc)' : '#fff'};
           color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center">✓</div>`
       : '';
-    const click = manageMode ? `togglePlanSel('${p.task_id}')` : `openPlanModal('${p.task_id}')`;
-    return `<div class="ucard" onclick="${click}">${check}
+    const act = manageMode
+      ? ` data-act="plan-sel" data-plan="${p.task_id}"`
+      : ` data-act="plan" data-plan="${p.task_id}"`;
+    return `<div class="ucard"${act}>${check}
       <div class="info"><div class="t">${esc(p.city) || '行程'} · ${p.spots_planned || '?'} 个景点</div>
       <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + esc(p.hotel) : ''}</div></div>
       <div style="color:#98a2b3">›</div></div>`;
@@ -912,11 +914,11 @@ function openHotelPicker() {
           return `<div style="border-top:1px dashed #eef1f5;padding:10px 0">
             <div style="display:flex;gap:12px;align-items:center">
               ${img}
-              <div class="info" style="flex:1;min-width:0" onclick="toggleHotelMap(${i},${h.lat},${h.lon},'${qn}')">
+              <div class="info" style="flex:1;min-width:0" data-act="hotel-map" data-idx="${i}" data-lat="${h.lat}" data-lon="${h.lon}" data-name="${esc(h.name)}">
                 <div class="t" style="cursor:pointer">${esc(h.name)}
                   <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
                 <div class="s">${esc(h.intro)}</div></div>
-              <button onclick="pickHotel('${qn}',${h.lat},${h.lon})" style="background:var(--acc);
+              <button data-act="hotel-pick" data-name="${esc(h.name)}" data-lat="${h.lat}" data-lon="${h.lon}" style="background:var(--acc);
                 color:#fff;border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
                 font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>
             <div id="hmap-${i}" style="display:none;margin-top:8px;height:180px;border-radius:12px;overflow:hidden"></div>
@@ -998,7 +1000,7 @@ function renderMap() {
   Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
   $('legend').innerHTML = plan.days.map((d,i)=>{
     const c = DAY_COLORS[i%DAY_COLORS.length]; dayOn[i]=true;
-    return `<div id="lg${i}" onclick="toggleDay(${i})"><i style="background:${c}"></i>Day${i+1}</div>`;
+    return `<div id="lg${i}" data-act="day" data-idx="${i}"><i style="background:${c}"></i>Day${i+1}</div>`;
   }).join('');
   const all = [];
   const toDraw = currentDay === 0
@@ -1016,11 +1018,9 @@ function renderMap() {
       L.marker(h, {icon: L.divIcon({className:'', html:
         `<div style="font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">🏨</div>`,
         iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${esc(plan.hotel.name)}
-        <br><button onclick="openSpotDetail('${(plan.hotel.name||'').replace(/'/g,"\\'")}');
-          this._map && this._map.closePopup()" style="margin-top:6px;background:#e8f1ff;
+        <br><button data-act="detail" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:#e8f1ff;
           color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
-        <button onclick="navTo(${plan.hotel.lon},${plan.hotel.lat},'${(plan.hotel.name||'').replace(/'/g,"\\'")}');
-          this._map && this._map.closePopup()" style="margin-top:6px;background:#e8f1ff;
+        <button data-act="nav" data-lon="${plan.hotel.lon}" data-lat="${plan.hotel.lat}" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:#e8f1ff;
           color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">🧭 导航</button>`).addTo(map);
       all.push(h);
     }
@@ -1036,8 +1036,8 @@ function renderMap() {
       const btn = 'background:#e8f1ff;color:#1677ff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;margin:4px 4px 0 0';
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
         .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${esc(v.name)}<br>
-          <button onclick="openSpotDetail('${qn}')" style="${btn}">详情</button>
-          <button onclick="navToSpot('${qn}')" style="${btn}">🧭 导航</button>`)
+          <button data-act="detail" data-name="${esc(v.name)}" style="${btn}">详情</button>
+          <button data-act="nav-spot" data-name="${esc(v.name)}" style="${btn}">🧭 导航</button>`)
         .addTo(layers[i]);
       all.push(ll);
     });
@@ -1111,6 +1111,26 @@ function sendEdit() {
     })
     .catch(err => { log('错误', String(err)); $('chatSend').disabled = false; });
 }
+
+// ---- 事件委托：动态生成元素的统一入口 ----
+// 为什么不用内联 onclick：景点名 / 酒店名来自 LLM 与高德，拼进 onclick 字符串等于把
+// 外部数据当代码执行（注入面）。改为 data-* 承载数据（经 esc() 转义）+ 这里统一分发。
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const d = el.dataset;
+  switch (d.act) {
+    case 'detail':     openSpotDetail(d.name); break;
+    case 'fav':        toggleFav(d.name); break;
+    case 'nav':        navTo(Number(d.lon), Number(d.lat), d.name); break;
+    case 'nav-spot':   navToSpot(d.name); break;
+    case 'plan':       openPlanModal(d.plan); break;
+    case 'plan-sel':   togglePlanSel(d.plan); break;
+    case 'hotel-map':  toggleHotelMap(Number(d.idx), Number(d.lat), Number(d.lon), d.name); break;
+    case 'hotel-pick': pickHotel(d.name, Number(d.lat), Number(d.lon)); break;
+    case 'day':        toggleDay(Number(d.idx)); break;
+  }
+});
 </script>
 </body>
 </html>
