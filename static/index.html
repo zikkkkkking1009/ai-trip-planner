@@ -631,7 +631,8 @@ function openPlanModal(taskId) {
       if (!confirm('确定删除这条历史规划？删除后不可恢复')) return;
       fetch(`/plans/${taskId}`, {method: 'DELETE'})
         .then(() => { ov.remove(); loadPlans();
-          if (lastTaskId === taskId) lastTaskId = null; });
+          // 删除的是当前行程：同步清空规划页，不能让已删除的行程继续显示
+          if (lastTaskId === taskId) { resetPlanView(); } });
     };
   });
 }
@@ -643,6 +644,20 @@ function openPlan(taskId) {
     plan = d.result; lastTaskId = taskId; currentDay = 0;
     render(); switchPage('plan');
   });
+}
+
+// 删除当前行程后：规划页整体重置（清行程/对话/chips，回到初始态）
+function resetPlanView() {
+  plan = null; currentDay = 0; lastTaskId = null;
+  $('daytabs').style.display = 'none';
+  $('viewSeg').style.display = 'none';
+  $('chatbar').style.display = 'none';
+  $('chips').innerHTML = '<span class="chip">🎒 高德真实通勤</span>' +
+    '<span class="chip">🧭 三级缓存</span><span class="chip">✅ 约束校验</span>';
+  $('log').textContent = '';
+  $('view').innerHTML = '<div class="uempty">行程已删除 —— 点「开始规划」生成新的行程</div>';
+  if (map) { Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
+    $('mapEmpty').style.display = 'block'; $('legend').innerHTML = ''; }
 }
 
 // ---- 酒店搜索选择器（携程式：搜 → 选 → 设为住宿锚点）----
