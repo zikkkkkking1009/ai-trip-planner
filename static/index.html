@@ -11,17 +11,20 @@
   body { background:#eef1f5; min-height:100vh; display:flex; justify-content:center; }
   #phone { width:100%; max-width:460px; background:#f6f7fa; min-height:100vh; position:relative;
            box-shadow:0 0 24px rgba(0,0,0,.10); display:flex; flex-direction:column; }
+  /* 页面容器 */
+  .page { display:none; flex-direction:column; min-height:100vh; }
+  .page.active { display:flex; }
   /* 渐变头图 */
   header { background:linear-gradient(135deg,#38bdf8 0%,#2563eb 100%); color:#fff;
-           padding:26px 20px 46px; border-radius:0 0 22px 22px; }
+           padding:26px 20px 46px; border-radius:0 0 22px 22px; flex-shrink:0; }
   header h1 { font-size:22px; font-weight:800; letter-spacing:.5px; }
   header .meta { opacity:.9; font-size:12.5px; margin-top:6px; }
   header .chips { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
   header .chip { background:rgba(255,255,255,.18); backdrop-filter:blur(4px);
                  padding:4px 12px; border-radius:12px; font-size:12px; }
-  /* 表单卡片浮在头图上 */
+  /* 表单卡片 */
   .sheet { background:#fff; border-radius:14px; margin:-30px 14px 12px; padding:16px;
-           box-shadow:0 6px 18px rgba(31,63,135,.10); }
+           box-shadow:0 6px 18px rgba(31,63,135,.10); flex-shrink:0; }
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; }
   .field { display:flex; flex-direction:column; gap:4px; }
   .field label { font-size:11px; color:#8a94a6; }
@@ -32,9 +35,15 @@
         border:none; border-radius:10px; padding:11px; font-size:15px; font-weight:700;
         cursor:pointer; letter-spacing:2px; }
   .go:disabled { opacity:.5; }
+  /* 行程/地图 分段控件 */
+  .seg { display:flex; background:#fff; border-radius:10px; margin:8px 14px 0;
+         padding:3px; box-shadow:0 1px 6px rgba(31,63,135,.06); flex-shrink:0; }
+  .seg .s { flex:1; text-align:center; padding:8px 0; font-size:13.5px; color:#98a2b3;
+            border-radius:8px; cursor:pointer; }
+  .seg .s.active { background:#eef4ff; color:#2563eb; font-weight:700; }
   /* 日程 tab 条 */
   .daytabs { display:flex; gap:4px; padding:0 12px; border-bottom:1px solid #e8ecf2;
-             overflow-x:auto; scrollbar-width:none; background:#fff; }
+             overflow-x:auto; scrollbar-width:none; background:#fff; flex-shrink:0; }
   .daytabs::-webkit-scrollbar { display:none; }
   .daytabs .tab { padding:11px 12px; font-size:14px; color:#98a2b3; cursor:pointer;
                   white-space:nowrap; border-bottom:2.5px solid transparent; }
@@ -49,7 +58,9 @@
   .entry { display:flex; gap:11px; padding:9px 0; border-top:1px dashed #eef1f5; }
   .entry:first-of-type { border-top:none; }
   .entry .bar { width:4px; border-radius:2px; flex-shrink:0; }
-  .entry .body { flex:1; }
+  .entry .img { width:56px; height:56px; border-radius:9px; object-fit:cover; flex-shrink:0;
+                background:#eef1f5; }
+  .entry .body { flex:1; min-width:0; }
   .entry .toprow { display:flex; align-items:baseline; gap:6px; }
   .entry .tag { color:#2f9e44; font-size:10.5px; }
   .entry .name { font-size:15.5px; font-weight:700; }
@@ -58,11 +69,14 @@
                  padding:5px 11px; margin:6px 0 4px; font-size:13.5px; font-weight:700;
                  font-variant-numeric:tabular-nums; }
   .entry .desc { color:#667085; font-size:12.5px; line-height:1.65; }
+  .entry .intro { color:#98a2b3; font-size:11.5px; margin-top:2px; }
+  .fav { align-self:center; background:none; border:none; font-size:20px; cursor:pointer;
+         flex-shrink:0; padding:4px; }
   .unplanned { background:#fff4f4; color:#c0392b; font-size:12px; padding:7px 12px;
                border-radius:9px; margin-bottom:8px; }
   /* 地图 */
   #mapView { display:none; position:relative; padding:8px 14px 96px; }
-  #map { height:calc(100vh - 220px); min-height:420px; width:100%; border-radius:14px; }
+  #map { height:calc(100vh - 300px); min-height:380px; width:100%; border-radius:14px; }
   .legend { position:absolute; top:20px; right:24px; z-index:500; background:#fff;
             border-radius:10px; padding:8px 12px; font-size:12px; box-shadow:0 2px 10px rgba(0,0,0,.18); }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; }
@@ -79,103 +93,130 @@
   #log { max-height:150px; overflow-y:auto; font-size:12px; line-height:1.9; color:#555;
          background:#fff; border-radius:8px; padding:8px 12px; box-shadow:0 1px 6px rgba(31,63,135,.05); }
   #log .st { color:#2563eb; }
-  /* 底部切换 */
-  .bottombar { position:absolute; bottom:0; left:0; right:0; background:#fff;
-               border-top:1px solid #e8ecf2; display:flex; z-index:600;
-               box-shadow:0 -4px 14px rgba(31,63,135,.06); }
-  .bottombar .b { flex:1; text-align:center; padding:12px 0 14px; font-size:14px;
-                  color:#98a2b3; cursor:pointer; }
-  .bottombar .b.active { color:#2563eb; font-weight:700; }
   /* 对话改行程 */
-  .chatbar { position:absolute; bottom:52px; left:0; right:0; display:flex; gap:8px;
-             padding:10px 14px; background:#fff; border-top:1px solid #e8ecf2; z-index:600; }
+  .chatbar { display:flex; gap:8px; padding:10px 14px; background:#fff;
+             border-top:1px solid #e8ecf2; flex-shrink:0; }
   .chatbar input { flex:1; }
   .chatbar button { background:#2563eb; color:#fff; border:none; border-radius:9px;
                     padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600; }
   .chatbar button:disabled { opacity:.5; }
   .changes { background:#eef6ee; border:1px solid #cde8cf; color:#2b6e34;
              font-size:12.5px; border-radius:10px; padding:8px 12px; margin-bottom:10px; }
+  /* ===== 我的 页面 ===== */
+  .usection { background:#fff; border-radius:14px; margin:14px; padding:16px;
+              box-shadow:0 2px 10px rgba(31,63,135,.06); }
+  .usection h2 { font-size:15px; font-weight:800; margin-bottom:12px; }
+  .ucard { display:flex; gap:12px; padding:10px 0; border-top:1px dashed #eef1f5;
+           cursor:pointer; align-items:center; }
+  .ucard:first-of-type { border-top:none; }
+  .ucard .info { flex:1; min-width:0; }
+  .ucard .t { font-size:15px; font-weight:700; }
+  .ucard .s { color:#98a2b3; font-size:12px; margin-top:3px; }
+  .ucard .del { background:none; border:none; color:#e03131; font-size:16px; cursor:pointer; padding:6px; }
+  .uempty { color:#98a2b3; font-size:13px; text-align:center; padding:18px 0; }
+  /* 主导航 */
+  .bottombar { position:absolute; bottom:0; left:0; right:0; background:#fff;
+               border-top:1px solid #e8ecf2; display:flex; z-index:600;
+               box-shadow:0 -4px 14px rgba(31,63,135,.06); }
+  .bottombar .b { flex:1; text-align:center; padding:11px 0 13px; font-size:14px;
+                  color:#98a2b3; cursor:pointer; }
+  .bottombar .b.active { color:#2563eb; font-weight:700; }
 </style>
 </head>
 <body>
 <div id="phone">
-  <header>
-    <h1>AI 行程规划</h1>
-    <div class="meta">LLM 抽取 → 实体对齐 → OPTW 求解 → 约束校验</div>
-    <div class="chips" id="chips">
-      <span class="chip">🎒 高德真实通勤</span>
-      <span class="chip">🧭 三级缓存</span>
-      <span class="chip">✅ 约束校验</span>
-    </div>
-  </header>
 
-  <div class="sheet">
-    <div class="grid">
-      <div class="field"><label>出发日期</label><input id="startDate" type="date"></div>
-      <div class="field"><label>结束日期</label><input id="endDate" type="date"></div>
-      <div class="field"><label>每天出发时间</label><input id="start" type="time" value="09:00"></div>
-      <div class="field"><label>每天返回时间</label><input id="end" type="time" value="18:00"></div>
-      <div class="field"><label>预算(空=不限)</label><input id="budget" type="number" value="500"></div>
-      <button class="go" id="go">开 始 规 划</button>
+  <!-- ========= 页面一：规划 ========= -->
+  <div class="page active" id="pagePlan">
+    <header>
+      <h1>AI 行程规划</h1>
+      <div class="meta">LLM 抽取 → 实体对齐 → OPTW 求解 → 约束校验</div>
+      <div class="chips" id="chips">
+        <span class="chip">🎒 高德真实通勤</span>
+        <span class="chip">🧭 三级缓存</span>
+        <span class="chip">✅ 约束校验</span>
+      </div>
+    </header>
+
+    <div class="sheet">
+      <div class="grid">
+        <div class="field"><label>出发日期</label><input id="startDate" type="date"></div>
+        <div class="field"><label>结束日期</label><input id="endDate" type="date"></div>
+        <div class="field"><label>每天出发时间</label><input id="start" type="time" value="09:00"></div>
+        <div class="field"><label>每天返回时间</label><input id="end" type="time" value="18:00"></div>
+        <div class="field"><label>预算(空=不限)</label><input id="budget" type="number" value="500"></div>
+        <button class="go" id="go">开 始 规 划</button>
+      </div>
+    </div>
+
+    <details><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
+
+    <div class="daytabs" id="daytabs" style="display:none"></div>
+    <div class="seg" id="viewSeg" style="display:none">
+      <div class="s active" onclick="switchView('itin')">📋 行程</div>
+      <div class="s" onclick="switchView('map')">🗺 地图</div>
+    </div>
+    <div id="view"></div>
+    <div id="mapView"><div id="map"></div><div class="legend" id="legend"></div>
+      <div class="empty-hint" id="mapEmpty">还没有行程 —— 点「开始规划」<br>生成后这里会画出按天分色的路线</div>
+      <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
+
+    <div class="chatbar" id="chatbar" style="display:none">
+      <input id="chatInput" placeholder="例如：把回民街换成咖啡店 / 住未央区的酒店"
+             onkeydown="if(event.key==='Enter')sendEdit()">
+      <button id="chatSend" onclick="sendEdit()">发送</button>
     </div>
   </div>
 
-  <details><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
+  <!-- ========= 页面二：我的 ========= -->
+  <div class="page" id="pageUser">
+    <header style="padding-bottom:26px">
+      <h1>我的</h1>
+      <div class="meta">历史规划与收藏的景点</div>
+    </header>
 
-  <div class="daytabs" id="daytabs" style="display:none"></div>
-  <div id="view"></div>
-  <div id="mapView"><div id="map"></div><div class="legend" id="legend"></div>
-    <div class="empty-hint" id="mapEmpty">还没有行程 —— 回「📋 行程」点「开始规划」<br>生成后这里会画出按天分色的路线</div>
-    <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
+    <div class="usection">
+      <h2>🕘 历史规划</h2>
+      <div id="plansList"><div class="uempty">加载中…</div></div>
+    </div>
+
+    <div class="usection">
+      <h2>⭐ 收藏的景点</h2>
+      <div id="favsList"><div class="uempty">加载中…</div></div>
+    </div>
+  </div>
 
   <div class="bottombar">
-    <div class="b active" id="bItin" onclick="switchView('itin')">📋 行程</div>
-    <div class="b" id="bMap" onclick="switchView('map')">🗺 地图</div>
-  </div>
-  <!-- 对话改行程 -->
-  <div class="chatbar" id="chatbar" style="display:none">
-    <input id="chatInput" placeholder="例如：把回民街换成咖啡店 / 在09.26中间加我的酒店"
-           onkeydown="if(event.key==='Enter')sendEdit()">
-    <button id="chatSend" onclick="sendEdit()">发送</button>
+    <div class="b active" onclick="switchPage('plan')">🧭 规划</div>
+    <div class="b" onclick="switchPage('user')">👤 我的</div>
   </div>
 </div>
 
 <script>
-// 任何前端错误都进日志（不再白屏无解释）
-window.onerror = (msg, src, line) => log('前端错误', `${msg} @line ${line}`);
-
 const $ = id => document.getElementById(id);
 const DAY_COLORS = ['#2f9e44','#f08c00','#7048e8','#1c7ed6','#e8590c','#0ca678','#ae3ec9'];
 const WD = ['周日','周一','周二','周三','周四','周五','周六'];
 let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {};
-let lastTaskId = null;   // 当前行程对应的任务，对话修改以此为基准
+let lastTaskId = null, favSet = new Set();
 
 const today = new Date(); const end = new Date(today); end.setDate(end.getDate()+2);
 $('startDate').value = today.toISOString().slice(0,10);
 $('endDate').value = end.toISOString().slice(0,10);
 fetch('/demo/spots').then(r => r.json()).then(d => { spots = d.spots; });
 
-// 天数 = 结束 - 开始 + 1，自动算（上限 7 天）
-function dayCount() {
-  const s = new Date($('startDate').value), e = new Date($('endDate').value);
-  return Math.max(1, Math.min(7, Math.round((e - s)/86400000) + 1));
-}
-const timeToH = t => { const [h,m] = t.split(':').map(Number); return h + m/60; };
-const fmt = h => { const hh=Math.floor(h), mm=Math.round((h-hh)*60);
-  return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); };
-const dateOf = i => { const d = new Date($('startDate').value || Date.now());
-  d.setDate(d.getDate()+i);
-  return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${WD[d.getDay()]}`; };
+// 任何前端错误都进日志（不再白屏无解释）
+window.onerror = (msg, src, line) => log('前端错误', `${msg} @line ${line}`);
 
 // 底图可配置：默认高德瓦片（GCJ-02，坐标直接用）；TILE_PROVIDER=osm 时后端下发 OSM 配置，
 // 前端用 eviltransform 把 GCJ-02 转 WGS84 再打点（国内地图必备知识，详见 README 合规节）
 let tileCfg = { tile_url: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
                 subdomains: '1234', attribution: '© 高德地图', gcj: true };
 fetch('/demo/config').then(r => r.json()).then(c => { tileCfg = c;
-  document.querySelector('.maptip').textContent = '路线为景点连线示意 · 底图数据 ' + c.attribution;
+  const mt = document.querySelector('.maptip');
+  if (mt) mt.textContent = '路线为景点连线示意 · 底图数据 ' + c.attribution;
   if (map) { map.remove(); map = null; layers = {}; renderMap(); } });
 
-// ---- GCJ-02 → WGS84（OSM 底图时使用），eviltransform 标准算法 ----
+// ---- GCJ-02(高德) → WGS84(OSM)，eviltransform 标准算法（仅 OSM 底图时使用）----
 function gcj2wgs(lat, lon) {
   if (lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271) return [lat, lon];
   const tLat = (x,y) => -100 + 2*x + 3*y + .2*y*y + .1*x*y + .2*Math.sqrt(Math.abs(x))
@@ -183,7 +224,6 @@ function gcj2wgs(lat, lon) {
     + (20*Math.sin(y*Math.PI) + 40*Math.sin(y/3*Math.PI))*2/3
     + (160*Math.sin(y/12*Math.PI) + 320*Math.sin(y*Math.PI/30))*2/3;
   const tLon = (x,y) => 300 + x + 2*y + .1*x*x + .1*x*y + .1*Math.sqrt(Math.abs(x))
-    + (20*Math.sin(6*x*Math.PI) + 20*Math.sin(2*x*Math.PI))*2/3
     + (20*Math.sin(x*Math.PI) + 40*Math.sin(x/3*Math.PI))*2/3
     + (150*Math.sin(x/12*Math.PI) + 300*Math.sin(x/30*Math.PI))*2/3;
   let dLat = tLat(lon-105, lat-35), dLon = tLon(lon-105, lat-35);
@@ -193,6 +233,22 @@ function gcj2wgs(lat, lon) {
   dLon = (dLon*180) / (6378245/sq*Math.cos(rad)*Math.PI);
   return [lat - dLat, lon - dLon];
 }
+const fmt = h => { const hh=Math.floor(h), mm=Math.round((h-hh)*60);
+  return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); };
+const dateOf = i => { const d = new Date($('startDate').value || Date.now());
+  d.setDate(d.getDate()+i);
+  return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${WD[d.getDay()]}`; };
+
+// 天数 = 结束 - 开始 + 1，自动算（上限 7 天）
+function dayCount() {
+  const s = new Date($('startDate').value), e = new Date($('endDate').value);
+  return Math.max(1, Math.min(7, Math.round((e - s)/86400000) + 1));
+}
+const timeToH = t => { const [h,m] = t.split(':').map(Number); return h + m/60; };
+
+// 底图用高德瓦片：国内直连 + GCJ-02 坐标系
+const amapLayer = () => L.tileLayer(tileCfg.tile_url,
+  { subdomains: tileCfg.subdomains, attribution: tileCfg.attribution, maxZoom: 18 });
 
 $('go').onclick = async () => {
   $('go').disabled = true; $('log').textContent = '';
@@ -213,38 +269,8 @@ $('go').onclick = async () => {
     if (d.status==='failed') { log('失败', d.error); ws.close(); $('go').disabled=false; } };
 };
 
-// 对话式修改：以当前行程为基准发起新的异步任务
-function sendEdit() {
-  const text = $('chatInput').value.trim();
-  if (!text) { log('提示', '先输入想怎么改'); return; }
-  if (!lastTaskId) { log('提示', '还没有行程——先点「开始规划」生成一份'); return; }
-  $('chatSend').disabled = true; $('chatInput').value = '';
-  $('log').textContent = ''; log('编辑', `收到指令：${text}`);
-  fetch('/plan/edit', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({task_id: lastTaskId, instruction: text})})
-    .then(async r => {
-      const d = await r.json();
-      if (!r.ok) {   // 404=服务太旧没这个接口 / 503=没配 LLM Key / 400=参数缺失
-        log('错误', `HTTP ${r.status}: ${d.detail || '未知错误'}（如果是 404，请重启后端服务）`);
-        $('chatSend').disabled = false;
-        return;
-      }
-      const proto = location.protocol==='https:'?'wss':'ws';
-      const ws = new WebSocket(`${proto}://${location.host}${d.ws_url}`);
-      ws.onmessage = e => { const d2 = JSON.parse(e.data);
-        (d2.progress||[]).forEach(p => log(p.stage, p.msg));
-        if (d2.status==='completed') {
-          if (d2.result.days) { plan = d2.result; lastTaskId = d.task_id; render(); }
-          else log('回复', d2.result.reply || '没有识别到可执行的修改');
-          ws.close(); $('chatSend').disabled = false; }
-        if (d2.status==='failed') { log('失败', d2.error); ws.close(); $('chatSend').disabled=false; } };
-      ws.onerror = () => { log('错误', '连接断开'); $('chatSend').disabled = false; };
-    })
-    .catch(err => { log('错误', String(err)); $('chatSend').disabled = false; });
-}
-
 function log(stage, msg) {
-  document.querySelector('details').open = true;  // 有动静就把日志展开
+  document.querySelector('details').open = true;
   const div = document.createElement('div');
   div.innerHTML = `<span class="st">[${stage}]</span>${msg}`;
   $('log').appendChild(div); $('log').scrollTop = 1e9;
@@ -260,6 +286,7 @@ function render() {
     `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
     `<span class="chip">🛰 API ${c.stats.commute_api.api_calls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('daytabs').style.display = 'flex';
+  $('viewSeg').style.display = 'flex';
   $('daytabs').innerHTML = `<div class="tab" data-day="0">总览</div>`
     + plan.days.map((d,i)=>`<div class="tab" data-day="${i+1}">${dateOf(i).split(' ')[0]}</div>`).join('');
   document.querySelectorAll('.daytabs .tab').forEach(t =>
@@ -267,7 +294,6 @@ function render() {
       document.querySelectorAll('.daytabs .tab').forEach(x=>x.classList.remove('active'));
       t.classList.add('active'); renderItin(); if (map) renderMap(); });
   $('daytabs').firstChild.classList.add('active');
-  renderItin();          // 修复：规划完成立即渲染总览，否则 #view 是空的
   switchView('itin');
 }
 
@@ -293,12 +319,17 @@ function renderItin() {
           <div class="desc">每天从这里出发、傍晚回到这里（往返通勤已计入上方数字）</div></div></div>` : '')
       + d.spots.map(v => {
         const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
-        return `<div class="entry"><div class="bar" style="background:${color}"></div><div class="body">
+        const isFav = favSet.has(v.name);
+        const img = v.image ? `<img class="img" src="${v.image}" loading="lazy" onerror="this.style.display='none'">` : '';
+        const intro = v.intro ? `<div class="intro">${v.intro}</div>` : '';
+        return `<div class="entry"><div class="bar" style="background:${color}"></div>${img}
+          <div class="body">
           <div class="toprow"><span class="tag">景点</span>
           <span class="name">${v.name}</span>
           ${v.ticket ? `<span class="ticket">¥${v.ticket}</span>` : ''}</div>
           <div class="time">${fmt(v.arrive_h)} – ${fmt(v.depart_h)}</div>
-          ${v.desc ? `<div class="desc">${v.desc}</div>` : ''}</div></div>`; }).join('');
+          ${v.desc ? `<div class="desc">${v.desc}</div>` : ''}${intro}</div>
+          <button class="fav" title="收藏" onclick="toggleFav('${v.name.replace(/'/g,"\\'")}')">${isFav?'⭐':'☆'}</button></div>`; }).join('');
     v.appendChild(blk);
   });
   if (currentDay === 0)
@@ -307,27 +338,83 @@ function renderItin() {
       v.insertBefore(p, v.firstChild); });
 }
 
-function initMap() {
-  if (map) { setTimeout(() => map.invalidateSize(), 50); return; }
-  // 首次进地图页就初始化（西安市中心），没行程也能看到底图
-  map = L.map('map').setView([34.26, 108.94], 11);
-  L.tileLayer(tileCfg.tile_url, { subdomains: tileCfg.subdomains,
-    attribution: tileCfg.attribution, maxZoom: 18 }).addTo(map);
+// ---- 收藏 ----
+function toggleFav(name) {
+  const v = (plan ? [...plan.days.flatMap(d=>d.spots)] : []).find(s=>s.name===name)
+            || spots.find(s=>s.name===name) || {name};
+  const action = favSet.has(name) ? 'remove' : 'add';
+  fetch('/favorites', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action, spot: {...v, city: '西安'}})})
+    .then(r => r.json()).then(d => {
+      favSet = new Set(d.favorites.map(f => f.name));
+      if (plan) renderItin(); loadFavorites();
+    });
+}
+
+function loadFavorites() {
+  fetch('/favorites').then(r => r.json()).then(d => {
+    favSet = new Set(d.favorites.map(f => f.name));
+    const el = $('favsList');
+    if (!d.favorites.length) { el.innerHTML = '<div class="uempty">还没有收藏 —— 在行程里点 ☆ 收藏景点</div>'; return; }
+    el.innerHTML = d.favorites.map(f =>
+      `<div class="ucard">${f.image ? `<img class="img" src="${f.image}" style="width:56px;height:56px;border-radius:9px;object-fit:cover" onerror="this.style.display='none'">` : ''}
+        <div class="info"><div class="t">${f.name}</div>
+        <div class="s">${f.intro || f.desc || ''}</div></div>
+        <button class="del" onclick="toggleFav('${f.name.replace(/'/g,"\\'")}')">✕</button></div>`).join('');
+  });
+}
+
+// ---- 历史规划 ----
+function loadPlans() {
+  fetch('/plans').then(r => r.json()).then(d => {
+    const el = $('plansList');
+    if (!d.plans.length) { el.innerHTML = '<div class="uempty">还没有历史规划</div>'; return; }
+    el.innerHTML = d.plans.map(p => {
+      const dt = new Date((p.created_at || 0) * 1000);
+      const when = `${dt.getMonth()+1}.${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      return `<div class="ucard" onclick="openPlan('${p.task_id}')">
+        <div class="info"><div class="t">${p.city || '行程'} · ${p.spots_planned || '?'} 个景点</div>
+        <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + p.hotel : ''}</div></div>
+        <div style="color:#98a2b3">›</div></div>`;
+    }).join('');
+  });
+}
+
+function openPlan(taskId) {
+  fetch(`/task/${taskId}`).then(r => r.json()).then(d => {
+    if (d.status !== 'completed' || !d.result || !d.result.days) return;
+    plan = d.result; lastTaskId = taskId; currentDay = 0;
+    render(); switchPage('plan');
+  });
+}
+
+// ---- 页面切换 ----
+function switchPage(which) {
+  $('pagePlan').classList.toggle('active', which==='plan');
+  $('pageUser').classList.toggle('active', which==='user');
+  document.querySelectorAll('.bottombar .b').forEach((b,i) =>
+    b.classList.toggle('active', (i===0) === (which==='plan')));
+  if (which==='user') { loadPlans(); loadFavorites(); }
+  if (which==='plan' && plan) switchView('itin');
 }
 
 function renderMap() {
   $('view').style.display='none'; $('mapView').style.display='block';
-  initMap();
+  if (!map) {
+    map = L.map('map').setView([34.26, 108.94], 11);
+    L.tileLayer(tileCfg.tile_url, { subdomains: tileCfg.subdomains,
+      attribution: tileCfg.attribution, maxZoom: 18 }).addTo(map);
+  }
+  setTimeout(() => map.invalidateSize(), 50);
   if (!plan) { $('mapEmpty').style.display='block'; $('legend').innerHTML=''; return; }
   $('mapEmpty').style.display='none';
-  setTimeout(() => map.invalidateSize(), 50);
   Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
   $('legend').innerHTML = plan.days.map((d,i)=>{
     const c = DAY_COLORS[i%DAY_COLORS.length]; dayOn[i]=true;
     return `<div id="lg${i}" onclick="toggleDay(${i})"><i style="background:${c}"></i>Day${i+1}</div>`;
   }).join('');
   const all = [];
-  // 只画当前选中天（总览=全部）——修复「每天路线和总览一样」
+  // 只画当前选中天（总览=全部）
   const toDraw = currentDay === 0
     ? plan.days.map((d, i) => [d, i])
     : [[plan.days[currentDay - 1], currentDay - 1]];
@@ -391,10 +478,41 @@ function toggleDay(i) {
 }
 
 function switchView(which) {
-  $('bItin').classList.toggle('active', which==='itin');
-  $('bMap').classList.toggle('active', which==='map');
+  $('bItin') && $('bItin').classList.remove('active');
+  document.querySelectorAll('#viewSeg .s').forEach((s,i) =>
+    s.classList.toggle('active', (i===0) === (which==='itin')));
   if (which==='itin') { $('mapView').style.display='none'; $('view').style.display='block'; }
   else { if (plan) renderMap(); else { $('view').style.display='none'; $('mapView').style.display='block'; } }
+}
+
+// 对话式修改：以当前行程为基准发起新的异步任务
+function sendEdit() {
+  const text = $('chatInput').value.trim();
+  if (!text) { log('提示', '先输入想怎么改'); return; }
+  if (!lastTaskId) { log('提示', '还没有行程——先点「开始规划」生成一份'); return; }
+  $('chatSend').disabled = true; $('chatInput').value = '';
+  $('log').textContent = ''; log('编辑', `收到指令：${text}`);
+  fetch('/plan/edit', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({task_id: lastTaskId, instruction: text})})
+    .then(async r => {
+      const d = await r.json();
+      if (!r.ok) {
+        log('错误', `HTTP ${r.status}: ${d.detail || '未知错误'}（如果是 404，请重启后端服务）`);
+        $('chatSend').disabled = false;
+        return;
+      }
+      const proto = location.protocol==='https:'?'wss':'ws';
+      const ws = new WebSocket(`${proto}://${location.host}${d.ws_url}`);
+      ws.onmessage = e => { const d2 = JSON.parse(e.data);
+        (d2.progress||[]).forEach(p => log(p.stage, p.msg));
+        if (d2.status==='completed') {
+          if (d2.result.days) { plan = d2.result; lastTaskId = d.task_id; render(); }
+          else log('回复', d2.result.reply || '没有识别到可执行的修改');
+          ws.close(); $('chatSend').disabled = false; }
+        if (d2.status==='failed') { log('失败', d2.error); ws.close(); $('chatSend').disabled=false; } };
+      ws.onerror = () => { log('错误', '连接断开'); $('chatSend').disabled = false; };
+    })
+    .catch(err => { log('错误', String(err)); $('chatSend').disabled = false; });
 }
 </script>
 </body>
