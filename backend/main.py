@@ -169,11 +169,21 @@ def save_plan_snapshot(task) -> None:
 
 @app.get("/poi/detail")
 def poi_detail(name: str) -> dict:
-    """景点媒体详情：图片组/介绍/营业时间/地址（spot_media.json）。"""
+    """景点媒体详情：图片组/介绍/营业时间/地址。
+
+    预抓取（spot_media.json）没收录的名字（如对话中新增的酒店）现场走高德
+    搜索+详情，并缓存进媒体文件，下次零开销。
+    """
     media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
     m = media.get(name)
     if not m:
-        raise HTTPException(404, "未收录该景点的媒体数据")
+        from fetch_spot_details import fetch
+        m = fetch(name)
+        if not (m.get("image") or m.get("address")):
+            raise HTTPException(404, "未找到该地点的高德信息")
+        media[name] = m
+        MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
+                              encoding="utf-8")
     return m
 
 

@@ -330,9 +330,20 @@ function buildCal() {
   updateCalFoot();
 }
 function calPick(d) {
-  if (!calStart || (calStart && calEnd)) { calStart = d; calEnd = null; }
-  else if (d > calStart) { calEnd = d; }
-  else { calStart = d; calEnd = null; }
+  const ds = d.toDateString();
+  if (calStart && calEnd) {
+    // 已选完整区间：点出发日=全部取消；点结束日=只取消结束（保留出发日）
+    if (ds === calStart.toDateString()) { calStart = null; calEnd = null; }
+    else if (ds === calEnd.toDateString()) { calEnd = null; }
+    else { calStart = d; calEnd = null; }
+  } else if (calStart) {
+    // 只选了出发日：再点同一天=取消；点更晚=设为结束日；点更早=改为新出发日
+    if (ds === calStart.toDateString()) { calStart = null; }
+    else if (d > calStart) { calEnd = d; }
+    else { calStart = d; }
+  } else {
+    calStart = d;
+  }
   buildCal();
 }
 function updateCalFoot() {
@@ -417,10 +428,10 @@ function renderItin() {
     const blk = document.createElement('div'); blk.className='dayblock';
     blk.innerHTML = `<div class="dayhead"><div class="daytitle">${dateOf(dayIdx)}</div>
       <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟</div></div>`
-      + (plan.hotel ? `<div class="entry"><div class="bar" style="background:#7048e8"></div>
+      + (plan.hotel ? (() => { const hn = plan.hotel.name.replace(/'/g,"\\'"); return `<div class="entry"><div class="bar" style="background:#7048e8"></div>
           <div class="body"><div><span class="tag" style="color:#7048e8">住宿</span>
-          <span class="name">🏨 ${plan.hotel.name}</span></div>
-          <div class="desc">每天从这里出发、傍晚回到这里（往返通勤已计入上方数字）</div></div></div>` : '')
+          <span class="name" style="cursor:pointer" onclick="openSpotDetail('${hn}')">🏨 ${plan.hotel.name}</span></div>
+          <div class="desc">点击查看详情 · 每天从这里出发、傍晚回到这里</div></div></div>`; })() : '')
       + d.spots.map(v => {
         const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
         const isFav = favSet.has(v.name);
@@ -586,7 +597,10 @@ function renderMap() {
       latlngs = [h, ...latlngs, h];
       L.marker(h, {icon: L.divIcon({className:'', html:
         `<div style="font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">🏨</div>`,
-        iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${plan.hotel.name}`).addTo(map);
+        iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${plan.hotel.name}
+        <br><button onclick="openSpotDetail('${(plan.hotel.name||'').replace(/'/g,"\\'")}');
+          this._map && this._map.closePopup()" style="margin-top:6px;background:#e8f1ff;
+          color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>`).addTo(map);
       all.push(h);
     }
     if (latlngs.length < 1) return;
