@@ -16,6 +16,8 @@ import time
 from models import Spot
 from reliability import retry_call
 
+LLM_TIMEOUT_S = 30.0   # 单次 LLM 调用超时（秒），失败由 reliability 重试
+
 log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """你是旅游信息抽取器。从用户给的攻略文本中抽取所有景点，
