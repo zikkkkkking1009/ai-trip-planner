@@ -171,10 +171,10 @@ def save_plan_snapshot(task) -> None:
 
 @app.get("/poi/detail")
 def poi_detail(name: str) -> dict:
-    """景点媒体详情：图片组/介绍/营业时间/地址。
+    """快接口：图片组/介绍/营业时间/地址，毫秒级返回。
 
-    预抓取（spot_media.json）没收录的名字（如对话中新增的酒店）现场走高德
-    搜索+详情，并缓存进媒体文件，下次零开销。
+    评价摘要不走这里（首次生成需 ~3s），前端拿到基础数据立即渲染后
+    再调 /poi/reviews 异步补上——避免点开详情要等好几秒。
     """
     media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
     m = media.get(name)
@@ -186,19 +186,33 @@ def poi_detail(name: str) -> dict:
         media[name] = m
         MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
                               encoding="utf-8")
-    # 评价摘要 + 长介绍：LLM 生成一次并缓存（无 Key 时前端隐藏该区块）
+    out = {k: m.get(k, "") for k in
+           ("image", "intro", "photos", "opentime", "address", "lat", "lon")}
+    out["reviews"] = m.get("reviews")
+    out["reviews_ai"] = m.get("reviews_ai", False)
+    return out
+
+
+@app.get("/poi/reviews")
+def poi_reviews(name: str) -> dict:
+    """评价摘要（AI 生成，首次约 3s，之后走缓存）。前端二次拉取用。"""
+    media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
+    m = media.get(name)
+    if m is None:
+        raise HTTPException(404, "该地点未收录")
     if "reviews" not in m:
         try:
             from editor import generate_reviews
             m["reviews"] = generate_reviews(
-                name, m.get("intro", "") + " " + m.get("address", ""))
+                name, (m.get("intro", "") or "") + " " + (m.get("address", "") or ""))
             m["reviews_ai"] = m["reviews"] is not None
         except Exception:
             m["reviews"] = None
             m["reviews_ai"] = False
+        media[name] = m
         MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
                               encoding="utf-8")
-    return m
+    return {"reviews": m.get("reviews"), "reviews_ai": m.get("reviews_ai", False)}
 
 
 @app.post("/hotel/search")

@@ -117,6 +117,8 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
         task.version += 1
         from main import save_plan_snapshot
         save_plan_snapshot(task)
+        asyncio.create_task(prefetch_media(
+            [s["name"] for s in task.request_spots]))  # 后台预取媒体，点开即显
     except Exception as e:  # 后台任务不能静默死掉
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
@@ -446,7 +448,48 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
         task.version += 1
         from main import save_plan_snapshot
         save_plan_snapshot(task)
+        asyncio.create_task(prefetch_media(
+            [hotel["name"]] + [s["name"] for s in task.request_spots]))
     except Exception as e:
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
         task.version += 1
+
+
+_prefetching: set[str] = set()
+
+
+async def prefetch_media(names: list[str]) -> None:
+    """后台预取媒体数据（图片/介绍/AI 评价），用户点开详情即刻显示不再等待。
+
+    规划完成后自动触发；已有评价的跳过，避免重复花 LLM 与高德配额。
+    """
+    import editor
+    from pathlib import Path as _P
+    media_file = _P(__file__).parent / "spot_media.json"
+    try:
+        media = json.loads(media_file.read_text(encoding="utf-8")) \
+            if media_file.exists() else {}
+    except Exception:
+        media = {}
+    for name in dict.fromkeys(names):  # 去重且保序
+        if name in _prefetching or media.get(name, {}).get("reviews"):
+            continue
+        _prefetching.add(name)
+        try:
+            if not media.get(name):
+                from fetch_spot_details import fetch
+                media[name] = await asyncio.to_thread(fetch, name)
+            if not media[name].get("reviews"):
+                rv = await asyncio.to_thread(
+                    editor.generate_reviews, name,
+                    (media[name].get("intro", "") or "") + " " +
+                    (media[name].get("address", "") or ""))
+                media[name]["reviews"] = rv
+                media[name]["reviews_ai"] = rv is not None
+            media_file.write_text(json.dumps(media, ensure_ascii=False, indent=2),
+                                  encoding="utf-8")
+        except Exception:
+            pass
+        finally:
+            _prefetching.discard(name)
