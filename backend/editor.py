@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -394,6 +395,10 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
     try:
         parsed = _tolerant_json_parse(resp.choices[0].message.content or "")
         if "good" in parsed or "bad" in parsed:
+            # 清洗：部分模型会照抄提示词里的「标题:」前缀
+            for k in ("good", "bad"):
+                parsed[k] = [re.sub(r"^\s*标题\s*[:：]\s*", "", str(t))
+                             for t in (parsed.get(k) or [])]
             return parsed
     except Exception:
         pass
