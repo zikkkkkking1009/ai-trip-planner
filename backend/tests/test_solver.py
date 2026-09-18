@@ -71,3 +71,51 @@ def test_hotel_anchor_counts_into_commute_and_window():
     assert d.commute_min > 60, "酒店往返通勤应计入当天通勤"
     for v in d.spots:
         assert v.depart_h <= req.daily_end_h + 1e-6
+
+
+def _tight_req():
+    """紧张实例：景点多、天数少（CP-SAT 对照显示旧贪心在这类实例上 gap 20%+）。"""
+    return PlanRequest(city="西安", days=2, budget=300,
+                       daily_start_h=9.0, daily_end_h=18.0,
+                       spots=[s.model_copy() for s in XI_AN_SPOTS[:13]])
+
+
+def test_multistart_not_worse_than_single_start(monkeypatch):
+    """多起点随机重启的结果不得劣于单起点贪心（第 0 轮即保底，skipped 也不能更差）。"""
+    from solver import SCORE_OBJ_W, Solver
+
+    req = _tight_req()
+    days_m, _, _, score_m = Solver(req).solve()
+    obj_m = SCORE_OBJ_W * score_m - sum(d.commute_min for d in days_m)
+
+    import solver as solver_mod
+    monkeypatch.setattr(solver_mod, "MULTISTART_ITERS", 1)   # 常量在模块级
+    days_s, _, _, score_s = Solver(req).solve()
+    obj_s = SCORE_OBJ_W * score_s - sum(d.commute_min for d in days_s)
+
+    # 容差 1.0：内部择优用未取整通勤，而这里用的是 DayPlan 里取整到 0.1 分钟的值，
+    # 会产生 0.1 量级的假性反向差异；真实回归的量级是数千（gap 20% ≈ 数千分）。
+    assert obj_m >= obj_s - 1.0
+
+
+def test_multistart_is_reproducible():
+    """固定随机种子：同一输入两次求解结果完全一致（实验可复现）。"""
+    from solver import Solver
+
+    req = _tight_req()
+    a = Solver(req).solve()
+    b = Solver(req).solve()
+    assert a == b
+
+
+def test_multistart_respects_time_budget():
+    """时间预算：即便景点数达上限，单次求解也要明显快于交互阈值。"""
+    import time
+
+    from solver import Solver
+    req = PlanRequest(city="西安", days=3, budget=None,
+                      daily_start_h=9.0, daily_end_h=18.0,
+                      spots=[s.model_copy() for s in XI_AN_SPOTS])
+    t0 = time.perf_counter()
+    Solver(req).solve()
+    assert time.perf_counter() - t0 < 2.0, "交互式排期应在 2 秒内返回"

@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import math
+import random
+import time
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -20,6 +22,16 @@ from models import DayPlan, PlanRequest, Spot, UnplannedSpot, VisitedSpot
 # ---- 通勤估算参数（之后替换成真实 API）----
 CITY_SPEED_KMH = 18.0       # 市内门到门均速（地铁+步行混合）
 COMMUTE_OVERHEAD_MIN = 8.0  # 进出站/等车固定开销
+
+# ---- 多起点随机重启（multi-start）参数 ----
+# 背景：纯「分数降序贪心」确定性太强，在紧张实例（景点多、天数少）上会先装满高分景点，
+# 把后续高收益组合挤掉。CP-SAT 对照实验显示这类实例 gap 可达 22~24%，
+# 而随机重启 + 保留最优能把 gap 压到 0~1%（实测见 docs/experiments.md 实验四）。
+SCORE_OBJ_W = 1000              # 目标权重：收益优先、通勤为次（与 CP-SAT 对照同口径）
+MULTISTART_MIN_SPOTS = 7        # 景点数少于此 → 单次贪心（实测已达最优）
+MULTISTART_ITERS = 600          # 随机重启次数上限（实测 200→600 可把最差实例 gap 24%→0%）
+MULTISTART_TIME_BUDGET_S = 1.5  # 时间预算硬上限：实测均值 410ms / 最大 882ms，交互可接受
+MULTISTART_SEED = 42            # 固定种子：同输入同输出，实验可复现
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -164,43 +176,105 @@ class Solver:
     def _global_commute(self) -> float:
         return sum(d.commute_total(self.req, self.hotel) for d in self.days)
 
+    # ---------- 多起点构造：构造 → 局部优化 → 择优 ----------
+    def _planned_score(self) -> float:
+        return sum(s.score for d in self.days for s in d.spots)
+
+    def _objective(self) -> float:
+        """目标值：收益为主、通勤为次（与 CP-SAT 对照同一口径）。"""
+        return SCORE_OBJ_W * self._planned_score() - self._global_commute()
+
+    def _construct(self, order: list[Spot]) -> list[UnplannedSpot]:
+        """按给定顺序贪心插入（预算硬约束生效），返回未安排列表。"""
+        unplanned: list[UnplannedSpot] = []
+        spent = 0.0
+        for s in order:
+            budget_left = None if self.req.budget is None else self.req.budget - spent
+            if self._try_insert(s, budget_left):
+                spent += s.ticket
+            else:
+                reason = ("预算不足"
+                          if budget_left is not None and s.ticket > budget_left + 1e-9
+                          else "时间窗装不下")
+                unplanned.append(UnplannedSpot(name=s.name, reason=reason))
+        return unplanned
+
+    def _optimize(self, max_rounds: int = 3) -> None:
+        """天内 2-opt + 跨日搬运，迭代至收敛。"""
+        for _ in range(max_rounds):
+            changed = any(self._intra_2opt(di) for di in range(len(self.days)))
+            changed |= self._relocate()
+            if not changed:
+                break
+
+    def _snapshot(self) -> tuple[list[list[Spot]], list[UnplannedSpot]]:
+        return [list(d.spots) for d in self.days], list(self._unplanned)
+
+    def _restore(self, snap: tuple[list[list[Spot]], list[UnplannedSpot]]) -> None:
+        day_spots, self._unplanned = snap
+        self.days = [_Seq(spots=list(sp), commute_fn=self.commute_fn)
+                     for sp in day_spots]
+
+    @staticmethod
+    def _perturbed_order(spots: list[Spot], rng: random.Random, k: int) -> list[Spot]:
+        """给分数加抖动生成新顺序：小幅抖动偏利用，大幅抖动偏探索。"""
+        amp = 0.5 + 3.0 * ((k % 4) / 3.0)          # 0.5 → 3.5 循环
+        return sorted(spots, key=lambda s: -(s.score + rng.uniform(-amp, amp)))
+
     # ---------- 主入口 ----------
     def solve(self, progress_cb: Callable[[str, dict], None] | None = None
               ) -> tuple[list[DayPlan], list[UnplannedSpot], float, float]:
         """progress_cb(stage, info)：阶段回调，供异步任务系统推送进度。
 
         stage ∈ {构造, 优化, 完成}；不传则静默（同步调用方式不变）。
+
+        策略：多起点随机重启（multi-start）——第 0 轮用「分数降序」（与旧版行为一致，
+        作为保底），后续轮次用带抖动的顺序重跑构造 + 局部优化，保留目标值最优的一轮。
+        景点数少（< MULTISTART_MIN_SPOTS）或已超时间预算时提前结束。
         """
         progress_cb = progress_cb or (lambda stage, info: None)
 
-        # 1) 按 score 降序贪心插入；预算是构造阶段的硬约束
-        progress_cb("构造", {"msg": f"贪心插入 {len(self.req.spots)} 个景点（预算硬约束生效）..."})
-        unplanned: list[UnplannedSpot] = []
-        spent = 0.0
-        for s in sorted(self.req.spots, key=lambda x: -x.score):
-            budget_left = None if self.req.budget is None else self.req.budget - spent
-            if self._try_insert(s, budget_left):
-                spent += s.ticket
-            else:
-                if budget_left is not None and s.ticket > budget_left + 1e-9:
-                    reason = "预算不足"
-                else:
-                    reason = "时间窗装不下"
-                unplanned.append(UnplannedSpot(name=s.name, reason=reason))
-        progress_cb("构造", {"msg": f"已排入 {len(self.req.spots) - len(unplanned)} 个，"
-                                    f"放弃 {len(unplanned)} 个"})
+        spots = list(self.req.spots)
+        n = len(spots)
+        iters = 1 if n < MULTISTART_MIN_SPOTS else MULTISTART_ITERS
+        rng = random.Random(MULTISTART_SEED)
+        base_order = sorted(spots, key=lambda x: -x.score)
 
-        # 2) 局部优化：2-opt 压通勤 + 跨日搬运，迭代至收敛（最多 3 轮）
-        for rd in range(3):
-            changed = any(self._intra_2opt(di) for di in range(len(self.days)))
-            changed |= self._relocate()
-            progress_cb("优化", {"msg": f"第 {rd + 1} 轮优化（2-opt + 跨日搬运），"
-                                        f"当前总通勤 {self._global_commute():.0f} 分钟"})
-            if not changed:
+        self._unplanned: list[UnplannedSpot] = []
+        best_obj = float("-inf")
+        best_snap = None
+        t0 = time.perf_counter()
+        rounds_done = 0
+
+        for k in range(iters):
+            # 每轮重置：清空各天序列
+            for d in self.days:
+                d.spots = []
+            order = base_order if k == 0 else self._perturbed_order(spots, rng, k)
+            self._unplanned = self._construct(order)
+            self._optimize()
+            obj = self._objective()
+            if obj > best_obj:
+                best_obj, best_snap = obj, self._snapshot()
+            rounds_done = k + 1
+            if iters > 1 and (k + 1) % 100 == 0:
+                progress_cb("构造", {"msg": f"多起点搜索 {k + 1}/{iters} 轮，"
+                                            f"当前最优收益 {self._planned_score():.1f}"
+                                            f"（通勤 {self._global_commute():.0f} 分钟）"})
+            if iters > 1 and time.perf_counter() - t0 > MULTISTART_TIME_BUDGET_S:
                 break
+
+        self._restore(best_snap)
+        unplanned = self._unplanned
+        progress_cb("构造", {"msg": (f"多起点 {rounds_done} 轮取最优：" if rounds_done > 1
+                                    else "单起点贪心：")
+                                    + f"已排入 {n - len(unplanned)}/{n} 个，"
+                                      f"收益 {self._planned_score():.1f}，"
+                                      f"通勤 {self._global_commute():.0f} 分钟，"
+                                      f"耗时 {(time.perf_counter() - t0) * 1000:.0f}ms"})
         progress_cb("完成", {"msg": "求解完成"})
 
-        # 3) 输出结构化结果
+        # 输出结构化结果
         day_plans: list[DayPlan] = []
         total_cost = total_score = 0.0
         for i, day in enumerate(self.days):

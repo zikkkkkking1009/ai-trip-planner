@@ -226,7 +226,21 @@ class CPSatSolver:
         day_plans: list[DayPlan] = []
         unplanned: list[UnplannedSpot] = []
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            # 无解：全部未安排，与启发式行为对齐（返回原因）
+            # 拿不到解时（超时/UNKNOWN，或下界约束太紧没搜到）：
+            # 有暖启动解就直接回落到它——这样"不差于启发式"的承诺才是硬的。
+            if self.warm_start:
+                by_name = {sp.name: sp for sp in spots}
+                covered = {v.name for d in self.warm_start for v in d.spots}
+                for sp in spots:
+                    if sp.name not in covered:
+                        reason = ("预算不足"
+                                  if req.budget is not None and sp.ticket > req.budget
+                                  else "时间窗装不下")
+                        unplanned.append(UnplannedSpot(name=sp.name, reason=reason))
+                score = sum(by_name[v.name].score for d in self.warm_start
+                            for v in d.spots if v.name in by_name)
+                cost = sum(v.ticket for d in self.warm_start for v in d.spots)
+                return list(self.warm_start), unplanned, round(cost, 1), round(score, 1)
             for sp in spots:
                 unplanned.append(UnplannedSpot(name=sp.name, reason="时间窗装不下"))
             return day_plans, unplanned, 0.0, 0.0
