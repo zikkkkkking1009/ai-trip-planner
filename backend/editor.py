@@ -58,12 +58,8 @@ def parse_instruction(instruction: str, plan_summary: str,
     返回 {"ops": [...], "reply": "...", "_raw": 模型原始输出(截断)}。
     """
     from extractor import _tolerant_json_parse
-    from openai import OpenAI
 
-    api_key = os.environ.get("LLM_API_KEY")
-    base_url = os.environ.get("LLM_BASE_URL")
-    if not api_key or not base_url:
-        raise RuntimeError("未配置 LLM_API_KEY，无法解析编辑指令")
+    client, model = _llm(fast=True)   # 意图解析是轻任务，走快模型通道
     hist_txt = ""
     for h in (history or [])[-6:]:
         hist_txt += (f"用户：{h.get('q', '')}\n"
@@ -72,9 +68,8 @@ def parse_instruction(instruction: str, plan_summary: str,
     user_content = (f"当前行程：\n{plan_summary}\n\n"
                     + (f"之前的对话记录：\n{hist_txt}\n" if hist_txt else "")
                     + f"用户指令：{instruction}")
-    client = OpenAI(api_key=api_key, base_url=base_url)
     resp = client.chat.completions.create(
-        model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
+        model=model,
         messages=[
             {"role": "system", "content": _SYSTEM},
             {"role": "user", "content": user_content},
@@ -378,23 +373,20 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
     与圆周旅迹同类功能做法一致）。无 LLM Key 时返回 None，前端隐藏该区块。
     """
     from extractor import _tolerant_json_parse
-    from openai import OpenAI
 
-    api_key = os.environ.get("LLM_API_KEY")
-    base_url = os.environ.get("LLM_BASE_URL")
-    if not api_key or not base_url:
+    try:
+        client, model = _llm(fast=True)   # 轻任务走快模型通道
+    except RuntimeError:
         return None
-    client = OpenAI(api_key=api_key, base_url=base_url)
     resp = client.chat.completions.create(
-        model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
+        model=model,
         messages=[
             {"role": "system", "content": (
-                "你是旅游点评生成器。根据景点信息，模仿真实游客的口吻输出 JSON：\n"
-                '{"good": ["标题: 一句话", "标题: 一句话", "标题: 一句话"],\n'
-                ' "bad": ["标题: 一句话", "标题: 一句话", "标题: 一句话"],\n'
-                ' "intro_long": "150字左右的景点介绍段落"}\n'
-                "good 是最值得称赞的方面（景色/体验/文化），bad 是避雷提示"
-                "（人多/暴晒/禁令/交通），标题 2-4 个字，内容具体不空泛。")},
+                "你是旅游点评生成器。根据景点信息，模仿真实游客口吻输出**紧凑**的 JSON：\n"
+                '{"good": ["标题: 一句话", "标题: 一句话", "标题: 一句话", "标题: 一句话"],\n'
+                ' "bad": ["标题: 一句话", "标题: 一句话", "标题: 一句话", "标题: 一句话"],\n'
+                ' "intro_long": "100字左右的介绍"}\n'
+                "标题 2-4 字，每条一句话（不超过 30 字），good 是亮点，bad 是避雷。")},
             {"role": "user", "content": f"景点：{name}\n已知信息：{intro or '无'}"},
         ],
         temperature=0.8,
@@ -406,3 +398,23 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
     except Exception:
         pass
     return None
+
+def _llm(fast: bool = False):
+    """返回 (OpenAI client, model)。
+
+    fast=True 的轻任务（评价生成/意图解析）优先用 LLM_FAST_* 配置——
+    可以指向更快的模型或另一家供应商（如 GLM-4-Flash / qwen-turbo），
+    没配就回落主配置。重任务（攻略抽取）始终用主模型。
+    """
+    from openai import OpenAI
+    if fast:
+        api_key = os.environ.get("LLM_FAST_API_KEY") or os.environ.get("LLM_API_KEY")
+        base_url = os.environ.get("LLM_FAST_BASE_URL") or os.environ.get("LLM_BASE_URL")
+        model = os.environ.get("LLM_FAST_MODEL") or os.environ.get("LLM_MODEL_ID", "deepseek-chat")
+    else:
+        api_key = os.environ.get("LLM_API_KEY")
+        base_url = os.environ.get("LLM_BASE_URL")
+        model = os.environ.get("LLM_MODEL_ID", "deepseek-chat")
+    if not api_key or not base_url:
+        raise RuntimeError("未配置 LLM_API_KEY")
+    return OpenAI(api_key=api_key, base_url=base_url), model

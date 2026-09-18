@@ -78,6 +78,8 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
     task.request_spots = [s.model_dump() for s in req.spots]
     MANAGER.say(task, "启动", f"收到排期请求：{req.city} {req.days} 天，"
                               f"{len(req.spots)} 个景点，预算 {req.budget or '不限'}")
+    # 媒体预取与求解并行跑：用户规划完点开详情时，图片/评价通常已备好
+    asyncio.create_task(prefetch_media([s.name for s in req.spots]))
 
     try:
         cm = CommuteMatrix()
@@ -472,9 +474,11 @@ async def prefetch_media(names: list[str]) -> None:
             if media_file.exists() else {}
     except Exception:
         media = {}
-    for name in dict.fromkeys(names):  # 去重且保序
+    sem = asyncio.Semaphore(3)   # 并发 3 路：12 个景点预热从 ~45s 缩到 ~15s
+
+    async def one(name: str):
         if name in _prefetching or media.get(name, {}).get("reviews"):
-            continue
+            return
         _prefetching.add(name)
         try:
             if not media.get(name):
@@ -493,3 +497,9 @@ async def prefetch_media(names: list[str]) -> None:
             pass
         finally:
             _prefetching.discard(name)
+
+    async def guarded(n: str):
+        async with sem:
+            await one(n)
+
+    await asyncio.gather(*(guarded(n) for n in dict.fromkeys(names)))
