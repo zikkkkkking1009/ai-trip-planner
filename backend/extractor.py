@@ -89,8 +89,11 @@ def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:
     data = _tolerant_json_parse(resp.choices[0].message.content or "")
 
     city = normalize_city(data.get("city")) or normalize_city(city_hint)
-    # 兜底坐标：城市中心（而不是写死的西安坐标）
-    center = city_center(city) or city_center(DEFAULT_CITY) or (34.343207, 108.939645)
+    # 兜底坐标：城市中心（而不是写死的西安坐标，更不能硬编码数字）
+    center = city_center(city) or city_center(DEFAULT_CITY)
+    if center is None:
+        # 启动期配置错误：默认城市必须在城市表里，否则兜底坐标无处可取
+        raise RuntimeError(f"城市表缺少默认城市 {DEFAULT_CITY}，请检查 backend/cities.py")
     if not city:
         log.warning("抽取未能识别城市（city_hint=%r），兜底坐标取 %s；上层应提示用户选择城市",
                     city_hint, DEFAULT_CITY)

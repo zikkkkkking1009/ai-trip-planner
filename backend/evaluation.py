@@ -143,7 +143,7 @@ def llm_baseline_plan(req: PlanRequest) -> tuple[list[DayPlan], float]:
     if not api_key or not base_url:
         raise RuntimeError("未配置 LLM_API_KEY / LLM_BASE_URL")
 
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=60)
     spot_list = [{"name": s.name, "stay_min": s.stay_min, "ticket": s.ticket,
                   "open_h": s.open_h, "close_h": s.close_h} for s in req.spots]
     prompt = (

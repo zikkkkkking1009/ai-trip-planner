@@ -12,6 +12,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from cities import DEFAULT_CITY
 from commute import load_env_file
 from demo_data import XI_AN_SPOTS
 
@@ -32,7 +33,12 @@ def amap_get(path: str, **params) -> dict:
         return json.loads(r.read().decode("utf-8"))
 
 
-def fetch(name: str, city: str = "西安") -> dict:
+def fetch(name: str, city: str = DEFAULT_CITY) -> dict:
+    """按城市抓 POI 详情。
+
+    注意：高德搜索带 citylimit=true，**用错城市会直接搜不到**（返回空）。
+    多城市场景下调用方必须把当前城市传进来（`/poi/detail?city=`）。
+    """
     out = {"image": "", "intro": "", "photos": [], "opentime": "", "address": "",
            "lat": 0.0, "lon": 0.0}
     try:

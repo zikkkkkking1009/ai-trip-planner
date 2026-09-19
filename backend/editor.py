@@ -26,7 +26,7 @@ import urllib.request
 
 from aligner import type_flag
 from cities import DEFAULT_CITY
-from commute import load_env_file
+from commute import AMAP_TIMEOUT_S, load_env_file
 from models import Spot
 from reliability import retry_call
 
@@ -91,7 +91,10 @@ def parse_instruction(instruction: str, plan_summary: str,
     raw = resp.choices[0].message.content or ""
     try:
         parsed = _tolerant_json_parse(raw)
-    except Exception:
+    except Exception as e:
+        # 用户可见的失败（会回「没听懂」），必须留痕便于排查提示词/模型问题
+        log.warning("意图解析失败，回退为「没听懂」: %s: %s | raw=%r",
+                    type(e).__name__, e, raw[:120])
         parsed = {"ops": [], "reply": "没听懂，换个说法试试"}
     parsed["_raw"] = raw[:300]
     return parsed
@@ -111,14 +114,20 @@ def poi_search(query: str, lat: float, lon: float,
         "sortrule": "distance",
     })
     url = f"https://restapi.amap.com/v3/place/around?{params}"
-    wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
-    if wait > 0:
-        time.sleep(wait)
-    poi_search._last = time.time()
+
+    def once() -> dict:
+        wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
+        if wait > 0:
+            time.sleep(wait)
+        poi_search._last = time.time()
+        with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception:
+        # 与通勤/LLM 保持一致：先重试（网络抖动），最终失败才降级——且降级要留痕
+        data = retry_call(once, what=f"高德周边搜索({query})")
+    except Exception as e:
+        log.warning("周边搜索失败 query=%s: %s: %s", query, type(e).__name__, e)
         return []
     if data.get("status") != "1":
         return []
@@ -146,14 +155,20 @@ def text_search(query: str, city: str = DEFAULT_CITY) -> list[dict]:
         "offset": 5, "page": 1, "key": key,
     })
     url = f"https://restapi.amap.com/v3/place/text?{params}"
-    wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
-    if wait > 0:
-        time.sleep(wait)
-    poi_search._last = time.time()
+
+    def once() -> dict:
+        wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
+        if wait > 0:
+            time.sleep(wait)
+        poi_search._last = time.time()
+        with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception:
+        data = retry_call(once, what=f"高德文本搜索({query}@{city})")
+    except Exception as e:
+        log.warning("文本搜索失败 query=%s city=%s: %s: %s",
+                    query, city, type(e).__name__, e)
         return []
     if data.get("status") != "1":
         return []
@@ -389,6 +404,7 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
     try:
         client, model = _llm(fast=True)   # 轻任务走快模型通道
     except RuntimeError:
+        # 未配置 LLM Key → 跳过评价生成（预期降级，前端有「暂无评价」占位）
         return None
     _t0 = time.time()
     resp = retry_call(lambda: client.chat.completions.create(
@@ -413,8 +429,9 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
                 parsed[k] = [re.sub(r"^\s*标题\s*[:：]\s*", "", str(t))
                              for t in (parsed.get(k) or [])]
             return parsed
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("评价解析失败，降级为无评价 name=%s: %s: %s",
+                    name, type(e).__name__, e)
     return None
 
 def _llm(fast: bool = False):

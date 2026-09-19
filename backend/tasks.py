@@ -444,6 +444,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
         task.version += 1
+        log.exception("编辑任务失败 task_id=%s base=%s", task.id, base_task_id)
 
 
 async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
@@ -515,6 +516,7 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
         task.version += 1
+        log.exception("换酒店任务失败 task_id=%s hotel=%s", task.id, hotel.get("name"))
 
 
 _prefetching: set[str] = set()
@@ -531,7 +533,9 @@ async def prefetch_media(names: list[str]) -> None:
     try:
         media = json.loads(media_file.read_text(encoding="utf-8")) \
             if media_file.exists() else {}
-    except Exception:
+    except Exception as e:
+        # 媒体缓存损坏 → 空字典继续（缓存可重建，不阻断预取）
+        log.warning("媒体缓存读取失败，按空处理: %s: %s", type(e).__name__, e)
         media = {}
     sem = asyncio.Semaphore(3)   # 并发 3 路：12 个景点预热从 ~45s 缩到 ~15s
 
@@ -552,8 +556,9 @@ async def prefetch_media(names: list[str]) -> None:
                 media[name]["reviews_ai"] = rv is not None
             media_file.write_text(json.dumps(media, ensure_ascii=False, indent=2),
                                   encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            # 预取是后台优化，失败不影响主流程（用户点开详情时再按需拉取）
+            log.debug("媒体预取失败 name=%s: %s: %s", name, type(e).__name__, e)
         finally:
             _prefetching.discard(name)
 

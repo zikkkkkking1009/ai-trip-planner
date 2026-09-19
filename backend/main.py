@@ -210,7 +210,9 @@ def list_plans() -> dict:
                         .get("stats", {}).get("spots_planned"),
                     "hotel": (r.get("hotel") or {}).get("name"),
                 })
-            except Exception:
+            except Exception as e:
+                # 单条历史损坏 → 跳过该条，但记日志（否则用户看不到某条历史却无从解释）
+                log.warning("历史规划快照解析失败，已跳过: %s: %s", type(e).__name__, e)
                 continue
     return {"plans": plans}
 
@@ -223,24 +225,29 @@ def save_plan_snapshot(task) -> None:
             json.dumps({"task_id": task.id, "created_at": task.created_at,
                         "params": task.req_params, "result": task.result},
                        ensure_ascii=False), encoding="utf-8")
-    except Exception:
-        pass  # 持久化失败不影响主流程
+    except Exception as e:
+        # 持久化失败不影响主流程，但必须留痕——静默吞异常是踩过的坑（HANDOFF 坑表）
+        log.warning("规划快照落盘失败 task_id=%s: %s: %s",
+                    task.id, type(e).__name__, e)
 
 
 @app.get("/poi/detail")
-def poi_detail(name: str) -> dict:
+def poi_detail(name: str, city: str = "") -> dict:
     """快接口：图片组/介绍/营业时间/地址，毫秒级返回。
 
     评价摘要不走这里（首次生成需 ~3s），前端拿到基础数据立即渲染后
     再调 /poi/reviews 异步补上——避免点开详情要等好几秒。
+
+    **city 必须传**：高德搜索带 citylimit，用错城市搜不到（返回 404）。
+    未命中缓存时按 city 抓取，抓到后写入 spot_media.json 供后续零成本命中。
     """
     media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
     m = media.get(name)
     if not m:
         from fetch_spot_details import fetch
-        m = fetch(name)
+        m = fetch(name, city or DEFAULT_CITY)
         if not (m.get("image") or m.get("address")):
-            raise HTTPException(404, "未找到该地点的高德信息")
+            raise HTTPException(404, f"未找到「{name}」在 {city or DEFAULT_CITY} 的高德信息")
         media[name] = m
         MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
                               encoding="utf-8")
@@ -264,7 +271,9 @@ def poi_reviews(name: str) -> dict:
             m["reviews"] = generate_reviews(
                 name, (m.get("intro", "") or "") + " " + (m.get("address", "") or ""))
             m["reviews_ai"] = m["reviews"] is not None
-        except Exception:
+        except Exception as e:
+            # 降级为「无评价」，但要留痕（静默 fallback 会让线上问题无法定位）
+            log.warning("评价生成失败 name=%s: %s: %s", name, type(e).__name__, e)
             m["reviews"] = None
             m["reviews_ai"] = False
         media[name] = m
@@ -280,12 +289,17 @@ def hotel_search(body: dict) -> dict:
     query = (body.get("query") or "").strip()
     if not query:
         raise HTTPException(400, "需要 query")
-    city = body.get("city", "西安")
-    cands = text_search(query, city) or poi_search(query, 34.26, 108.94, radius=10000)
+    city = normalize_city(body.get("city")) or DEFAULT_CITY
+    # 降级路径用**该城市中心**做周边搜索，不能写死某个城市的坐标
+    center = city_center(city) or city_center(DEFAULT_CITY)
+    if center is None:
+        raise HTTPException(500, f"城市表缺少 {DEFAULT_CITY}，请检查 backend/cities.py")
+    cands = text_search(query, city) or poi_search(query, center[0], center[1], radius=10000)
     return {"results": [{"name": c["name"], "lat": c["lat"], "lon": c["lon"],
                          "intro": c.get("type_str", "").split(";")[0],
                          "image": c.get("image", "")}
-                        for c in cands[:8]]}
+                        for c in cands[:8]],
+            "city": city}
 
 
 @app.post("/hotel/set")
@@ -308,7 +322,8 @@ def _soft_delete_plan(f) -> bool:
     沙箱的批量物理删除安全守卫，避免大批量删除时被拦成 500）。"""
     try:
         d = json.loads(f.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as e:
+        log.warning("软删除失败（文件不可解析）%s: %s: %s", f.name, type(e).__name__, e)
         return False
     d["deleted"] = True
     f.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")

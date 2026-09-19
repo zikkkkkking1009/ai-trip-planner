@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import logging
 import math
 import random
 import time
@@ -18,6 +19,8 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from models import DayPlan, PlanRequest, Spot, UnplannedSpot, VisitedSpot
+
+log = logging.getLogger(__name__)
 
 # ---- 通勤估算参数（之后替换成真实 API）----
 CITY_SPEED_KMH = 18.0       # 市内门到门均速（地铁+步行混合）
@@ -283,6 +286,15 @@ class Solver:
                                       f"通勤 {self._global_commute():.0f} 分钟，"
                                       f"耗时 {(time.perf_counter() - t0) * 1000:.0f}ms"})
         progress_cb("完成", {"msg": "求解完成"})
+
+        # 领域层日志：同步 /plan 路径没有任务进度面板，靠日志定位问题
+        log.info("求解完成：%d 景点 / %d 天 → 排入 %d、收益 %.1f、通勤 %.0f 分钟、"
+                 "%d 轮、耗时 %.0fms",
+                 n, self.req.days, n - len(unplanned), self._planned_score(),
+                 self._global_commute(), rounds_done, (time.perf_counter() - t0) * 1000)
+        if unplanned:
+            log.info("未排入 %d 个：%s", len(unplanned),
+                     "; ".join(f"{u.name}({u.reason})" for u in unplanned))
 
         # 输出结构化结果
         day_plans: list[DayPlan] = []

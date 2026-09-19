@@ -129,8 +129,11 @@ class CommuteMatrix:
                 self._mem[ck] = minutes
                 self._flush()
                 return minutes
-            except Exception:
+            except Exception as e:
+                # 高德不可用时降级为估算——必须留痕，否则「行程时长为什么不对」无从查起
                 self.stats["fallbacks"] += 1
+                log.warning("高德通勤失败，降级为估算 %s → %s: %s: %s",
+                            a.name, b.name, type(e).__name__, e)
 
         minutes = _estimate_min(a, b)
         self._mem[ck] = minutes  # 估算也 memo，避免同一对反复降级
@@ -171,9 +174,24 @@ class CommuteMatrix:
         pairs = [(uniq[i], uniq[j])
                  for i in range(len(uniq)) for j in range(i + 1, len(uniq))]
         before = self.stats["api_calls"]
+        t0 = time.time()
         for idx, (a, b) in enumerate(pairs):
-            self.minutes(a, b)  # 同时缓存正反两个方向
+            # 通勤时长**方向敏感**（单行道、快速路、掉头成本），A→B 与 B→A 是两个独立
+            # 缓存项，必须分别查询——早期注释写「同时缓存正反两个方向」是错的，
+            # 会让人误以为一次调用省一半配额。
+            self.minutes(a, b)
             self.minutes(b, a)
             if progress_cb and (idx % 5 == 0 or idx == len(pairs) - 1):
                 progress_cb(idx + 1, len(pairs))
-        return self.stats["api_calls"] - before
+        calls = self.stats["api_calls"] - before
+        elapsed = time.time() - t0
+        # 成本可见性：预计算是最大的高德配额消耗点，命中率与耗时都要能查到
+        if calls:
+            log.info("通勤矩阵预计算：%d 对 / %d 次真实调用 / %.1fs"
+                     "（限频 %.2fs 一次，估算配额上限 %.0f 次/分钟）",
+                     len(pairs), calls, elapsed, self.QPS_MIN_INTERVAL,
+                     60 / self.QPS_MIN_INTERVAL)
+        elif pairs:
+            log.info("通勤矩阵预计算：%d 对全部命中缓存（%.2fs，0 次调用）",
+                     len(pairs), elapsed)
+        return calls

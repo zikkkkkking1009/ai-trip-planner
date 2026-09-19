@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -34,12 +35,16 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from commute import load_env_file
+from reliability import retry_call
+
+log = logging.getLogger(__name__)
 
 BACKEND_DIR = Path(__file__).parent
 POI_CACHE_FILE = BACKEND_DIR / ".poi_cache.json"
 POI_CACHE_TTL_SEC = 30 * 24 * 3600  # POI 数据变化慢，缓存 30 天
 ARB_CACHE_FILE = BACKEND_DIR / ".align_arb_cache.json"  # LLM 仲裁结果缓存
 
+POI_TIMEOUT_S = 5.0     # 单次高德 POI 搜索超时（秒），失败由 reliability 重试
 AUTO_THRESHOLD = 0.72   # >= 此置信度自动采纳，否则先 LLM 仲裁、再转人工
 TOP_K = 5               # 召回候选数
 
@@ -230,12 +235,24 @@ class POIAligner:
             "offset": TOP_K, "page": 1, "key": self.key,
         })
         url = f"https://restapi.amap.com/v3/place/text?{params}"
-        wait = 0.35 - (time.time() - self._last_call)
-        if wait > 0:
-            time.sleep(wait)
-        self._last_call = time.time()
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+
+        def once() -> dict:
+            # 限频放在重试内部：每次尝试都遵守 QPS 约束
+            wait = 0.35 - (time.time() - self._last_call)
+            if wait > 0:
+                time.sleep(wait)
+            self._last_call = time.time()
+            with urllib.request.urlopen(url, timeout=POI_TIMEOUT_S) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
+        # 与通勤/LLM 一致：网络抖动先重试，最终失败才降级为 no_candidate
+        try:
+            data = retry_call(once, what=f"高德 POI 搜索({alias}@{city})")
+        except Exception as e:
+            self.stats["fallbacks"] += 1
+            log.warning("POI 搜索失败 alias=%s city=%s: %s: %s",
+                        alias, city, type(e).__name__, e)
+            raise RuntimeError(f"高德 POI 搜索异常: {type(e).__name__}: {e}") from e
         self.stats["api_calls"] += 1
         if data.get("status") != "1":
             self.stats["fallbacks"] += 1
@@ -286,9 +303,12 @@ class POIAligner:
                                needs_review=True)
         try:
             pois = self._search_pois(alias, city)
-        except Exception:
+        except Exception as e:
             pois = []
+            log.warning("POI 搜索异常，按无候选处理 %r@%s: %s: %s",
+                        alias, city, type(e).__name__, e)
         if not pois:
+            log.info("对齐无候选：%r@%s（转人工）", alias, city)
             return AlignResult(alias=alias, best=None, reason="no_candidate",
                                needs_review=True)
 
@@ -299,13 +319,17 @@ class POIAligner:
             try:
                 main_pois = self._search_pois(renamed_root, city)
                 self.stats["renamed_requery"] += 1
-            except Exception:
+            except Exception as e:
                 main_pois = []
+                log.warning("更名重查失败，退回常规打分 root=%r@%s: %s: %s",
+                            renamed_root, city, type(e).__name__, e)
             exact = [p for p in main_pois
                      if _normalize(p.name) == _normalize(renamed_root)]
             if exact:
                 best = exact[0]
                 best.score = round(self._score(renamed_root, best, hint_type), 4)
+                log.info("检测到景区更名：%r → 主名 %r@%s（重查命中 %r）",
+                         alias, renamed_root, city, best.name)
                 return AlignResult(
                     alias=alias, best=best, candidates=[best],
                     confidence=_confidence(best.score), needs_review=False,
@@ -329,9 +353,16 @@ class POIAligner:
         if review:
             picked = self._arbitrate(alias, city, pool)
             if picked is not None:
+                if picked.name != best.name:
+                    log.info("LLM 仲裁改判：%r@%s → %r（文本分 top1 为 %r %.2f）",
+                             alias, city, picked.name, best.name, best.score)
                 best = picked
                 review = False
                 arbitrated = True
+
+        if review:
+            log.info("低置信转人工：%r@%s 置信 %.2f（top1=%r），候选 %d 个",
+                     alias, city, best.score, best.name, len(pool))
 
         return AlignResult(
             alias=alias, best=best, candidates=pool,
@@ -402,7 +433,9 @@ class POIAligner:
             m = re.search(r"\{.*\}", text, re.S)
             data = json.loads(m.group(0)) if m else {}
             pick = (data.get("pick") or "").strip()
-        except Exception:
+        except Exception as e:
+            # 仲裁是可选增强：失败即降级为转人工，不算错误但要知道它失败了
+            log.debug("LLM 仲裁调用失败，降级为转人工: %s: %s", type(e).__name__, e)
             return None
         return pick if any(p.name == pick for p in pool) else None
 

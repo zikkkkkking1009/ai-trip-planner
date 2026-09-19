@@ -28,6 +28,12 @@ jobs:
       - name: Frontend static check (syntax + shadowing guard)
         run: python tools/check_frontend.py
 
+      # 五维健壮性审计：超时 / 重试 / 状态 / 日志 / 成本（静态检查，不需要密钥）
+      # 立这道门的原因：这几条底线靠人记记不住 —— 历史上出现过
+      # 「缺常量导致接口 500」「漏传城市导致详情卡 404」「except: pass 吞掉异常」
+      - name: Backend robustness audit (timeout/retry/state/log/cost)
+        run: python tools/check_backend_health.py
+
       - name: Frontend runtime smoke test (jsdom)
         run: |
           npm install jsdom --no-save --prefix tools

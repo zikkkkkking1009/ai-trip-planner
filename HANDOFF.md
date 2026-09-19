@@ -122,6 +122,7 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试；C5 分享长图
 |------|------|------|
 | `pytest` | 84 个单元测试 | `cd backend && python -m pytest tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查（语法门 + 遮蔽守卫 + 未转义字段提示） | `python tools/check_frontend.py` |
+| `tools/check_backend_health.py` | **五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本，静态检查、不需要密钥，已接入 CI） | `python tools/check_backend_health.py` |
 | `tools/verify_multicity.py` | **多城市端到端验证**（7 组断言：城市列表 / 各城景点数与坐标落城 / 未知城市不回落 / 成都攻略全链路 / 西安回归 / 同名 POI 不串味）。**需先起服务并把 `BASE` 端口对齐** | `python tools/verify_multicity.py` |
 | `tools/build_demo_data.py` | 抓取多城市 demo 景点（高德真实坐标，禁止手写坐标）+ 打印城市中心表 | `python tools/build_demo_data.py` |
 | `tools/frontend_smoke.js` | jsdom 运行时冒烟（12 项 DOM 断言） | 见"30 秒上手" |
@@ -131,6 +132,16 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试；C5 分享长图
 | `bench_models.py` | 模型选型基准（抽取/解析/评价，多轮重复） | `python bench_models.py --repeat 5` |
 
 **验证方法论（务必延续）**：
+- **每次改完后端，必跑五维审计**：`python tools/check_backend_health.py`（超时 / 重试 / 状态 / 日志 / 成本），CI 已设卡。**这五条是硬底线，别靠记忆去查**：
+
+  | 维度 | 底线要求 | 判罚规则（脚本自动检查） |
+  |------|---------|------------------------|
+  | **超时** | 所有外部调用（`urlopen` / `OpenAI(...)`）必须显式带 `timeout`，且不得为 `None`/`0` | ❌ 缺 timeout 直接失败 |
+  | **重试** | 调外部网络的函数应有 `retry_call`；确实不需要的要在 `RETRY_EXEMPT_FUNCS` 里写明理由 | ⚠️ 未包且未声明 → 警告 |
+  | **状态** | 所有 `run_*` 后台任务函数必须 try/except，且失败时把任务置为 `failed`（不能让后台任务静默死掉） | ❌ 缺 try/except 或没置 failed → 失败 |
+  | **日志** | 业务模块必须有 logger；**宽泛 `except Exception` 必须留日志或写注释声明理由**（数据类异常与 `raise` 上抛可豁免） | ⚠️ 静默宽泛捕获 → 警告 |
+  | **成本** | 限频/缓存/超时常量必须在位（`QPS_MIN_INTERVAL` / `CACHE_TTL_SEC` / `POI_TIMEOUT_S` / `LLM_TIMEOUT_S`）；不得硬编码城市名与坐标 | ❌ 缺常量或硬编码 → 失败 |
+
 - 任何"改进"都要有**改前/改后同口径对照**，数据写进 `docs/experiments.md`
 - 新的测试要**用已知有问题的旧版本跑一遍证明它有效**（例：`git show a01781a:static/index.html > /tmp/old.html && node tools/frontend_smoke.js /tmp/old.html`）
 - 实验必须固定随机种子；跑完把结果文件一起提交

@@ -696,7 +696,7 @@ function openSpotDetail(name) {
     toggleFav(name);
     this.textContent = this.textContent.includes('取消') ? '⭐ 收藏' : '⭐ 取消收藏';
   };
-  fetch(`/poi/detail?name=${encodeURIComponent(name)}`)
+  fetch(`/poi/detail?name=${encodeURIComponent(name)}&city=${encodeURIComponent(currentCity)}`)
     .then(r => { if (!r.ok) throw 0; return r.json(); })
     .then(d => {
       const ph = $('spotPhotos');

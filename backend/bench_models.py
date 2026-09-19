@@ -48,7 +48,7 @@ def _with_provider(cfg: dict):
     import editor
     def fake(fast: bool = False):
         from openai import OpenAI
-        return OpenAI(api_key=cfg["key"], base_url=cfg["base"]), cfg["model"]
+        return OpenAI(api_key=cfg["key"], base_url=cfg["base"], timeout=120), cfg["model"]
     editor._llm = fake
     return editor
 
