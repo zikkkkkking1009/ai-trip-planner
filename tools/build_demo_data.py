@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import time
@@ -27,6 +28,17 @@ from aligner import type_flag  # noqa: E402  复用既有干扰类型过滤规�
 from commute import load_env_file  # noqa: E402
 
 OUT_FILE = BACKEND / "demo_spots.json"
+
+# ---- 扩容模式（--auto）：按城市自动抓风景名胜，**不需要手工列景点名** ----
+# 高德 place/text 的 types=110000 即「风景名胜」大类，按评分排序取前 N，
+# 再用 type_flag 过滤干扰类型、按主名去重（排除「西湖-断桥残雪」这类子点）。
+# 加新城市 = 往这个列表加一个名字，跑一次脚本即可。
+AUTO_CITIES = [
+    "上海", "广州", "深圳", "南京", "苏州", "武汉", "长沙", "厦门", "青岛",
+    "天津", "洛阳", "开封", "桂林", "丽江", "三亚", "昆明", "贵阳", "哈尔滨",
+    "无锡", "济南",
+]
+AUTO_SPOTS_PER_CITY = 10
 QPS_INTERVAL = 0.35  # 个人 Key 限频
 
 # ---- 要抓取的城市（西安已有 14 条精心手写数据，不重复抓）----
@@ -164,49 +176,133 @@ def pick_clean(cands: list[dict], city: str) -> dict | None:
     return (clean or cands or [None])[0]
 
 
+def search_scenic(amap: "Amap", city: str, limit: int = 25) -> list[dict]:
+    """按城市搜「风景名胜」类 POI（高德 types=110000），按评分降序。"""
+    params = urllib.parse.urlencode({
+        "keywords": "景点", "types": "110000", "city": city, "citylimit": "true",
+        "offset": 25, "page": 1, "extensions": "all", "key": amap.key,
+    })
+    data = amap_get(f"https://restapi.amap.com/v3/place/text?{params}")
+    if data.get("status") != "1":
+        raise RuntimeError(f"高德搜索异常：{data.get('info')}")
+    out = []
+    for p in data.get("pois", []):
+        loc = p.get("location") or ""
+        if "," not in loc:
+            continue
+        lon, lat = map(float, loc.split(","))
+        biz = p.get("biz_ext") or {}
+        rating = biz.get("rating")
+        out.append({
+            "name": p.get("name", ""), "lat": lat, "lon": lon,
+            "type_str": p.get("type", ""), "address": p.get("address", ""),
+            "rating": float(rating) if rating not in (None, "", []) else None,
+            "avg_cost": None,
+        })
+    return out
+
+
+def auto_city_rows(amap: "Amap", city: str, limit: int) -> list[dict]:
+    """自动模式：搜该城风景名胜 → 过滤干扰/子景点 → 取评分最高的 limit 个。"""
+    cands = search_scenic(amap, city)
+    clean = [c for c in cands if type_flag(c["type_str"]) > 0] or cands
+    dedup, seen = [], set()
+    for c in sorted(clean, key=lambda x: -(x["rating"] or 0)):
+        std, _note = cleanup_name(c["name"])
+        tag = std.split("-")[0]          # 「西湖风景名胜区-断桥残雪」→「西湖风景名胜区」
+        if tag in seen:
+            continue                     # 子景点与主景区重复，跳过
+        seen.add(tag)
+        c["name"] = std
+        dedup.append(c)
+        if len(dedup) >= limit:
+            break
+    return dedup
+
+
+def to_row(cand: dict, idx: int, name_hint: str = "") -> dict:
+    """高德候选 → demo 数据行（门票/停留/开放时间为演示近似值）。"""
+    type_str = cand["type_str"]
+    std_name, note = cleanup_name(cand["name"])
+    open_h, close_h = guess_hours(type_str)
+    return {
+        "source_id": idx, "name": std_name,
+        "lat": round(cand["lat"], 6), "lon": round(cand["lon"], 6),
+        "stay_min": guess_stay(std_name, type_str),
+        "score": round(cand["rating"], 1) if cand["rating"] else 7.5,
+        "ticket": TICKET.get(std_name, TICKET.get(name_hint, 0)),
+        "open_h": open_h, "close_h": close_h,
+        "desc": note,
+        "type_str": type_str, "address": cand["address"],
+        "avg_cost": cand.get("avg_cost"),
+    }
+
+
 def main() -> None:
+    ap = argparse.ArgumentParser(description="抓取多城市 demo 景点数据")
+    ap.add_argument("--auto", action="store_true",
+                    help="扩容模式：按 AUTO_CITIES 自动抓风景名胜（无需手工景点名）")
+    ap.add_argument("--limit", type=int, default=AUTO_SPOTS_PER_CITY,
+                    help="自动模式下每城抓取的景点数")
+    args = ap.parse_args()
+
     amap = Amap()
-    result: dict[str, list[dict]] = {}
+    # 先读已有数据（--auto 增量扩容，不动已有城市）
+    existing: dict[str, list[dict]] = {}
+    if OUT_FILE.exists():
+        existing = json.loads(OUT_FILE.read_text(encoding="utf-8"))
+    result: dict[str, list[dict]] = dict(existing)
 
     print("=== 城市中心（地理编码真实值，供 backend/cities.py）===")
     centers = {}
-    for city in ["西安", *CITY_SPOT_QUERIES]:
-        info = amap.city_center(city)
-        centers[city] = info
-        print(f'    "{city}": ({info.get("lat")}, {info.get("lon")}),  '
-              f'# adcode={info.get("adcode")} level={info.get("level")}')
+    if args.auto:
+        for city in AUTO_CITIES:
+            info = amap.city_center(city)
+            centers[city] = info
+            print(f'    "{city}": ({info.get("lat")}, {info.get("lon")}),  '
+                  f'# adcode={info.get("adcode")} level={info.get("level")}')
+    else:
+        for city in ["西安", *CITY_SPOT_QUERIES]:
+            info = amap.city_center(city)
+            centers[city] = info
+            print(f'    "{city}": ({info.get("lat")}, {info.get("lon")}),  '
+                  f'# adcode={info.get("adcode")} level={info.get("level")}')
 
-    for city, names in CITY_SPOT_QUERIES.items():
-        print(f"\n=== {city}（{len(names)} 个景点）===")
-        rows = []
-        for idx, name in enumerate(names, 1):
+    if args.auto:
+        for city in AUTO_CITIES:
+            if city in result and len(result[city]) >= args.limit:
+                print(f"\n跳过 {city}（已有 {len(result[city])} 个景点）")
+                continue
+            print(f"\n=== {city}（自动抓 {args.limit} 个）===")
             try:
-                cand = pick_clean(amap.search(name, city), city)
+                cands = auto_city_rows(amap, city, args.limit)
             except Exception as e:
-                print(f"  {idx:>2}. {name:<22} 抓取失败：{e}")
+                print(f"  抓取失败：{e}")
                 continue
-            if not cand:
-                print(f"  {idx:>2}. {name:<22} 无候选，跳过")
-                continue
-            type_str = cand["type_str"]
-            open_h, close_h = guess_hours(type_str)
-            std_name, note = cleanup_name(cand["name"])
-            row = {
-                "source_id": idx, "name": std_name,
-                "lat": round(cand["lat"], 6), "lon": round(cand["lon"], 6),
-                "stay_min": guess_stay(std_name, type_str),
-                "score": round(cand["rating"], 1) if cand["rating"] else 7.5,
-                "ticket": TICKET.get(std_name, TICKET.get(name, 0)),
-                "open_h": open_h, "close_h": close_h,
-                "desc": note,
-                "type_str": type_str, "address": cand["address"],
-                "avg_cost": cand["avg_cost"],
-            }
-            rows.append(row)
-            print(f'  {idx:>2}. {std_name:<22} ({cand["lat"]:.4f},{cand["lon"]:.4f}) '
-                  f'评分={row["score"]} 票={row["ticket"]} 停留={row["stay_min"]}'
-                  f' | {type_str[:34]}')
-        result[city] = rows
+            rows = []
+            for idx, cand in enumerate(cands, 1):
+                row = to_row(cand, idx)
+                rows.append(row)
+                print(f'  {idx:>2}. {row["name"]:<22} ({cand["lat"]:.4f},{cand["lon"]:.4f}) '
+                      f'评分={row["score"]} | {row["type_str"][:30]}')
+            result[city] = rows
+    else:
+        for city, names in CITY_SPOT_QUERIES.items():
+            print(f"\n=== {city}（{len(names)} 个景点）===")
+            rows = []
+            for idx, name in enumerate(names, 1):
+                try:
+                    cand = pick_clean(amap.search(name, city), city)
+                except Exception as e:
+                    print(f"  {idx:>2}. {name:<22} 抓取失败：{e}")
+                    continue
+                if not cand:
+                    print(f"  {idx:>2}. {name:<22} 无候选，跳过")
+                    continue
+                rows.append(to_row(cand, idx, name))
+                print(f'  {idx:>2}. {rows[-1]["name"]:<22} ({cand["lat"]:.4f},{cand["lon"]:.4f}) '
+                      f'评分={rows[-1]["score"]} | {rows[-1]["type_str"][:30]}')
+            result[city] = rows
 
     OUT_FILE.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
     total = sum(len(v) for v in result.values())

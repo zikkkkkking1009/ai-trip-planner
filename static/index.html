@@ -685,7 +685,12 @@ function render() {
   document.querySelectorAll('.daytabs .tab').forEach(t =>
     t.onclick = () => { currentDay = Number(t.dataset.day);
       document.querySelectorAll('.daytabs .tab').forEach(x=>x.classList.remove('active'));
-      t.classList.add('active'); renderItin(); if (map) renderMap(); });
+      t.classList.add('active');
+      // 只刷新当前视图的数据：在行程视图刷行程，在地图视图重绘路线。
+      // 旧实现无条件调 renderMap()，而 renderMap 第一行就是「切到地图视图」——
+      // 于是只要看过一次地图，再点某天的 tab 就会被强制拽到地图（用户报的 bug）
+      const onMap = $('mapView').style.display === 'block';
+      if (onMap) { if (map) renderMap(); } else renderItin(); });
   $('daytabs').firstChild.classList.add('active');
   renderItin();          // 规划完成立即渲染总览（这行丢过两次，不能再丢）
   switchView('itin');
