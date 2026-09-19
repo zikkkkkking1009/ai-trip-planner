@@ -1,53 +1,53 @@
 {
   "guide_chars": 101,
-  "repeat": 5,
+  "repeat": 3,
   "results": [
     {
       "provider": "main",
       "task": "攻略抽取",
-      "repeat": 5,
-      "latency_mean_s": 1.88,
-      "latency_min_s": 1.52,
+      "repeat": 3,
+      "latency_mean_s": 2.07,
+      "latency_min_s": 1.66,
       "success_rate": 1.0
     },
     {
       "provider": "main",
       "task": "意图解析",
-      "repeat": 5,
-      "latency_mean_s": 0.78,
-      "latency_min_s": 0.62,
+      "repeat": 3,
+      "latency_mean_s": 0.68,
+      "latency_min_s": 0.64,
       "success_rate": 1.0
     },
     {
       "provider": "main",
       "task": "评价生成",
-      "repeat": 5,
-      "latency_mean_s": 1.98,
-      "latency_min_s": 1.58,
+      "repeat": 3,
+      "latency_mean_s": 2.16,
+      "latency_min_s": 2.01,
       "success_rate": 1.0
     },
     {
       "provider": "fast",
       "task": "攻略抽取",
-      "repeat": 5,
-      "latency_mean_s": 12.12,
-      "latency_min_s": 10.14,
+      "repeat": 3,
+      "latency_mean_s": 13.6,
+      "latency_min_s": 11.75,
       "success_rate": 1.0
     },
     {
       "provider": "fast",
       "task": "意图解析",
-      "repeat": 5,
-      "latency_mean_s": 2.56,
-      "latency_min_s": 0.99,
+      "repeat": 3,
+      "latency_mean_s": 10.4,
+      "latency_min_s": 1.6,
       "success_rate": 1.0
     },
     {
       "provider": "fast",
       "task": "评价生成",
-      "repeat": 5,
-      "latency_mean_s": 5.74,
-      "latency_min_s": 3.96,
+      "repeat": 3,
+      "latency_mean_s": 5.05,
+      "latency_min_s": 4.28,
       "success_rate": 1.0
     }
   ]

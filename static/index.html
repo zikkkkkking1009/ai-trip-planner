@@ -9,20 +9,46 @@
 <style>
   :root { --acc:#1677ff; --acc2:#4096ff; --fg:#1d2939; --dim:#98a2b3; --line:#e8ecf2; }
   * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  body { background:#e9edf3; display:flex; justify-content:center; }
-  /* App 壳：固定高度，页内滚动，底部导航常驻 */
-  #phone { width:100%; max-width:460px; height:100vh; background:#f2f4f8;
-           box-shadow:0 0 24px rgba(0,0,0,.10); display:flex; flex-direction:column; overflow:hidden; }
-  .page { display:none; flex:1; overflow-y:auto; overscroll-behavior:contain; }
+  body { background:#f7f9fc; color:var(--fg); -webkit-font-smoothing:antialiased; }
+  /* 站点容器：桌面宽屏（原来是 460px 手机壳 + 页内滚动，App 观感太强） */
+  #phone { width:100%; min-height:100vh; display:flex; flex-direction:column; background:transparent; }
+  .page { display:none; flex:1; }
   .page.active { display:block; }
-  header { background:linear-gradient(135deg,#3d9bff 0%,#1677ff 100%); color:#fff;
-           padding:24px 20px 44px; border-radius:0 0 20px 20px; }
-  header h1 { font-size:21px; font-weight:800; }
-  header .meta { opacity:.92; font-size:12.5px; margin-top:5px; }
-  header .chips { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
-  header .chip { background:rgba(255,255,255,.2); padding:4px 12px; border-radius:12px; font-size:12px; }
-  .sheet { background:#fff; border-radius:14px; margin:-28px 14px 12px; padding:14px;
-           box-shadow:0 6px 18px rgba(22,119,255,.10); }
+  /* 顶部导航：固定 + 毛玻璃 */
+  .site-nav { position:sticky; top:0; z-index:500; display:flex; align-items:center; gap:10px;
+              padding:13px max(24px, calc((100vw - 1180px) / 2));
+              background:rgba(255,255,255,.82); backdrop-filter:blur(14px);
+              border-bottom:1px solid rgba(16,24,40,.06); }
+  .site-nav .brand { font-weight:800; font-size:16px; display:flex; align-items:center; gap:9px;
+                     letter-spacing:.2px; }
+  .site-nav .brand i { width:22px; height:22px; border-radius:7px; display:inline-block;
+                       background:linear-gradient(135deg,#4096ff,#1677ff); }
+  .site-nav .links { display:flex; gap:2px; margin-left:14px; }
+  .site-nav .links a { font-size:13.5px; color:#475467; padding:7px 13px; border-radius:9px;
+                       cursor:pointer; user-select:none; }
+  .site-nav .links a:hover { background:#f2f5fa; }
+  .site-nav .links a.on { color:var(--acc); background:#eef4ff; font-weight:600; }
+  .site-nav .spacer { flex:1; }
+  .site-nav .navtag { font-size:12.5px; color:#475467; background:#f2f4f8;
+                      padding:6px 13px; border-radius:999px; white-space:nowrap; }
+  /* Hero：大标题区（替代原来那个"App 渐变头"） */
+  .hero { padding:64px 24px 40px; text-align:center;
+          background:radial-gradient(1100px 300px at 50% -80px, #e8f1ff 0%, rgba(247,249,252,0) 72%); }
+  .hero h1 { font-size:clamp(26px, 3.6vw, 42px); font-weight:800; letter-spacing:-.6px; line-height:1.18; }
+  .hero .meta { color:#667085; font-size:15px; margin-top:14px; }
+  .hero .chips { margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .hero .chip { background:#fff; border:1px solid #e6ebf3; color:#475467; padding:6px 14px;
+                border-radius:999px; font-size:12.5px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  /* 主体：左表单（吸顶）+ 右结果 */
+  .layout { display:grid; grid-template-columns:372px minmax(0, 1fr); gap:20px;
+            max-width:1180px; margin:0 auto 56px; padding:0 24px; align-items:start; }
+  @media (max-width:1024px) { .layout { grid-template-columns:1fr; gap:16px; } }
+  .stage { min-width:0; }
+  .page > header { padding:34px 24px 22px; }
+  .sheet { background:#fff; border-radius:16px; padding:18px; border:1px solid #eef1f6;
+           box-shadow:0 8px 28px rgba(16,24,40,.06);
+           position:sticky; top:84px; }              /* 顶栏下吸顶，滚动时表单一直在 */
+  @media (max-width:1024px) { .sheet { position:static; } }
   .field { display:flex; flex-direction:column; gap:4px; }
   .field label { font-size:11px; color:#8a94a6; }
   .datefield { margin-bottom:10px; cursor:pointer; }
@@ -108,6 +134,74 @@
   .chatbar button { background:var(--acc); color:#fff; border:none; border-radius:9px;
                     padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600; }
   .chatbar button:disabled { opacity:.5; }
+
+  /* ===== 桌宠助手（AI 对话操控）=====
+     设计参考（零依赖自绘，理由见 README「为什么不用 Live2D / chat-widget 库」）：
+     - page-mascot（MIT）：光标跟随 + 死区防抖、点击反应、触摸设备关闭跟随、尊重 prefers-reduced-motion
+     - Persona.js（MIT）：floating launcher 布局、消息气泡规范、思考态提示 */
+  #pet { position:fixed; right:16px; bottom:16px; z-index:900; width:64px; height:64px;
+         cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent;
+         filter:drop-shadow(0 6px 16px rgba(16,24,40,.18)); }
+  #pet svg { width:100%; height:100%; display:block; }
+  #pet .pet-body { animation:petFloat 3.4s ease-in-out infinite; transform-origin:50% 90%; }
+  @keyframes petFloat { 0%,100% { transform:translateY(0) } 50% { transform:translateY(-3.5px) } }
+  #pet .pet-eyes { animation:petBlink 4.6s infinite; transform-origin:50% 46px; }
+  @keyframes petBlink { 0%,91%,100% { transform:scaleY(1) } 95% { transform:scaleY(.12) } }
+  /* 表情：预置多组嘴/眼，用 data-mood 切换显隐（比改 SVG path 兼容性好） */
+  #pet .mood { opacity:0; transition:opacity .18s }
+  #pet[data-mood="idle"]     .m-idle,
+  #pet[data-mood="thinking"] .m-thinking,
+  #pet[data-mood="happy"]    .m-happy,
+  #pet[data-mood="sad"]      .m-sad { opacity:1 }
+  #pet[data-mood="thinking"] .pet-eyes { animation:none }
+  #pet[data-mood="thinking"] .pet-body { animation:petPulse 1.1s ease-in-out infinite }
+  @keyframes petPulse { 0%,100% { transform:scale(1) } 50% { transform:scale(1.05) } }
+  #pet .pet-eye-look { transition:transform .12s ease-out }
+  #pet .pet-badge { position:absolute; top:-2px; right:-2px; width:14px; height:14px; border-radius:50%;
+                    background:#e8590c; border:2px solid #fff; display:none }
+  #pet.has-news .pet-badge { display:block; animation:petPop .5s ease }
+  @keyframes petPop { 0% { transform:scale(.2) } 70% { transform:scale(1.25) } 100% { transform:scale(1) } }
+  #pet:active .pet-body { transform:scale(.93) }
+  @media (prefers-reduced-motion: reduce) {
+    #pet .pet-body, #pet .pet-eyes, #pet[data-mood="thinking"] .pet-body, #pet.has-news .pet-badge { animation:none }
+  }
+
+  #petPanel { position:fixed; right:16px; bottom:92px; z-index:899;
+              width:min(342px, calc(100vw - 32px)); max-height:min(470px, 62vh);
+              background:#fff; border-radius:16px; border:1px solid #eef0f4;
+              box-shadow:0 14px 44px rgba(16,24,40,.20);
+              display:none; flex-direction:column; overflow:hidden; }
+  #petPanel.open { display:flex }
+  #petPanel .pp-head { display:flex; align-items:center; gap:8px; padding:10px 14px;
+                       background:#f7f8fb; border-bottom:1px solid #eef0f4; }
+  #petPanel .pp-title { font-size:13px; font-weight:600; flex:1 }
+  #petPanel .pp-state { font-size:11.5px; color:#98a2b3 }
+  #petPanel .pp-x { border:none; background:none; font-size:15px; color:#98a2b3;
+                    cursor:pointer; padding:2px 6px; border-radius:6px }
+  #petPanel .pp-x:hover { background:#eceff4; color:#475467 }
+  #ppMsgs { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:9px }
+  .pp-msg { max-width:84%; padding:8px 12px; border-radius:12px; font-size:13px;
+            line-height:1.55; word-break:break-word; white-space:pre-wrap }
+  .pp-msg.user { align-self:flex-end; background:var(--acc); color:#fff; border-bottom-right-radius:4px }
+  .pp-msg.bot { align-self:flex-start; background:#f2f4f8; color:#1f2937; border-bottom-left-radius:4px }
+  .pp-msg.err { background:#fef2f2; color:#b42318; border:1px solid #fee4e2 }
+  .pp-msg .pp-changes { display:block; margin-top:5px; font-size:12px; color:#475467 }
+  .pp-typing span { display:inline-block; width:5px; height:5px; margin-right:3px; border-radius:50%;
+                    background:#98a2b3; animation:ppDot 1.2s infinite }
+  .pp-typing span:nth-child(2) { animation-delay:.16s } .pp-typing span:nth-child(3) { animation-delay:.32s }
+  @keyframes ppDot { 0%,60%,100% { opacity:.25; transform:translateY(0) } 30% { opacity:1; transform:translateY(-3px) } }
+  #ppHints { display:flex; gap:6px; flex-wrap:wrap; padding:0 12px 8px }
+  .pp-hint { font-size:11.5px; padding:4px 10px; border-radius:999px; background:#eef4ff;
+             color:#1d4ed8; border:1px solid #dbe6ff; cursor:pointer }
+  .pp-hint:hover { background:#dbe6ff }
+  #ppInputRow { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #eef0f4 }
+  #ppInputRow input { flex:1 }
+  /* 酒店输入的快捷区域 + 历史 */
+  .hotel-quick { display:flex; gap:6px; flex-wrap:wrap; padding:0 16px 8px }
+  .hotel-quick span { font-size:11.5px; padding:4px 10px; border-radius:999px;
+                      background:#f2f4f8; color:#475467; cursor:pointer; border:1px solid #e7eaf0 }
+  .hotel-quick span:hover { background:#e7eaf0; color:#1f2937 }
+  .hotel-quick b { font-weight:600; color:#98a2b3; font-size:11px; margin-right:2px }
   /* ===== 我的 ===== */
   .usection { background:#fff; border-radius:14px; margin:14px; padding:16px;
               box-shadow:0 2px 10px rgba(22,119,255,.06); }
@@ -124,12 +218,6 @@
   .spin { width:18px; height:18px; border:2px solid #dbe6f6; border-top-color:var(--acc);
           border-radius:50%; animation:sp .8s linear infinite; display:inline-block; flex-shrink:0 }
   @keyframes sp { to { transform:rotate(360deg) } }
-  /* ===== 底部主导航（常驻） ===== */
-  .bottombar { flex-shrink:0; background:#fff; display:flex;
-               border-top:1px solid var(--line); z-index:600; }
-  .bottombar .b { flex:1; text-align:center; padding:9px 0 11px; font-size:13.5px;
-                  color:var(--dim); cursor:pointer; }
-  .bottombar .b.active { color:var(--acc); font-weight:700; }
   /* ===== 日历弹层 ===== */
   .cal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:950;
                  display:flex; align-items:flex-end; justify-content:center; }
@@ -161,11 +249,22 @@
 <body>
 <div id="phone">
 
+  <!-- ========= 顶部导航（网站形态，替代原底部 App tabbar）========= -->
+  <nav class="site-nav">
+    <span class="brand"><i></i>路书 · AI 行程规划</span>
+    <span class="links">
+      <a id="navPlan" class="on" onclick="switchPage('plan')">规划</a>
+      <a id="navUser" onclick="switchPage('user')">我的</a>
+    </span>
+    <span class="spacer"></span>
+    <span class="navtag" id="navCity">📍 西安</span>
+  </nav>
+
   <!-- ========= 页面一：规划 ========= -->
   <div class="page active" id="pagePlan">
-    <header>
-      <h1>AI 行程规划</h1>
-      <div class="meta">LLM 抽取 → 实体对齐 → OPTW 求解 → 约束校验</div>
+    <header class="hero">
+      <h1>把一篇游记，变成可执行的行程</h1>
+      <div class="meta">LLM 抽取 → 高德实体对齐 → OPTW 求解 → 独立约束校验</div>
       <div class="chips" id="chips">
         <span class="chip">🎒 高德真实通勤</span>
         <span class="chip">🧭 三级缓存</span>
@@ -173,7 +272,10 @@
       </div>
     </header>
 
-    <div class="sheet">
+    <div class="layout">
+      <!-- 左栏：规划表单（滚动时吸顶） -->
+      <div class="col-left">
+      <div class="sheet">
       <div class="field">
         <label>城市</label>
         <input id="cityInput" list="cityOptions" placeholder="如 西安 / 成都"
@@ -217,6 +319,10 @@
     </div>
 
     <details><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
+      </div><!-- /col-left -->
+
+      <!-- 右栏：行程结果与地图 -->
+      <div class="stage">
 
     <div class="daytabs" id="daytabs" style="display:none"></div>
     <div class="seg" id="viewSeg" style="display:none">
@@ -228,10 +334,47 @@
       <div class="empty-hint" id="mapEmpty">还没有行程 —— 点「开始规划」<br>生成后这里会画出按天分色的路线</div>
       <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
 
-    <div class="chatbar" id="chatbar" style="display:none">
-      <input id="chatInput" placeholder="例如：把回民街换成咖啡店 / 住未央区的酒店"
+      </div><!-- /stage -->
+    </div><!-- /layout -->
+  </div>
+
+  <!-- ========= 桌宠助手：AI 对话操控行程（放在 .page 之外，切换页面时常驻）========= -->
+  <div id="pet" data-mood="idle" role="button" tabindex="0"
+       aria-label="打开 AI 行程助手" title="小舟 · 点我聊聊怎么改行程">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <g class="pet-body">
+        <ellipse cx="32" cy="44" rx="19" ry="17" fill="#dbeafe" stroke="#378ADD" stroke-width="2"/>
+        <line x1="32" y1="27" x2="32" y2="17" stroke="#378ADD" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="32" cy="14" r="3.4" fill="#FAC775" stroke="#BA7517" stroke-width="1.4"/>
+        <ellipse cx="32" cy="37" rx="15" ry="13" fill="#fff" stroke="#378ADD" stroke-width="1.6"/>
+        <g class="pet-eyes">
+          <circle class="pet-eye-look" cx="26" cy="35" r="2.6" fill="#0C447C"/>
+          <circle class="pet-eye-look" cx="38" cy="35" r="2.6" fill="#0C447C"/>
+        </g>
+        <path class="mood m-idle" d="M28 42 q4 3 8 0" fill="none" stroke="#378ADD" stroke-width="1.8" stroke-linecap="round"/>
+        <path class="mood m-thinking" d="M28 43 h8" fill="none" stroke="#378ADD" stroke-width="1.8" stroke-linecap="round"/>
+        <path class="mood m-happy" d="M27 41 q5 6 10 0" fill="none" stroke="#0F6E56" stroke-width="1.8" stroke-linecap="round"/>
+        <path class="mood m-sad" d="M28 44 q4 -3 8 0" fill="none" stroke="#A32D2D" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="13" cy="46" r="4.4" fill="#dbeafe" stroke="#378ADD" stroke-width="1.6"/>
+        <circle cx="51" cy="46" r="4.4" fill="#dbeafe" stroke="#378ADD" stroke-width="1.6"/>
+      </g>
+    </svg>
+    <span class="pet-badge"></span>
+  </div>
+
+  <div id="petPanel" role="dialog" aria-label="AI 行程助手">
+    <div class="pp-head">
+      <span aria-hidden="true">🛶</span>
+      <span class="pp-title">小舟 · 行程助手</span>
+      <span class="pp-state" id="ppState">待命</span>
+      <button class="pp-x" id="ppClose" title="收起">✕</button>
+    </div>
+    <div id="ppMsgs"></div>
+    <div id="ppHints"></div>
+    <div id="ppInputRow">
+      <input id="ppInput" placeholder="说人话就行，如：第二天少排点 / 换个住宿"
              onkeydown="if(event.key==='Enter')sendEdit()">
-      <button id="chatSend" onclick="sendEdit()">发送</button>
+      <button id="ppSend" onclick="sendEdit()">发送</button>
     </div>
   </div>
 
@@ -264,10 +407,7 @@
     </div>
   </div>
 
-  <div class="bottombar">
-    <div class="b active" onclick="switchPage('plan')">🧭 规划</div>
-    <div class="b" onclick="switchPage('user')">👤 我的</div>
-  </div>
+  <!-- 底部 tabbar 已由顶部 .site-nav 取代（网站形态；窄屏下导航仍够用） -->
 </div>
 
 <script>
@@ -285,7 +425,7 @@ let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {}
 let lastTaskId = null, favSet = new Set();
 // 当前城市：所有请求（规划 / 编辑 / 收藏 / 酒店搜索 / 详情兜底文案）都用它，
 // 不要再写死某个城市——写死会导致「粘成都攻略得到西安坐标」这类静默错误。
-let currentCity = '西安', demoCities = [];
+let currentCity = '西安', demoCities = [], cityCenters = {};
 
 // ---- 默认日期：今天起 3 天 ----
 function iso(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -307,9 +447,10 @@ function onCityChange() {
   if (!v || v === currentCity) return;
   currentCity = v;
   $('cityInput').value = v;
+  syncNavCity();
   // 旧行程属于别的城市：标记失效并提示，不静默沿用
   if (plan) { window.cityMismatch = true; }
-  if (map) { map.remove(); map = null; layers = {}; }
+  if (map) { map.remove(); map = null; layers = {}; }   // 切城市后地图需按新城市重建视野
   loadDemoSpots().then(d => {
     if (d.available) log('城市', `已切换到 ${d.city}，载入 ${d.spots.length} 个预置景点`);
     else log('城市', `${d.city} 没有预置景点：可在下方「粘贴攻略」识别，或换一个城市`);
@@ -317,11 +458,19 @@ function onCityChange() {
   });
 }
 
+// 顶栏上的城市标记（网站形态下取代了原来的页内城市字段提示）
+function syncNavCity() {
+  const el = $('navCity');
+  if (el) el.textContent = '📍 ' + currentCity;
+}
+
 fetch('/cities').then(r => r.json()).then(d => {
   demoCities = d.cities || [];
+  cityCenters = d.centers || {};      // 地图初始视野按当前城市取，不再写死西安
   const dl = $('cityOptions');
   if (dl) dl.innerHTML = demoCities.map(c => `<option value="${esc(c)}"></option>`).join('');
   if (d.default) { currentCity = d.default; $('cityInput').value = d.default; }
+  syncNavCity();
   return loadDemoSpots();
 });
 loadFavorites();  // 启动即同步收藏状态，星标不再滞后
@@ -507,7 +656,8 @@ $('go').onclick = async () => {
   ws.onmessage = e => { const d = JSON.parse(e.data);
     (d.progress||[]).forEach(p => log(p.stage, p.msg));
     if (d.status==='completed') { plan = d.result; lastTaskId = task_id;
-      $('chatbar').style.display='flex'; render(); ws.close(); $('go').disabled=false; }
+      $('pet').classList.add('has-news'); petState('行程已生成，可以让我改');
+      refreshHints(); render(); ws.close(); $('go').disabled=false; }
     if (d.status==='failed') { log('失败', d.error); ws.close(); $('go').disabled=false; } };
 };
 
@@ -901,7 +1051,7 @@ function resetPlanView() {
   plan = null; currentDay = 0; lastTaskId = null;
   $('daytabs').style.display = 'none';
   $('viewSeg').style.display = 'none';
-  $('chatbar').style.display = 'none';
+  petMood('idle'); petState('待命');
   $('chips').innerHTML = '<span class="chip">🎒 高德真实通勤</span>' +
     '<span class="chip">🧭 三级缓存</span><span class="chip">✅ 约束校验</span>';
   $('hotelText').textContent = '未设置（点此搜索选择）';  // 住宿字段一起清空
@@ -960,6 +1110,34 @@ function toggleHotelMap(i, lat, lon, name) {
   setTimeout(() => { m.invalidateSize(); m.fitBounds(pts, {padding: [26, 26]}); }, 80);
 }
 
+// ---- 酒店输入优化：快捷标签（含"住某景点附近"）+ 历史 + 防抖自动搜索 ----
+const HOTEL_HISTORY_KEY = 'hotelSearchHistory';
+
+function hotelHistory() {
+  try {
+    const v = JSON.parse(localStorage.getItem(HOTEL_HISTORY_KEY) || '[]');
+    return Array.isArray(v) ? v.slice(0, 4) : [];
+  } catch (e) { return []; }          // localStorage 不可用（隐私模式）→ 静默降级
+}
+
+function pushHotelHistory(q) {
+  try {
+    const list = [q, ...hotelHistory().filter(x => x !== q)].slice(0, 5);
+    localStorage.setItem(HOTEL_HISTORY_KEY, JSON.stringify(list));
+  } catch (e) { /* 存不下就算了，不影响搜索本身 */ }
+}
+
+// 快捷标签：优先给"住当前行程首个景点附近"——这是最高频的真实诉求
+function hotelQuickTags() {
+  const tags = [];
+  const firstDay = plan && plan.days && plan.days[0];
+  if (firstDay && firstDay.spots && firstDay.spots.length) {
+    tags.push('住' + firstDay.spots[0].name + '附近');
+  }
+  tags.push('市中心', '火车站附近', '地铁沿线');
+  return tags.slice(0, 4);
+}
+
 function openHotelPicker() {
   if (!lastTaskId) { log('提示', '先规划一次行程，再选酒店'); return; }
   hotelMaps = {}; openMiniIdx = null;
@@ -973,8 +1151,9 @@ function openHotelPicker() {
       <input id="hotelQ" placeholder="酒店名 / 区域，如：未央区、钟楼">
       <button id="hotelSearchBtn" style="background:var(--acc);color:#fff;border:none;
         border-radius:9px;padding:8px 18px;cursor:pointer;font-weight:600">搜索</button></div>
+    <div class="hotel-quick" id="hotelQuick"></div>
     <div style="padding:0 16px 8px;font-size:11.5px;color:#98a2b3">
-      点酒店名就地看位置（橙点=酒店，彩点=当前行程景点）</div>
+      点酒店名就地看位置（橙点=酒店，彩点=当前行程景点）· 输入停顿会自动搜索</div>
     <div id="hotelResults" style="overflow-y:auto;flex:1;padding:0 16px 12px">
       <div class="uempty">输入关键词搜索高德酒店</div></div>
   </div>`;
@@ -982,6 +1161,7 @@ function openHotelPicker() {
   document.body.appendChild(ov);
   const doSearch = () => {
     const q = $('hotelQ').value.trim(); if (!q) return;
+    pushHotelHistory(q);                       // 记住搜过的词，下次直接点
     Object.values(hotelMaps).forEach(m => m.remove());
     hotelMaps = {}; openMiniIdx = null;
     $('hotelResults').innerHTML = '<div class="uempty">搜索中…</div>';
@@ -1011,6 +1191,25 @@ function openHotelPicker() {
   };
   $('hotelSearchBtn').onclick = doSearch;
   $('hotelQ').onkeydown = e => { if (e.key === 'Enter') doSearch(); };
+
+  // ---- 输入优化：快捷标签（含"住某景点附近"）+ 历史 + 防抖自动搜索 ----
+  const quick = $('hotelQuick');
+  if (quick) {
+    const tags = [...hotelHistory(), ...hotelQuickTags()].slice(0, 5);
+    quick.innerHTML = tags.map(t => `<span data-q="${esc(t)}">${esc(t)}</span>`).join('');
+    // 用 data-q + 绑定事件（而非内联 onclick 拼字符串）：酒店名来自高德，拼进
+    // onclick 字符串等于把外部内容塞进 JS，是 XSS 面
+    quick.querySelectorAll('span[data-q]').forEach(el => {
+      el.onclick = () => { $('hotelQ').value = el.dataset.q; doSearch(); };
+    });
+  }
+  let hotelTimer = null;
+  $('hotelQ').oninput = () => {                 // 停手 420ms 自动搜，不必再点按钮
+    clearTimeout(hotelTimer);
+    hotelTimer = setTimeout(() => {
+      if ($('hotelQ').value.trim().length >= 2) doSearch();
+    }, 420);
+  };
 }
 
 function pickHotel(name, lat, lon) {
@@ -1063,8 +1262,11 @@ function hideLoading() {
 function switchPage(which) {
   $('pagePlan').classList.toggle('active', which==='plan');
   $('pageUser').classList.toggle('active', which==='user');
-  document.querySelectorAll('.bottombar .b').forEach((b,i) =>
-    b.classList.toggle('active', (i===0) === (which==='plan')));
+  // 顶部导航高亮（原底部 tabbar 已由 .site-nav 取代）
+  const isPlan = which === 'plan';
+  $('navPlan').classList.toggle('on', isPlan);
+  $('navUser').classList.toggle('on', !isPlan);
+  window.scrollTo({ top: 0, behavior: 'smooth' });   // 站点形态是整页滚动
   if (which==='user') { loadPlans(); loadFavorites(); }
   if (which==='plan') setTimeout(() => { if (map) map.invalidateSize(); }, 60);
 }
@@ -1073,7 +1275,9 @@ function switchPage(which) {
 function renderMap() {
   $('view').style.display='none'; $('mapView').style.display='block';
   if (!map) {
-    map = L.map('map').setView([34.26, 108.94], 11);
+    // 初始视野跟随当前城市（原先写死西安坐标，是多城市泛化漏掉的一处）
+    const c = cityCenters[currentCity] || [34.26, 108.94];
+    map = L.map('map').setView(c, 11);
     L.tileLayer(tileCfg.tile_url, { subdomains: tileCfg.subdomains,
       attribution: tileCfg.attribution, maxZoom: 18 }).addTo(map);
   }
@@ -1165,35 +1369,154 @@ function switchView(which) {
   else { if (plan) renderMap(); else { $('view').style.display='none'; $('mapView').style.display='block'; } }
 }
 
-// ---- 对话式修改 ----
-function sendEdit() {
-  const text = $('chatInput').value.trim();
-  if (!text) { log('提示', '先输入想怎么改'); return; }
-  if (!lastTaskId) { log('提示', '还没有行程——先点「开始规划」生成一份'); return; }
-  $('chatSend').disabled = true; $('chatInput').value = '';
-  $('log').textContent = ''; log('编辑', `收到指令：${text}`);
-  fetch('/plan/edit', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({task_id: lastTaskId, instruction: text})})
-    .then(async r => {
-      const d = await r.json();
-      if (!r.ok) {
-        log('错误', `HTTP ${r.status}: ${d.detail || '未知错误'}（如果是 404，请重启后端服务）`);
-        $('chatSend').disabled = false;
-        return;
-      }
-      const proto = location.protocol==='https:'?'wss':'ws';
-      const ws = new WebSocket(`${proto}://${location.host}${d.ws_url}`);
-      ws.onmessage = e => { const d2 = JSON.parse(e.data);
-        (d2.progress||[]).forEach(p => log(p.stage, p.msg));
-        if (d2.status==='completed') {
-          if (d2.result.days) { plan = d2.result; lastTaskId = d.task_id; render(); }
-          else log('回复', d2.result.reply || '没有识别到可执行的修改');
-          ws.close(); $('chatSend').disabled = false; }
-        if (d2.status==='failed') { log('失败', d2.error); ws.close(); $('chatSend').disabled=false; } };
-      ws.onerror = () => { log('错误', '连接断开'); $('chatSend').disabled = false; };
-    })
-    .catch(err => { log('错误', String(err)); $('chatSend').disabled = false; });
+// ---- 桌宠助手：气泡 / 表情 / 状态 ----
+// 消息一律用 textContent 写入（天然防 XSS）；只有静态的 typing 动画用 innerHTML。
+function petSay(role, text, extra) {
+  const box = $('ppMsgs'); if (!box) return null;
+  const div = document.createElement('div');
+  div.className = 'pp-msg ' + role;
+  div.textContent = String(text == null ? '' : text);
+  if (extra) {
+    const s = document.createElement('span');
+    s.className = 'pp-changes';
+    s.textContent = extra;
+    div.appendChild(s);
+  }
+  box.appendChild(div); box.scrollTop = box.scrollHeight;
+  return div;
 }
+function petMood(mood) { const p = $('pet'); if (p) p.dataset.mood = mood; }
+function petState(text) { const s = $('ppState'); if (s) s.textContent = text; }
+
+let petTypingEl = null;
+function petTyping(on) {
+  const box = $('ppMsgs'); if (!box) return;
+  if (on) {
+    if (petTypingEl) return;
+    petTypingEl = document.createElement('div');
+    petTypingEl.className = 'pp-msg bot pp-typing';
+    petTypingEl.innerHTML = '<span></span><span></span><span></span>';
+    box.appendChild(petTypingEl); box.scrollTop = box.scrollHeight;
+  } else if (petTypingEl) {
+    petTypingEl.remove(); petTypingEl = null;
+  }
+}
+
+// 快捷指令：按当前行程动态生成，降低「不知道怎么开口」的门槛
+function refreshHints() {
+  const box = $('ppHints'); if (!box) return;
+  const hints = [];
+  if (plan && plan.days && plan.days.length > 1) hints.push('第二天少排点');
+  if (plan && plan.days) {
+    const names = plan.days.flatMap(d => d.spots.map(s => s.name));
+    if (names.length) hints.push('去掉' + names[names.length - 1]);
+  }
+  hints.push('住得离景点近一点', '帮我算便宜点', '行程松一点');
+  box.innerHTML = hints.slice(0, 4)
+    .map(h => `<span class="pp-hint" data-hint="${esc(h)}">${esc(h)}</span>`).join('');
+  box.querySelectorAll('.pp-hint').forEach(el => {
+    el.onclick = () => { $('ppInput').value = el.dataset.hint; sendEdit(); };
+  });
+}
+
+function petToggle(open) {
+  const panel = $('petPanel'), pet = $('pet');
+  if (!panel) return;
+  const willOpen = (open === undefined) ? !panel.classList.contains('open') : open;
+  panel.classList.toggle('open', willOpen);
+  pet.classList.remove('has-news');
+  if (willOpen) { $('ppInput').focus(); refreshHints(); }
+}
+
+// 光标跟随：借鉴 page-mascot 的两条细节 —— 触摸设备不做跟随（否则会僵住）、
+// 近距离设死区（避免眼睛抖动），位移设上限（避免"飞出脸"）
+(function petFollow() {
+  const pet = $('pet'); if (!pet) return;
+  const fine = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+  if (!fine) return;
+  const eyes = pet.querySelectorAll('.pet-eye-look');
+  let raf = null;
+  document.addEventListener('mousemove', e => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = null;
+      const r = pet.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dy = e.clientY - (r.top + r.height / 2);
+      const dist = Math.hypot(dx, dy);
+      if (dist < 40) return;                       // 死区
+      const k = Math.min(2.2, dist / 160);         // 位移上限
+      const t = `translate(${(dx / dist * k).toFixed(2)} ${(dy / dist * k).toFixed(2)})`;
+      eyes.forEach(el => el.setAttribute('transform', t));
+    });
+  }, { passive: true });
+})();
+
+$('pet').onclick = () => petToggle();
+$('pet').onkeydown = e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); petToggle(); }
+};
+$('ppClose').onclick = () => petToggle(false);
+
+// ---- 对话式修改（走桌宠气泡）----
+async function sendEdit() {
+  const input = $('ppInput');
+  const text = (input.value || '').trim();
+  if (!text) return;
+  if (!lastTaskId) {
+    petSay('err', '还没有行程 —— 先在左边点「开始规划」生成一份，我再来帮你改。');
+    return;
+  }
+  input.value = '';
+  $('ppSend').disabled = true;
+  petSay('user', text);
+  petMood('thinking'); petState('理解你的指令…'); petTyping(true);
+  try {
+    const r = await fetch('/plan/edit', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({task_id: lastTaskId, instruction: text})});
+    const d = await r.json();
+    if (!r.ok) {
+      petTyping(false); petMood('sad'); petState('出错了');
+      petSay('err', `没成功（HTTP ${r.status}）：${d.detail || '未知错误'}`
+        + (r.status === 404 ? '（404 通常是后端没起或任务已过期，重启服务再试）' : ''));
+      $('ppSend').disabled = false;
+      return;
+    }
+    const proto = location.protocol==='https:'?'wss':'ws';
+    const ws = new WebSocket(`${proto}://${location.host}${d.ws_url}`);
+    ws.onmessage = e => { const d2 = JSON.parse(e.data);
+      (d2.progress||[]).forEach(p => log(p.stage, p.msg));
+      if (d2.status==='completed') {
+        petTyping(false);
+        if (d2.result.days) {
+          plan = d2.result; lastTaskId = d.task_id; render();
+          const ch = (d2.result.changes || []).join('；');
+          petSay('bot', d2.result.reply || '改好了', ch ? '变更：' + ch : '');
+          petMood('happy'); petState('行程已更新'); refreshHints();
+          setTimeout(() => petMood('idle'), 2000);       // 开心表情自动回落
+        } else {
+          petSay('bot', d2.result.reply || '这句我没听出可执行的修改，换个说法试试？');
+          petMood('idle'); petState('待命');
+        }
+        ws.close(); $('ppSend').disabled = false;
+      }
+      if (d2.status==='failed') {
+        petTyping(false); petMood('sad'); petState('出错了');
+        petSay('err', '执行失败：' + (d2.error || '未知错误'));
+        ws.close(); $('ppSend').disabled = false;
+      } };
+    ws.onerror = () => {
+      petTyping(false); petMood('sad'); petState('连接断开');
+      petSay('err', '连接断了，重发一次试试。');
+      $('ppSend').disabled = false;
+    };
+  } catch (err) {
+    petTyping(false); petMood('sad'); petState('出错了');
+    petSay('err', String(err));
+    $('ppSend').disabled = false;
+  }
+}
+refreshHints();
 
 // ---- 事件委托：动态生成元素的统一入口 ----
 // 为什么不用内联 onclick：景点名 / 酒店名来自 LLM 与高德，拼进 onclick 字符串等于把
