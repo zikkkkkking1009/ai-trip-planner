@@ -92,7 +92,7 @@ cd "C:\Users\周周\.workbuddy\binaries\node\workspace" && NODE_PATH="C:/Users/�
 | **外部依赖路径没测试 → 重构静默破坏** | `extractor.py` 用了 `editor.py` 里的 `LLM_TIMEOUT_S` 却没定义也没 import，`extract_spots()` 一调用就 NameError；上层只 catch 了 RuntimeError/ValueError/KeyError → 穿透成 HTTP 500，代码"看起来一直在跑" | `a01781a` 引入、`70e9d02` 修复。凡是"需要真密钥/真网络才能跑"的函数，至少要留两条离线测试：**模块级常量存在** + **缺 key 时抛正确的异常类型**（用 `monkeypatch.delenv`） |
 | **bash 内联脚本里的反引号被 shell 吃掉** | 用 `python -c "...含 \`反引号\` 的字符串..."` 批量改文档时，反引号被 shell 当作命令替换执行（报 `xxx: command not found`），写进文件的文本因此缺字（README 的 v1.2 条目就丢了两处文件名） | 改文件一律用 Edit/Write 工具；要跑批量脚本就先落成临时 `.py` 文件再执行。**不要把含反引号/`$`的代码塞进 `bash -c` 的字符串里** |
 | **高德 `citylimit=true` 并不严格** | 用 `city=西安` 搜「四川博物院」照样返回成都的地址（友谊西路72号）——城市传错**不一定报错**，更可能静默返回异地 POI | 城市必须由调用方显式传递（前端选择器 / LLM 识别），**不能指望 citylimit 兜底**。`/poi/detail`、`/hotel/search` 都已补 city 参数 |
-| **媒体缓存 key 只有景点名**（待修） | `spot_media.json` 以景点名为 key → 同名景点跨城市会串味（如「人民公园」成都/上海都有）；实测「四川博物院」写过一次后，用西安查也会命中成都的数据 | 待办：key 改为 `城市|景点名`，读取时先查新 key、再回退旧 key（兼容既有 54 条数据） |
+| ✅ **媒体缓存 key 只有景点名**（已修 2026-09-20） | `spot_media.json` 以景点名为 key → 同名景点跨城市串味（「人民公园」成都/上海都有）；实测「四川博物院」写过一次后，用西安查也会命中成都的数据 | 已修：新增 `backend/media_cache.py` 统一 key 规则（`城市\|景点名`）+ 原子写（临时文件 + `os.replace`，避免并发写坏 JSON）+ 并发写串行化（`asyncio.Lock`）；读取带城市 key 优先、回退裸名（兼容旧数据）；`tools/migrate_media_keys.py` 完成迁移，`fetch_spot_details.py` 升级为全城市预抓取（61 条全有图）；9 个单测锁住「同名跨城市不串味」 |
 | **通勤矩阵预计算是 N(N-1) 次调用** | `precompute` 里 `minutes(a,b)` 与 `minutes(b,a)` 因**方向敏感**是两个独立缓存项 → 19 个景点冷启动需 ~342 次高德调用（0.35s 限频 ≈ 120s）；早期注释写「同时缓存正反两个方向」是错的，会误导人以为省一半 | 已修正注释 + 加成本日志。优化方向：与 N2 地理聚类联动（只预算同簇内 + 簇间代表点） |
 | **`monkeypatch.setattr(Solver, "常量")`** | AttributeError | 常量在**模块级**，要 patch 模块对象 |
 | **CI/badge 与实际不一致** | README 写 19 测试 | 每次改完同步 README 数字 |

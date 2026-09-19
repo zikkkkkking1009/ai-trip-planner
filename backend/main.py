@@ -41,6 +41,7 @@ from cities import DEFAULT_CITY, city_center, normalize_city
 from constraint_check import check_plan
 from demo_data import demo_cities, demo_spots
 from extractor import extract_guide
+from media_cache import get_entry, load_media, media_key, save_media
 from models import PlanRequest, PlanResult
 from solver import Solver
 
@@ -74,7 +75,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 DATA_DIR = Path(__file__).parent.parent / "data"
 PLANS_DIR = DATA_DIR / "plans"
 FAV_FILE = DATA_DIR / "favorites.json"
-MEDIA_FILE = Path(__file__).parent / "spot_media.json"
+# 媒体缓存（spot_media.json）的读写统一走 media_cache 模块（key 规则 = 「城市|景点名」）
 
 
 def _load_favorites() -> list[dict]:
@@ -167,11 +168,11 @@ def demo_spot_list(city: str = DEFAULT_CITY) -> dict:
     未知城市返回空列表 + supported 提示，**不会静默换成别的城市的数据**。
     """
     city = normalize_city(city) or DEFAULT_CITY
-    media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
+    media = load_media()
     spots = []
     for s in demo_spots(city):
         d = s.model_dump()
-        m = media.get(s.name) or {}
+        m = get_entry(media, city, s.name) or {}
         d["image"] = m.get("image", "")
         d["intro"] = m.get("intro", "")
         spots.append(d)
@@ -241,16 +242,16 @@ def poi_detail(name: str, city: str = "") -> dict:
     **city 必须传**：高德搜索带 citylimit，用错城市搜不到（返回 404）。
     未命中缓存时按 city 抓取，抓到后写入 spot_media.json 供后续零成本命中。
     """
-    media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
-    m = media.get(name)
+    city = normalize_city(city) or DEFAULT_CITY
+    media = load_media()
+    m = get_entry(media, city, name)
     if not m:
         from fetch_spot_details import fetch
-        m = fetch(name, city or DEFAULT_CITY)
+        m = fetch(name, city)
         if not (m.get("image") or m.get("address")):
-            raise HTTPException(404, f"未找到「{name}」在 {city or DEFAULT_CITY} 的高德信息")
-        media[name] = m
-        MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
-                              encoding="utf-8")
+            raise HTTPException(404, f"未找到「{name}」在 {city} 的高德信息")
+        media[media_key(city, name)] = m
+        save_media(media)
     out = {k: m.get(k, "") for k in
            ("image", "intro", "photos", "opentime", "address", "lat", "lon")}
     out["reviews"] = m.get("reviews")
@@ -259,10 +260,14 @@ def poi_detail(name: str, city: str = "") -> dict:
 
 
 @app.get("/poi/reviews")
-def poi_reviews(name: str) -> dict:
-    """评价摘要（AI 生成，首次约 3s，之后走缓存）。前端二次拉取用。"""
-    media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
-    m = media.get(name)
+def poi_reviews(name: str, city: str = "") -> dict:
+    """评价摘要（AI 生成，首次约 3s，之后走缓存）。前端二次拉取用。
+
+    city 用于定位缓存条目：缓存 key 是「城市|景点名」，同名景点跨城市不能混用。
+    """
+    city = normalize_city(city) or DEFAULT_CITY
+    media = load_media()
+    m = get_entry(media, city, name)
     if m is None:
         raise HTTPException(404, "该地点未收录")
     if "reviews" not in m:
@@ -276,9 +281,8 @@ def poi_reviews(name: str) -> dict:
             log.warning("评价生成失败 name=%s: %s: %s", name, type(e).__name__, e)
             m["reviews"] = None
             m["reviews_ai"] = False
-        media[name] = m
-        MEDIA_FILE.write_text(json.dumps(media, ensure_ascii=False, indent=2),
-                              encoding="utf-8")
+        media[media_key(city, name)] = m
+        save_media(media)
     return {"reviews": m.get("reviews"), "reviews_ai": m.get("reviews_ai", False)}
 
 

@@ -14,9 +14,6 @@ from pathlib import Path
 
 from cities import DEFAULT_CITY
 from commute import load_env_file
-from demo_data import XI_AN_SPOTS
-
-HERE = Path(__file__).parent
 _last = 0.0
 
 
@@ -81,11 +78,17 @@ def fetch(name: str, city: str = DEFAULT_CITY) -> dict:
 
 
 if __name__ == "__main__":
-    media = {}
-    for s in XI_AN_SPOTS:
-        print(f"抓取 {s.name} ...")
-        media[s.name] = fetch(s.name)
-    (HERE / "spot_media.json").write_text(
-        json.dumps(media, ensure_ascii=False, indent=2), encoding="utf-8")
-    ok = sum(1 for v in media.values() if v["image"])
-    print(f"完成：{ok}/{len(media)} 个景点拿到图片 → spot_media.json")
+    from demo_data import DEMO_SPOTS
+    from media_cache import load_media, media_key, save_media
+
+    # 先读后写：保留已有条目（酒店搜索缓存、用户抓过的临时条目），只更新/新增景点
+    media = load_media()
+    before = len(media)
+    for city, spots in DEMO_SPOTS.items():
+        for s in spots:
+            print(f"抓取 {city}·{s.name} ...")
+            # key 带城市：不同城市存在同名景点，裸名会串味
+            media[media_key(city, s.name)] = fetch(s.name, city)
+    save_media(media)
+    ok = sum(1 for v in media.values() if v.get("image"))
+    print(f"完成：{ok}/{len(media)} 条有图片（原有 {before} 条已保留）→ spot_media.json")

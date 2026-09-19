@@ -121,7 +121,7 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
     MANAGER.say(task, "启动", f"收到排期请求：{req.city} {req.days} 天，"
                               f"{len(req.spots)} 个景点，预算 {req.budget or '不限'}")
     # 媒体预取与求解并行跑：用户规划完点开详情时，图片/评价通常已备好
-    asyncio.create_task(prefetch_media([s.name for s in req.spots]))
+    asyncio.create_task(prefetch_media([s.name for s in req.spots], req.city))
 
     try:
         cm = CommuteMatrix()
@@ -166,7 +166,7 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
         from main import save_plan_snapshot
         save_plan_snapshot(task)
         asyncio.create_task(prefetch_media(
-            [s["name"] for s in task.request_spots]))  # 后台预取媒体，点开即显
+            [s["name"] for s in task.request_spots], req.city))  # 后台预取媒体，点开即显
     except Exception as e:  # 后台任务不能静默死掉
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
@@ -511,7 +511,8 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
         from main import save_plan_snapshot
         save_plan_snapshot(task)
         asyncio.create_task(prefetch_media(
-            [hotel["name"]] + [s["name"] for s in task.request_spots]))
+            [hotel["name"]] + [s["name"] for s in task.request_spots],
+            params.get("city", DEFAULT_CITY)))
     except Exception as e:
         task.status = "failed"
         task.error = f"{type(e).__name__}: {e}"
@@ -522,45 +523,47 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
 _prefetching: set[str] = set()
 
 
-async def prefetch_media(names: list[str]) -> None:
+async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
     """后台预取媒体数据（图片/介绍/AI 评价），用户点开详情即刻显示不再等待。
 
     规划完成后自动触发；已有评价的跳过，避免重复花 LLM 与高德配额。
+    **city 必须传**：缓存 key 是「城市|景点名」，抓取也依赖正确城市（高德搜索带 citylimit）。
     """
     import editor
-    from pathlib import Path as _P
-    media_file = _P(__file__).parent / "spot_media.json"
-    try:
-        media = json.loads(media_file.read_text(encoding="utf-8")) \
-            if media_file.exists() else {}
-    except Exception as e:
-        # 媒体缓存损坏 → 空字典继续（缓存可重建，不阻断预取）
-        log.warning("媒体缓存读取失败，按空处理: %s: %s", type(e).__name__, e)
-        media = {}
+    from media_cache import get_entry, load_media, media_key, save_media
+
+    media = load_media()
+    # 多个协程并发写同一份 JSON：原子写只保证不写坏文件，不保证不丢更新，
+    # 所以「读-改-写」这段要串行化
+    write_lock = asyncio.Lock()
     sem = asyncio.Semaphore(3)   # 并发 3 路：12 个景点预热从 ~45s 缩到 ~15s
 
     async def one(name: str):
-        if name in _prefetching or media.get(name, {}).get("reviews"):
+        ck = media_key(city, name)
+        if ck in _prefetching or (get_entry(media, city, name) or {}).get("reviews"):
             return
-        _prefetching.add(name)
+        _prefetching.add(ck)
         try:
-            if not media.get(name):
+            entry = get_entry(media, city, name)
+            if not entry:
                 from fetch_spot_details import fetch
-                media[name] = await asyncio.to_thread(fetch, name)
-            if not media[name].get("reviews"):
+                entry = await asyncio.to_thread(fetch, name, city)
+            if not entry.get("reviews"):
                 rv = await asyncio.to_thread(
                     editor.generate_reviews, name,
-                    (media[name].get("intro", "") or "") + " " +
-                    (media[name].get("address", "") or ""))
-                media[name]["reviews"] = rv
-                media[name]["reviews_ai"] = rv is not None
-            media_file.write_text(json.dumps(media, ensure_ascii=False, indent=2),
-                                  encoding="utf-8")
+                    (entry.get("intro", "") or "") + " " +
+                    (entry.get("address", "") or ""))
+                entry["reviews"] = rv
+                entry["reviews_ai"] = rv is not None
+            async with write_lock:
+                media[ck] = entry
+                save_media(media)
         except Exception as e:
             # 预取是后台优化，失败不影响主流程（用户点开详情时再按需拉取）
-            log.debug("媒体预取失败 name=%s: %s: %s", name, type(e).__name__, e)
+            log.debug("媒体预取失败 name=%s city=%s: %s: %s",
+                      name, city, type(e).__name__, e)
         finally:
-            _prefetching.discard(name)
+            _prefetching.discard(ck)
 
     async def guarded(n: str):
         async with sem:

@@ -735,7 +735,7 @@ function openSpotDetail(name) {
         rt.style.display = 'block';
         rc.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:#98a2b3;font-size:12.5px">
           <span class="spin"></span>官方信息已加载，AI 评价正在生成…</div>`;
-        fetch(`/poi/reviews?name=${encodeURIComponent(name)}`)
+        fetch(`/poi/reviews?name=${encodeURIComponent(name)}&city=${encodeURIComponent(currentCity)}`)
           .then(r => r.ok ? r.json() : null)
           .then(rd => { if (rd && rd.reviews) renderReviews(rd.reviews);
                         else rc.innerHTML = ''; })
