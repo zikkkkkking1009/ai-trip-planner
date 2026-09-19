@@ -8,8 +8,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 BASE = "http://localhost:8011"  # 与服务启动端口一致
+MEDIA_FILE = Path(__file__).resolve().parent.parent / "backend" / "spot_media.json"
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 CITY_BOUNDS = {
@@ -112,5 +114,45 @@ dup = names_cd & names_xa
 print(f'  两城重名景点: {dup or "无"}')
 print(f'  成都首条: {cd["spots"][0]["name"]} ({cd["spots"][0]["lat"]:.3f},{cd["spots"][0]["lon"]:.3f})')
 print(f'  西安首条: {xa["spots"][0]["name"]} ({xa["spots"][0]["lat"]:.3f},{xa["spots"][0]["lon"]:.3f})')
+
+print("\n=== 8. 详情卡按城市查（修复前 /poi/detail 无 city → 非西安城市必然 404）===")
+# 关键：必须先清掉 probe 的媒体缓存，否则第二次调用命中缓存，验证不出 city 是否参与搜索。
+# ⚠️ 顺带暴露一个已知设计问题：spot_media.json 的 key 只有景点名、没有城市维度，
+#    所以同名景点（如「人民公园」成都/上海都有）跨城市会串味 —— 已记入待办。
+probe = "四川博物院"
+if MEDIA_FILE.exists():
+    _m = json.loads(MEDIA_FILE.read_text(encoding="utf-8"))
+    if probe in _m:
+        _m.pop(probe)
+        MEDIA_FILE.write_text(json.dumps(_m, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  （已清除「{probe}」缓存，确保从零验证）")
+
+q = urllib.parse.quote(probe)
+# 对照：用「错误城市」查。注意高德 citylimit=true **并不严格**——实测用西安搜
+# 「四川博物院」也能命中，所以城市错配不必然 404，反而可能拿到异地 POI（更危险）。
+# 因此这里只做对照打印，不作硬断言。
+try:
+    d_wrong = get(f"/poi/detail?name={q}&city={urllib.parse.quote('西安')}")
+    print(f'  「{probe}」city=西安 → 200（高德 citylimit 不严格，地址={str(d_wrong.get("address"))[:20]}）')
+except urllib.error.HTTPError as e:
+    print(f'  「{probe}」city=西安 → HTTP {e.code}（异地搜不到）')
+
+# 硬断言只在「正确城市」上：必须拿到有效地址/图片
+d = get(f"/poi/detail?name={q}&city={urllib.parse.quote('成都')}")
+has_addr = bool(d.get("address") or d.get("image"))
+print(f'  「{probe}」city=成都 → 200，图片={bool(d.get("image"))}，'
+      f'地址={str(d.get("address"))[:24]}')
+assert has_addr, "成都详情卡没有地址/图片 —— city 参数可能没生效"
+
+print("\n=== 9. 酒店搜索按城市（修复前 city 与降级坐标写死西安）===")
+status, d = post("/hotel/search", json.dumps(
+    {"query": "春熙路", "city": "成都"}, ensure_ascii=False).encode("utf-8"))
+res = d.get("results", [])
+print(f'  成都·春熙路 → HTTP {status}，{len(res)} 个结果，返回 city={d.get("city")}')
+if res:
+    lat_lo, lat_hi = CITY_BOUNDS["成都"][0]
+    inside = [r for r in res if lat_lo - 0.6 <= r["lat"] <= lat_hi + 0.6]
+    print(f'  结果落在成都附近: {len(inside)}/{len(res)}')
+assert d.get("city") == "成都", "hotel/search 没有回传正确城市"
 
 print("\n全部断言通过 ✓")
