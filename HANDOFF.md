@@ -121,6 +121,8 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试；C5 分享长图
 |------|------|------|
 | `pytest` | 84 个单元测试 | `cd backend && python -m pytest tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查（语法门 + 遮蔽守卫 + 未转义字段提示） | `python tools/check_frontend.py` |
+| `tools/verify_multicity.py` | **多城市端到端验证**（7 组断言：城市列表 / 各城景点数与坐标落城 / 未知城市不回落 / 成都攻略全链路 / 西安回归 / 同名 POI 不串味）。**需先起服务并把 `BASE` 端口对齐** | `python tools/verify_multicity.py` |
+| `tools/build_demo_data.py` | 抓取多城市 demo 景点（高德真实坐标，禁止手写坐标）+ 打印城市中心表 | `python tools/build_demo_data.py` |
 | `tools/frontend_smoke.js` | jsdom 运行时冒烟（12 项 DOM 断言） | 见"30 秒上手" |
 | `evaluation.py` | 三方对照实验（朴素 / 求解器 / LLM 直排） | `python evaluation.py --n 50 --seed 42 --with-llm` |
 | `eval_gap.py` | 启发式 vs CP-SAT 的 gap | `python eval_gap.py --n 50 --seed 42 --limit 8` |
