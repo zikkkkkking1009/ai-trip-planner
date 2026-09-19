@@ -36,6 +36,21 @@ MULTISTART_ITERS = 600          # 随机重启次数上限（实测 200→600 �
 MULTISTART_TIME_BUDGET_S = 1.5  # 时间预算硬上限：实测均值 410ms / 最大 882ms，交互可接受
 MULTISTART_SEED = 42            # 固定种子：同输入同输出，实验可复现
 
+# ---- N2 地理聚类（构造顺序候选轮）----
+# 背景：纯分数贪心会把「城东一个、城西一个」交错喂进来，插入判据只看当天通勤增量，
+# 容易把同一天的景点排得跨区折返。加一轮「按地理位置分组」的构造顺序作为候选，
+# 让地理相近的景点连续进入贪心 → 更容易落到同一天（每天玩一个区域）。
+#
+# ⚠️ **实测结论：无增量收益，因此默认关闭**（2026-09-20，`eval_cluster.py` 50 场景同口径对照：
+#    通勤占比 0.1049 → 0.1049，逐场景 0 改善 / 0 变差 / 50 持平）。归因：
+#    ① 目标函数 `1000·收益 − 通勤` 里通勤权重极弱（1 分钟 ≈ 0.001 分），
+#       任何"牺牲收益换通勤"的构造成果都会被目标值判为更差；
+#    ② 600 轮随机抖动 + 2-opt + 跨日搬运已经吃掉了这部分顺序空间。
+#    **什么条件下值得重新评估**：目标函数改为「通勤权重可调」（功能池 A2 偏好开关）之后——
+#    那时"少走路"模式会真正奖励地理聚集。代码与实验脚本都保留，`USE_GEO_CLUSTER=True` 即可复测。
+USE_GEO_CLUSTER = False
+CLUSTER_MAX_ITER = 25           # k-means 迭代上限（收敛即提前退出）
+
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """球面距离（km）。"""
@@ -106,6 +121,7 @@ class Solver:
         self.req = req
         self.commute_fn = commute_fn or commute_min
         self.hotel = req.hotel  # 住宿锚点：每天的起点与终点
+        self.last_elapsed_ms: float = 0.0   # 上次 solve() 耗时，供实验脚本与日志取值
         self.days: list[_Seq] = [
             _Seq(commute_fn=self.commute_fn) for _ in range(req.days)]
 
@@ -224,6 +240,59 @@ class Solver:
         amp = 0.5 + 3.0 * ((k % 4) / 3.0)          # 0.5 → 3.5 循环
         return sorted(spots, key=lambda s: -(s.score + rng.uniform(-amp, amp)))
 
+    # ---------- N2：地理聚类构造顺序 ----------
+    @staticmethod
+    def _geo_clusters(spots: list[Spot], k: int,
+                      max_iter: int = CLUSTER_MAX_ITER) -> list[list[Spot]]:
+        """按经纬度做 k-means 聚类（纯标准库，零依赖）。
+
+        **确定性初始化**：把景点按经度排序后等距取 k 个点作为初始中心——
+        不用随机初始化是为了守住「同输入同输出」这条项目纪律（随机初始化会破坏可复现性）。
+        距离用 haversine（与通勤估算同一套），跨区/跨城时比度数平方更合理。
+        """
+        if k <= 1 or len(spots) <= k:
+            return [list(spots)]
+        ordered = sorted(spots, key=lambda s: (s.lon, s.lat))
+        n = len(ordered)
+        centers = []
+        for i in range(k):
+            idx = min(n - 1, int((i + 0.5) * n / k))
+            centers.append((ordered[idx].lat, ordered[idx].lon))
+
+        labels = [-1] * n
+        for _ in range(max_iter):
+            changed = False
+            for i, s in enumerate(ordered):
+                best = min(range(k), key=lambda c: haversine_km(
+                    s.lat, s.lon, centers[c][0], centers[c][1]))
+                if labels[i] != best:
+                    labels[i] = best
+                    changed = True
+            for c in range(k):
+                members = [ordered[i] for i in range(n) if labels[i] == c]
+                if members:
+                    centers[c] = (sum(m.lat for m in members) / len(members),
+                                  sum(m.lon for m in members) / len(members))
+            if not changed:
+                break
+
+        clusters: list[list[Spot]] = [[] for _ in range(k)]
+        for i, s in enumerate(ordered):
+            clusters[labels[i] if labels[i] >= 0 else 0].append(s)
+        return [c for c in clusters if c]
+
+    @classmethod
+    def _cluster_order(cls, spots: list[Spot], days: int) -> list[Spot]:
+        """地理感知的构造顺序：先按簇分组，簇内按分数降序。
+
+        簇间顺序按「簇内最高分」降序——强簇先排，避免先被弱簇占满时间窗。
+        """
+        clusters = cls._geo_clusters(spots, days)
+        if len(clusters) <= 1:
+            return []          # 只有一个簇说明聚类没带来新信息，不额外消耗一轮
+        clusters.sort(key=lambda c: -max(s.score for s in c))
+        return [s for c in clusters for s in sorted(c, key=lambda x: -x.score)]
+
     # ---------- 主入口 ----------
     def solve(self, progress_cb: Callable[[str, dict], None] | None = None
               ) -> tuple[list[DayPlan], list[UnplannedSpot], float, float]:
@@ -243,8 +312,15 @@ class Solver:
         rng = random.Random(MULTISTART_SEED)
         base_order = sorted(spots, key=lambda x: -x.score)
 
+        # N2 地理聚类：额外给一轮「按地理位置分组」的构造顺序（详见 USE_GEO_CLUSTER 注释）
+        geo_order: list[Spot] | None = None
+        if USE_GEO_CLUSTER and iters > 1 and self.req.days > 1:
+            geo_order = self._cluster_order(spots, self.req.days) or None
+
         progress_cb("构造", {"msg": (f"多起点搜索启动：{n} 个景点 / {self.req.days} 天"
-                                    f"（最多 {iters} 轮，取目标最优）" if iters > 1
+                                    f"（最多 {iters} 轮，取目标最优"
+                                    + ("，含地理聚类轮" if geo_order else "") + "）"
+                                    if iters > 1
                                     else f"贪心构造：{n} 个景点 / {self.req.days} 天")})
 
         self._unplanned: list[UnplannedSpot] = []
@@ -259,7 +335,18 @@ class Solver:
             # 每轮重置：清空各天序列
             for d in self.days:
                 d.spots = []
-            order = base_order if k == 0 else self._perturbed_order(spots, rng, k)
+            # 第 0 轮：分数降序（保底，与旧版一致）；第 1 轮：地理聚类顺序（若启用）；
+            # 之后：带抖动顺序
+            if k == 0:
+                order = base_order
+            elif k == 1 and geo_order is not None:
+                # ⚠️ 必须仍然消耗一次 rng：否则后续抖动轮的随机序列整体错位，
+                # 开启聚类与关闭聚类就不可比，「聚类不劣于旧版」的不变量随之失效
+                # （实测过：不消耗 rng 时出现过「通勤降了但收益也降」的不可比结果）
+                self._perturbed_order(spots, rng, k)
+                order = geo_order
+            else:
+                order = self._perturbed_order(spots, rng, k)
             self._unplanned = self._construct(order)
             self._optimize()
             obj = self._objective()
@@ -286,6 +373,7 @@ class Solver:
                                       f"通勤 {self._global_commute():.0f} 分钟，"
                                       f"耗时 {(time.perf_counter() - t0) * 1000:.0f}ms"})
         progress_cb("完成", {"msg": "求解完成"})
+        self.last_elapsed_ms = (time.perf_counter() - t0) * 1000
 
         # 领域层日志：同步 /plan 路径没有任务进度面板，靠日志定位问题
         log.info("求解完成：%d 景点 / %d 天 → 排入 %d、收益 %.1f、通勤 %.0f 分钟、"

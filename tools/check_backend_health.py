@@ -32,9 +32,10 @@ BACKEND = Path(__file__).resolve().parent.parent / "backend"
 LOG_EXEMPT_MODULES = {
     "models.py", "cities.py", "constraint_check.py", "demo_data.py",
     "logging_setup.py",  # 它本身就是日志配置，再取 logger 无意义
+    "media_cache.py",    # 只有读写与降级，关键失败已 log.warning（保留在豁免表是防未来改动）
     "fetch_spot_details.py",  # 一次性脚本：用 print 输出进度
     "run_demo.py", "run_demo_amap.py", "evaluation.py", "bench_models.py",
-    "eval_aligner.py", "eval_gap.py", "solver_cpsat.py",
+    "eval_aligner.py", "eval_gap.py", "eval_cluster.py", "solver_cpsat.py",
 }
 # 明确允许不重试的外部调用（函数名: 理由）
 RETRY_EXEMPT_FUNCS = {
@@ -238,7 +239,7 @@ def _re_raises(node: ast.ExceptHandler) -> bool:
 SCRIPT_MODULES = {
     "fetch_spot_details.py", "run_demo.py", "run_demo_amap.py",
     "evaluation.py", "bench_models.py", "eval_aligner.py", "eval_gap.py",
-    "build_demo_data.py",
+    "eval_cluster.py", "build_demo_data.py",
 }
 
 

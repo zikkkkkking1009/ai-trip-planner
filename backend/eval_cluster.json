@@ -1,0 +1,1423 @@
+{
+ "n": 50,
+ "seed": 42,
+ "off_mean": {
+  "ratio": 0.1049,
+  "commute_min": 125.226,
+  "score": 79.456,
+  "planned": 10.2,
+  "elapsed_ms": 469.236
+ },
+ "on_mean": {
+  "ratio": 0.1049,
+  "commute_min": 125.226,
+  "score": 79.456,
+  "planned": 10.2,
+  "elapsed_ms": 470.036
+ },
+ "better": 0,
+ "worse": 0,
+ "tie": 50,
+ "detail": [
+  {
+   "scenario": 0,
+   "days": 2,
+   "spots": 13,
+   "budget": null,
+   "off": {
+    "ratio": 0.1152,
+    "commute_min": 121.1,
+    "active_min": 930.0,
+    "score": 76.1,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 3,
+    "elapsed_ms": 310.5
+   },
+   "on": {
+    "ratio": 0.1152,
+    "commute_min": 121.1,
+    "active_min": 930.0,
+    "score": 76.1,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 3,
+    "elapsed_ms": 294.0
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 1,
+   "days": 4,
+   "spots": 9,
+   "budget": null,
+   "off": {
+    "ratio": 0.072,
+    "commute_min": 67.5,
+    "active_min": 870.0,
+    "score": 70.3,
+    "cost": 250.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 439.0
+   },
+   "on": {
+    "ratio": 0.072,
+    "commute_min": 67.5,
+    "active_min": 870.0,
+    "score": 70.3,
+    "cost": 250.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 416.8
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 2,
+   "days": 3,
+   "spots": 14,
+   "budget": null,
+   "off": {
+    "ratio": 0.1407,
+    "commute_min": 238.3,
+    "active_min": 1455.0,
+    "score": 109.8,
+    "cost": 484.0,
+    "planned": 14,
+    "unplanned": 0,
+    "elapsed_ms": 1038.0
+   },
+   "on": {
+    "ratio": 0.1407,
+    "commute_min": 238.3,
+    "active_min": 1455.0,
+    "score": 109.8,
+    "cost": 484.0,
+    "planned": 14,
+    "unplanned": 0,
+    "elapsed_ms": 1059.8
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 3,
+   "days": 4,
+   "spots": 13,
+   "budget": null,
+   "off": {
+    "ratio": 0.0896,
+    "commute_min": 134.4,
+    "active_min": 1365.0,
+    "score": 102.4,
+    "cost": 434.0,
+    "planned": 13,
+    "unplanned": 0,
+    "elapsed_ms": 852.9
+   },
+   "on": {
+    "ratio": 0.0896,
+    "commute_min": 134.4,
+    "active_min": 1365.0,
+    "score": 102.4,
+    "cost": 434.0,
+    "planned": 13,
+    "unplanned": 0,
+    "elapsed_ms": 871.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 4,
+   "days": 2,
+   "spots": 13,
+   "budget": null,
+   "off": {
+    "ratio": 0.1012,
+    "commute_min": 118.2,
+    "active_min": 1050.0,
+    "score": 85.5,
+    "cost": 184.0,
+    "planned": 11,
+    "unplanned": 2,
+    "elapsed_ms": 560.9
+   },
+   "on": {
+    "ratio": 0.1012,
+    "commute_min": 118.2,
+    "active_min": 1050.0,
+    "score": 85.5,
+    "cost": 184.0,
+    "planned": 11,
+    "unplanned": 2,
+    "elapsed_ms": 586.6
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 5,
+   "days": 3,
+   "spots": 12,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0828,
+    "commute_min": 98.8,
+    "active_min": 1095.0,
+    "score": 85.7,
+    "cost": 244.0,
+    "planned": 11,
+    "unplanned": 1,
+    "elapsed_ms": 526.7
+   },
+   "on": {
+    "ratio": 0.0828,
+    "commute_min": 98.8,
+    "active_min": 1095.0,
+    "score": 85.7,
+    "cost": 244.0,
+    "planned": 11,
+    "unplanned": 1,
+    "elapsed_ms": 567.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 6,
+   "days": 4,
+   "spots": 14,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0819,
+    "commute_min": 103.0,
+    "active_min": 1155.0,
+    "score": 92.5,
+    "cost": 244.0,
+    "planned": 12,
+    "unplanned": 2,
+    "elapsed_ms": 674.2
+   },
+   "on": {
+    "ratio": 0.0819,
+    "commute_min": 103.0,
+    "active_min": 1155.0,
+    "score": 92.5,
+    "cost": 244.0,
+    "planned": 12,
+    "unplanned": 2,
+    "elapsed_ms": 658.7
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 7,
+   "days": 2,
+   "spots": 10,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.1135,
+    "commute_min": 113.3,
+    "active_min": 885.0,
+    "score": 75.1,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 504.7
+   },
+   "on": {
+    "ratio": 0.1135,
+    "commute_min": 113.3,
+    "active_min": 885.0,
+    "score": 75.1,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 558.5
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 8,
+   "days": 3,
+   "spots": 8,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.0701,
+    "commute_min": 65.6,
+    "active_min": 870.0,
+    "score": 64.4,
+    "cost": 314.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 315.4
+   },
+   "on": {
+    "ratio": 0.0701,
+    "commute_min": 65.6,
+    "active_min": 870.0,
+    "score": 64.4,
+    "cost": 314.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 302.1
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 9,
+   "days": 2,
+   "spots": 12,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.1087,
+    "commute_min": 120.7,
+    "active_min": 990.0,
+    "score": 76.8,
+    "cost": 214.0,
+    "planned": 10,
+    "unplanned": 2,
+    "elapsed_ms": 290.1
+   },
+   "on": {
+    "ratio": 0.1087,
+    "commute_min": 120.7,
+    "active_min": 990.0,
+    "score": 76.8,
+    "cost": 214.0,
+    "planned": 10,
+    "unplanned": 2,
+    "elapsed_ms": 316.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 10,
+   "days": 3,
+   "spots": 12,
+   "budget": null,
+   "off": {
+    "ratio": 0.143,
+    "commute_min": 207.8,
+    "active_min": 1245.0,
+    "score": 94.6,
+    "cost": 314.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 930.1
+   },
+   "on": {
+    "ratio": 0.143,
+    "commute_min": 207.8,
+    "active_min": 1245.0,
+    "score": 94.6,
+    "cost": 314.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 865.0
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 11,
+   "days": 4,
+   "spots": 8,
+   "budget": null,
+   "off": {
+    "ratio": 0.0594,
+    "commute_min": 59.7,
+    "active_min": 945.0,
+    "score": 64.3,
+    "cost": 400.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 272.8
+   },
+   "on": {
+    "ratio": 0.0594,
+    "commute_min": 59.7,
+    "active_min": 945.0,
+    "score": 64.3,
+    "cost": 400.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 275.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 12,
+   "days": 3,
+   "spots": 14,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.1407,
+    "commute_min": 238.3,
+    "active_min": 1455.0,
+    "score": 109.8,
+    "cost": 484.0,
+    "planned": 14,
+    "unplanned": 0,
+    "elapsed_ms": 1039.8
+   },
+   "on": {
+    "ratio": 0.1407,
+    "commute_min": 238.3,
+    "active_min": 1455.0,
+    "score": 109.8,
+    "cost": 484.0,
+    "planned": 14,
+    "unplanned": 0,
+    "elapsed_ms": 994.1
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 13,
+   "days": 2,
+   "spots": 12,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.1191,
+    "commute_min": 125.7,
+    "active_min": 930.0,
+    "score": 77.0,
+    "cost": 130.0,
+    "planned": 10,
+    "unplanned": 2,
+    "elapsed_ms": 270.5
+   },
+   "on": {
+    "ratio": 0.1191,
+    "commute_min": 125.7,
+    "active_min": 930.0,
+    "score": 77.0,
+    "cost": 130.0,
+    "planned": 10,
+    "unplanned": 2,
+    "elapsed_ms": 265.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 14,
+   "days": 4,
+   "spots": 8,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.0512,
+    "commute_min": 51.0,
+    "active_min": 945.0,
+    "score": 65.5,
+    "cost": 290.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 247.3
+   },
+   "on": {
+    "ratio": 0.0512,
+    "commute_min": 51.0,
+    "active_min": 945.0,
+    "score": 65.5,
+    "cost": 290.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 252.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 15,
+   "days": 3,
+   "spots": 9,
+   "budget": null,
+   "off": {
+    "ratio": 0.0771,
+    "commute_min": 75.2,
+    "active_min": 900.0,
+    "score": 70.5,
+    "cost": 244.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 410.3
+   },
+   "on": {
+    "ratio": 0.0771,
+    "commute_min": 75.2,
+    "active_min": 900.0,
+    "score": 70.5,
+    "cost": 244.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 407.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 16,
+   "days": 2,
+   "spots": 13,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.1054,
+    "commute_min": 122.0,
+    "active_min": 1035.0,
+    "score": 84.0,
+    "cost": 190.0,
+    "planned": 11,
+    "unplanned": 2,
+    "elapsed_ms": 405.7
+   },
+   "on": {
+    "ratio": 0.1054,
+    "commute_min": 122.0,
+    "active_min": 1035.0,
+    "score": 84.0,
+    "cost": 190.0,
+    "planned": 11,
+    "unplanned": 2,
+    "elapsed_ms": 411.1
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 17,
+   "days": 2,
+   "spots": 9,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.1745,
+    "commute_min": 202.9,
+    "active_min": 960.0,
+    "score": 69.7,
+    "cost": 230.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 264.0
+   },
+   "on": {
+    "ratio": 0.1745,
+    "commute_min": 202.9,
+    "active_min": 960.0,
+    "score": 69.7,
+    "cost": 230.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 266.8
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 18,
+   "days": 4,
+   "spots": 11,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0848,
+    "commute_min": 75.1,
+    "active_min": 810.0,
+    "score": 68.1,
+    "cost": 244.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 298.0
+   },
+   "on": {
+    "ratio": 0.0848,
+    "commute_min": 75.1,
+    "active_min": 810.0,
+    "score": 68.1,
+    "cost": 244.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 281.8
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 19,
+   "days": 4,
+   "spots": 9,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0527,
+    "commute_min": 38.4,
+    "active_min": 690.0,
+    "score": 55.2,
+    "cost": 250.0,
+    "planned": 7,
+    "unplanned": 2,
+    "elapsed_ms": 176.0
+   },
+   "on": {
+    "ratio": 0.0527,
+    "commute_min": 38.4,
+    "active_min": 690.0,
+    "score": 55.2,
+    "cost": 250.0,
+    "planned": 7,
+    "unplanned": 2,
+    "elapsed_ms": 173.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 20,
+   "days": 2,
+   "spots": 8,
+   "budget": null,
+   "off": {
+    "ratio": 0.0847,
+    "commute_min": 77.7,
+    "active_min": 840.0,
+    "score": 62.9,
+    "cost": 214.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 257.8
+   },
+   "on": {
+    "ratio": 0.0847,
+    "commute_min": 77.7,
+    "active_min": 840.0,
+    "score": 62.9,
+    "cost": 214.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 265.1
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 21,
+   "days": 3,
+   "spots": 12,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.1451,
+    "commute_min": 196.0,
+    "active_min": 1155.0,
+    "score": 92.3,
+    "cost": 364.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 720.8
+   },
+   "on": {
+    "ratio": 0.1451,
+    "commute_min": 196.0,
+    "active_min": 1155.0,
+    "score": 92.3,
+    "cost": 364.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 728.4
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 22,
+   "days": 2,
+   "spots": 11,
+   "budget": null,
+   "off": {
+    "ratio": 0.1687,
+    "commute_min": 194.8,
+    "active_min": 960.0,
+    "score": 71.9,
+    "cost": 254.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 319.9
+   },
+   "on": {
+    "ratio": 0.1687,
+    "commute_min": 194.8,
+    "active_min": 960.0,
+    "score": 71.9,
+    "cost": 254.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 308.6
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 23,
+   "days": 3,
+   "spots": 9,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0952,
+    "commute_min": 93.1,
+    "active_min": 885.0,
+    "score": 63.1,
+    "cost": 294.0,
+    "planned": 8,
+    "unplanned": 1,
+    "elapsed_ms": 265.2
+   },
+   "on": {
+    "ratio": 0.0952,
+    "commute_min": 93.1,
+    "active_min": 885.0,
+    "score": 63.1,
+    "cost": 294.0,
+    "planned": 8,
+    "unplanned": 1,
+    "elapsed_ms": 250.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 24,
+   "days": 2,
+   "spots": 10,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.1034,
+    "commute_min": 117.6,
+    "active_min": 1020.0,
+    "score": 76.7,
+    "cost": 164.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 421.7
+   },
+   "on": {
+    "ratio": 0.1034,
+    "commute_min": 117.6,
+    "active_min": 1020.0,
+    "score": 76.7,
+    "cost": 164.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 427.6
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 25,
+   "days": 4,
+   "spots": 10,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.076,
+    "commute_min": 88.8,
+    "active_min": 1080.0,
+    "score": 79.1,
+    "cost": 264.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 499.0
+   },
+   "on": {
+    "ratio": 0.076,
+    "commute_min": 88.8,
+    "active_min": 1080.0,
+    "score": 79.1,
+    "cost": 264.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 498.4
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 26,
+   "days": 3,
+   "spots": 13,
+   "budget": null,
+   "off": {
+    "ratio": 0.1573,
+    "commute_min": 249.1,
+    "active_min": 1335.0,
+    "score": 101.3,
+    "cost": 430.0,
+    "planned": 13,
+    "unplanned": 0,
+    "elapsed_ms": 698.1
+   },
+   "on": {
+    "ratio": 0.1573,
+    "commute_min": 249.1,
+    "active_min": 1335.0,
+    "score": 101.3,
+    "cost": 430.0,
+    "planned": 13,
+    "unplanned": 0,
+    "elapsed_ms": 699.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 27,
+   "days": 4,
+   "spots": 10,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.067,
+    "commute_min": 70.0,
+    "active_min": 975.0,
+    "score": 72.0,
+    "cost": 274.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 352.6
+   },
+   "on": {
+    "ratio": 0.067,
+    "commute_min": 70.0,
+    "active_min": 975.0,
+    "score": 72.0,
+    "cost": 274.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 348.9
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 28,
+   "days": 2,
+   "spots": 14,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.1202,
+    "commute_min": 143.4,
+    "active_min": 1050.0,
+    "score": 85.5,
+    "cost": 184.0,
+    "planned": 11,
+    "unplanned": 3,
+    "elapsed_ms": 323.7
+   },
+   "on": {
+    "ratio": 0.1202,
+    "commute_min": 143.4,
+    "active_min": 1050.0,
+    "score": 85.5,
+    "cost": 184.0,
+    "planned": 11,
+    "unplanned": 3,
+    "elapsed_ms": 321.5
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 29,
+   "days": 3,
+   "spots": 9,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.0894,
+    "commute_min": 100.1,
+    "active_min": 1020.0,
+    "score": 72.5,
+    "cost": 340.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 326.5
+   },
+   "on": {
+    "ratio": 0.0894,
+    "commute_min": 100.1,
+    "active_min": 1020.0,
+    "score": 72.5,
+    "cost": 340.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 308.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 30,
+   "days": 2,
+   "spots": 14,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.1115,
+    "commute_min": 131.8,
+    "active_min": 1050.0,
+    "score": 85.5,
+    "cost": 184.0,
+    "planned": 11,
+    "unplanned": 3,
+    "elapsed_ms": 391.4
+   },
+   "on": {
+    "ratio": 0.1115,
+    "commute_min": 131.8,
+    "active_min": 1050.0,
+    "score": 85.5,
+    "cost": 184.0,
+    "planned": 11,
+    "unplanned": 3,
+    "elapsed_ms": 392.1
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 31,
+   "days": 2,
+   "spots": 13,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.1157,
+    "commute_min": 123.7,
+    "active_min": 945.0,
+    "score": 76.0,
+    "cost": 194.0,
+    "planned": 10,
+    "unplanned": 3,
+    "elapsed_ms": 289.5
+   },
+   "on": {
+    "ratio": 0.1157,
+    "commute_min": 123.7,
+    "active_min": 945.0,
+    "score": 76.0,
+    "cost": 194.0,
+    "planned": 10,
+    "unplanned": 3,
+    "elapsed_ms": 282.7
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 32,
+   "days": 3,
+   "spots": 11,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0856,
+    "commute_min": 98.3,
+    "active_min": 1050.0,
+    "score": 78.6,
+    "cost": 274.0,
+    "planned": 10,
+    "unplanned": 1,
+    "elapsed_ms": 508.1
+   },
+   "on": {
+    "ratio": 0.0856,
+    "commute_min": 98.3,
+    "active_min": 1050.0,
+    "score": 78.6,
+    "cost": 274.0,
+    "planned": 10,
+    "unplanned": 1,
+    "elapsed_ms": 510.1
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 33,
+   "days": 3,
+   "spots": 9,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0877,
+    "commute_min": 85.1,
+    "active_min": 885.0,
+    "score": 68.9,
+    "cost": 264.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 431.5
+   },
+   "on": {
+    "ratio": 0.0877,
+    "commute_min": 85.1,
+    "active_min": 885.0,
+    "score": 68.9,
+    "cost": 264.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 457.5
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 34,
+   "days": 4,
+   "spots": 11,
+   "budget": null,
+   "off": {
+    "ratio": 0.0838,
+    "commute_min": 94.7,
+    "active_min": 1035.0,
+    "score": 83.8,
+    "cost": 310.0,
+    "planned": 11,
+    "unplanned": 0,
+    "elapsed_ms": 658.9
+   },
+   "on": {
+    "ratio": 0.0838,
+    "commute_min": 94.7,
+    "active_min": 1035.0,
+    "score": 83.8,
+    "cost": 310.0,
+    "planned": 11,
+    "unplanned": 0,
+    "elapsed_ms": 676.4
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 35,
+   "days": 2,
+   "spots": 10,
+   "budget": null,
+   "off": {
+    "ratio": 0.1039,
+    "commute_min": 100.9,
+    "active_min": 870.0,
+    "score": 68.8,
+    "cost": 214.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 273.8
+   },
+   "on": {
+    "ratio": 0.1039,
+    "commute_min": 100.9,
+    "active_min": 870.0,
+    "score": 68.8,
+    "cost": 214.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 279.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 36,
+   "days": 4,
+   "spots": 8,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.0684,
+    "commute_min": 56.2,
+    "active_min": 765.0,
+    "score": 62.3,
+    "cost": 250.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 300.0
+   },
+   "on": {
+    "ratio": 0.0684,
+    "commute_min": 56.2,
+    "active_min": 765.0,
+    "score": 62.3,
+    "cost": 250.0,
+    "planned": 8,
+    "unplanned": 0,
+    "elapsed_ms": 311.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 37,
+   "days": 2,
+   "spots": 11,
+   "budget": null,
+   "off": {
+    "ratio": 0.0915,
+    "commute_min": 90.6,
+    "active_min": 900.0,
+    "score": 70.9,
+    "cost": 244.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 231.1
+   },
+   "on": {
+    "ratio": 0.0915,
+    "commute_min": 90.6,
+    "active_min": 900.0,
+    "score": 70.9,
+    "cost": 244.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 240.5
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 38,
+   "days": 4,
+   "spots": 11,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0681,
+    "commute_min": 69.1,
+    "active_min": 945.0,
+    "score": 76.5,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 1,
+    "elapsed_ms": 466.8
+   },
+   "on": {
+    "ratio": 0.0681,
+    "commute_min": 69.1,
+    "active_min": 945.0,
+    "score": 76.5,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 1,
+    "elapsed_ms": 458.6
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 39,
+   "days": 2,
+   "spots": 13,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.093,
+    "commute_min": 104.6,
+    "active_min": 1020.0,
+    "score": 78.5,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 3,
+    "elapsed_ms": 362.1
+   },
+   "on": {
+    "ratio": 0.093,
+    "commute_min": 104.6,
+    "active_min": 1020.0,
+    "score": 78.5,
+    "cost": 244.0,
+    "planned": 10,
+    "unplanned": 3,
+    "elapsed_ms": 378.5
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 40,
+   "days": 3,
+   "spots": 10,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.0905,
+    "commute_min": 106.0,
+    "active_min": 1065.0,
+    "score": 79.4,
+    "cost": 434.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 429.2
+   },
+   "on": {
+    "ratio": 0.0905,
+    "commute_min": 106.0,
+    "active_min": 1065.0,
+    "score": 79.4,
+    "cost": 434.0,
+    "planned": 10,
+    "unplanned": 0,
+    "elapsed_ms": 429.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 41,
+   "days": 3,
+   "spots": 12,
+   "budget": 800.0,
+   "off": {
+    "ratio": 0.1063,
+    "commute_min": 140.9,
+    "active_min": 1185.0,
+    "score": 92.1,
+    "cost": 430.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 797.2
+   },
+   "on": {
+    "ratio": 0.1063,
+    "commute_min": 140.9,
+    "active_min": 1185.0,
+    "score": 92.1,
+    "cost": 430.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 777.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 42,
+   "days": 4,
+   "spots": 14,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.0834,
+    "commute_min": 105.1,
+    "active_min": 1155.0,
+    "score": 92.5,
+    "cost": 244.0,
+    "planned": 12,
+    "unplanned": 2,
+    "elapsed_ms": 610.2
+   },
+   "on": {
+    "ratio": 0.0834,
+    "commute_min": 105.1,
+    "active_min": 1155.0,
+    "score": 92.5,
+    "cost": 244.0,
+    "planned": 12,
+    "unplanned": 2,
+    "elapsed_ms": 650.4
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 43,
+   "days": 3,
+   "spots": 14,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.1407,
+    "commute_min": 238.3,
+    "active_min": 1455.0,
+    "score": 109.8,
+    "cost": 484.0,
+    "planned": 14,
+    "unplanned": 0,
+    "elapsed_ms": 1020.7
+   },
+   "on": {
+    "ratio": 0.1407,
+    "commute_min": 238.3,
+    "active_min": 1455.0,
+    "score": 109.8,
+    "cost": 484.0,
+    "planned": 14,
+    "unplanned": 0,
+    "elapsed_ms": 998.6
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 44,
+   "days": 3,
+   "spots": 9,
+   "budget": null,
+   "off": {
+    "ratio": 0.0971,
+    "commute_min": 101.6,
+    "active_min": 945.0,
+    "score": 69.7,
+    "cost": 380.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 362.7
+   },
+   "on": {
+    "ratio": 0.0971,
+    "commute_min": 101.6,
+    "active_min": 945.0,
+    "score": 69.7,
+    "cost": 380.0,
+    "planned": 9,
+    "unplanned": 0,
+    "elapsed_ms": 356.4
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 45,
+   "days": 2,
+   "spots": 10,
+   "budget": 300.0,
+   "off": {
+    "ratio": 0.1065,
+    "commute_min": 103.7,
+    "active_min": 870.0,
+    "score": 68.3,
+    "cost": 160.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 217.7
+   },
+   "on": {
+    "ratio": 0.1065,
+    "commute_min": 103.7,
+    "active_min": 870.0,
+    "score": 68.3,
+    "cost": 160.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 246.7
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 46,
+   "days": 2,
+   "spots": 11,
+   "budget": null,
+   "off": {
+    "ratio": 0.1566,
+    "commute_min": 175.4,
+    "active_min": 945.0,
+    "score": 70.5,
+    "cost": 220.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 283.0
+   },
+   "on": {
+    "ratio": 0.1566,
+    "commute_min": 175.4,
+    "active_min": 945.0,
+    "score": 70.5,
+    "cost": 220.0,
+    "planned": 9,
+    "unplanned": 2,
+    "elapsed_ms": 277.3
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 47,
+   "days": 3,
+   "spots": 12,
+   "budget": null,
+   "off": {
+    "ratio": 0.1538,
+    "commute_min": 220.9,
+    "active_min": 1215.0,
+    "score": 93.8,
+    "cost": 364.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 646.8
+   },
+   "on": {
+    "ratio": 0.1538,
+    "commute_min": 220.9,
+    "active_min": 1215.0,
+    "score": 93.8,
+    "cost": 364.0,
+    "planned": 12,
+    "unplanned": 0,
+    "elapsed_ms": 631.5
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 48,
+   "days": 2,
+   "spots": 10,
+   "budget": 500.0,
+   "off": {
+    "ratio": 0.1686,
+    "commute_min": 197.7,
+    "active_min": 975.0,
+    "score": 72.0,
+    "cost": 380.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 363.4
+   },
+   "on": {
+    "ratio": 0.1686,
+    "commute_min": 197.7,
+    "active_min": 975.0,
+    "score": 72.0,
+    "cost": 380.0,
+    "planned": 9,
+    "unplanned": 1,
+    "elapsed_ms": 354.2
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  },
+  {
+   "scenario": 49,
+   "days": 3,
+   "spots": 13,
+   "budget": null,
+   "off": {
+    "ratio": 0.1409,
+    "commute_min": 209.1,
+    "active_min": 1275.0,
+    "score": 100.3,
+    "cost": 364.0,
+    "planned": 13,
+    "unplanned": 0,
+    "elapsed_ms": 805.5
+   },
+   "on": {
+    "ratio": 0.1409,
+    "commute_min": 209.1,
+    "active_min": 1275.0,
+    "score": 100.3,
+    "cost": 364.0,
+    "planned": 13,
+    "unplanned": 0,
+    "elapsed_ms": 813.8
+   },
+   "delta_ratio": 0.0,
+   "delta_score": 0.0
+  }
+ ]
+}
