@@ -13,6 +13,7 @@ import os
 import re
 import time
 
+from cities import DEFAULT_CITY, city_center, normalize_city
 from models import Spot
 from reliability import retry_call
 
@@ -20,17 +21,20 @@ LLM_TIMEOUT_S = 30.0   # 单次 LLM 调用超时（秒），失败由 reliabilit
 
 log = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """你是旅游信息抽取器。从用户给的攻略文本中抽取所有景点，
+SYSTEM_PROMPT = """你是旅游信息抽取器。从用户给的攻略文本中抽取城市与所有景点，
 只输出 JSON，不要解释。格式：
-{"spots": [{"name": "景点名", "stay_min": 建议停留分钟数, "rating": 评分0-10,
+{"city": "攻略所属城市名（如「西安」「成都」；无法判断时空字符串）",
+ "spots": [{"name": "景点名", "stay_min": 建议停留分钟数, "rating": 评分0-10,
             "ticket": 门票元, "note": "一句话亮点"}]}
 规则：
+- city 只填城市名本身，不要带「市」以外的后缀，也不要填省份
+- 只抽确定的景点，不要编造
 - stay_min 按攻略描述估计，没有描述给默认 90
 - rating 按文中语气估计，没提给 7.0
-- 只抽确定的景点，不要编造
 """
 
-_EXAMPLE = {"spots": [{"name": "兵马俑", "stay_min": 180, "rating": 9.5,
+_EXAMPLE = {"city": "西安",
+            "spots": [{"name": "兵马俑", "stay_min": 180, "rating": 9.5,
                        "ticket": 120, "note": "世界第八大奇迹"}]}
 
 
@@ -51,8 +55,16 @@ def _tolerant_json_parse(text: str) -> dict:
         return json.loads(cleaned)
 
 
-def extract_spots(text: str) -> list[Spot]:
-    """调 LLM 抽取景点。需要环境变量：LLM_API_KEY / LLM_BASE_URL / LLM_MODEL_ID。"""
+def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:
+    """抽取景点 + 识别城市。返回 (spots, city)。
+
+    城市来源优先级：LLM 识别 > city_hint（前端已选的城市）。
+    **city 为空字符串表示未能识别**——调用方必须提示用户选择，
+    不要静默假设某个城市（旧版固定用西安坐标，导致「粘成都攻略得到西安坐标」的静默错误）。
+
+    兜底坐标取「该城市中心」（`cities.city_center`），若城市仍未知则退到默认城市中心，
+    但此时返回的 city 为空，上层据此提示用户。
+    """
     from openai import OpenAI  # 延迟导入：不装 openai 也不影响求解器 demo
 
     api_key = os.environ.get("LLM_API_KEY")
@@ -76,13 +88,20 @@ def extract_spots(text: str) -> list[Spot]:
              len(resp.choices[0].message.content or ""))
     data = _tolerant_json_parse(resp.choices[0].message.content or "")
 
+    city = normalize_city(data.get("city")) or normalize_city(city_hint)
+    # 兜底坐标：城市中心（而不是写死的西安坐标）
+    center = city_center(city) or city_center(DEFAULT_CITY) or (34.343207, 108.939645)
+    if not city:
+        log.warning("抽取未能识别城市（city_hint=%r），兜底坐标取 %s；上层应提示用户选择城市",
+                    city_hint, DEFAULT_CITY)
+
     spots: list[Spot] = []
     for i, s in enumerate(data.get("spots", [])):
         spots.append(Spot(
             source_id=i + 1,
             name=str(s["name"]),
-            lat=float(s.get("lat", 34.26)),   # TODO: 高德地理编码 API 校正坐标
-            lon=float(s.get("lon", 108.94)),
+            lat=float(s.get("lat", center[0])),   # 占位：由 aligner 对齐后替换为真实 POI 坐标
+            lon=float(s.get("lon", center[1])),
             stay_min=int(s.get("stay_min", 90)),
             score=float(s.get("rating", 7.0)),
             ticket=float(s.get("ticket", 0)),
@@ -90,4 +109,10 @@ def extract_spots(text: str) -> list[Spot]:
         ))
     if not spots:
         raise ValueError("LLM 没有抽到任何景点")
+    return spots, city
+
+
+def extract_spots(text: str, city_hint: str = "") -> list[Spot]:
+    """兼容旧签名的薄封装：只要景点列表（bench_models / 单元测试在用）。"""
+    spots, _ = extract_guide(text, city_hint)
     return spots

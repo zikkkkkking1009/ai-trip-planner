@@ -174,6 +174,12 @@
     </header>
 
     <div class="sheet">
+      <div class="field">
+        <label>城市</label>
+        <input id="cityInput" list="cityOptions" placeholder="如 西安 / 成都"
+               value="西安" onchange="onCityChange()" style="width:100%">
+        <datalist id="cityOptions"></datalist>
+      </div>
       <div class="field datefield" onclick="openCalendar()">
         <label>行程日期</label>
         <div class="datebox">
@@ -200,6 +206,14 @@
         </div>
       </details>
       <button class="go" id="go">开 始 规 划</button>
+      <details class="adv" id="guideBox">
+        <summary>📋 粘贴攻略自动识别景点（需配置 LLM Key）</summary>
+        <textarea id="guideText" rows="4" placeholder="粘贴一段攻略，例如：第一天去了宽窄巷子，中午在锦里吃小吃，下午去大熊猫基地…"
+          style="width:100%;margin-top:8px;padding:8px;border-radius:10px;border:1px solid #e5e7eb;
+                 font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        <button id="extractBtn" style="margin-top:8px">识 别 攻 略</button>
+        <div id="extractMsg" style="font-size:12px;color:#98a2b3;margin-top:6px;line-height:1.5"></div>
+      </details>
     </div>
 
     <details><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
@@ -269,13 +283,47 @@ const DAY_COLORS = ['#2f9e44','#f08c00','#7048e8','#1c7ed6','#e8590c','#0ca678',
 const WD = ['周日','周一','周二','周三','周四','周五','周六'];
 let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {};
 let lastTaskId = null, favSet = new Set();
+// 当前城市：所有请求（规划 / 编辑 / 收藏 / 酒店搜索 / 详情兜底文案）都用它，
+// 不要再写死某个城市——写死会导致「粘成都攻略得到西安坐标」这类静默错误。
+let currentCity = '西安', demoCities = [];
 
 // ---- 默认日期：今天起 3 天 ----
 function iso(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const today = new Date(); const de = new Date(today); de.setDate(de.getDate()+2);
 $('startDate').value = iso(today); $('endDate').value = iso(de);
 refreshDateBox();
-fetch('/demo/spots').then(r => r.json()).then(d => { spots = d.spots; });
+// ---- 城市：加载可演示城市 + 按当前城市拉取预置景点 ----
+function loadDemoSpots() {
+  return fetch(`/demo/spots?city=${encodeURIComponent(currentCity)}`)
+    .then(r => r.json()).then(d => {
+      spots = d.spots || [];
+      window.demoSpotsLoaded = { city: d.city, n: spots.length };
+      return d;
+    });
+}
+
+function onCityChange() {
+  const v = ($('cityInput').value || '').trim();
+  if (!v || v === currentCity) return;
+  currentCity = v;
+  $('cityInput').value = v;
+  // 旧行程属于别的城市：标记失效并提示，不静默沿用
+  if (plan) { window.cityMismatch = true; }
+  if (map) { map.remove(); map = null; layers = {}; }
+  loadDemoSpots().then(d => {
+    if (d.available) log('城市', `已切换到 ${d.city}，载入 ${d.spots.length} 个预置景点`);
+    else log('城市', `${d.city} 没有预置景点：可在下方「粘贴攻略」识别，或换一个城市`);
+    if (plan) renderItin();
+  });
+}
+
+fetch('/cities').then(r => r.json()).then(d => {
+  demoCities = d.cities || [];
+  const dl = $('cityOptions');
+  if (dl) dl.innerHTML = demoCities.map(c => `<option value="${esc(c)}"></option>`).join('');
+  if (d.default) { currentCity = d.default; $('cityInput').value = d.default; }
+  return loadDemoSpots();
+});
 loadFavorites();  // 启动即同步收藏状态，星标不再滞后
 
 window.onerror = (msg, src, line) => log('前端错误', `${msg} @line ${line}`);
@@ -409,10 +457,45 @@ function calApply() {
 }
 
 // ---- 底图：默认高德瓦片（GCJ-02）；TILE_PROVIDER=osm 时切 OSM + 坐标转换 ----
+// ---- 粘贴攻略 → LLM 抽取（含城市识别）→ 高德对齐 ----
+$('extractBtn').onclick = async () => {
+  const text = ($('guideText').value || '').trim();
+  const msg = $('extractMsg');
+  if (!text) { msg.textContent = '请先粘贴攻略文本'; return; }
+  const btn = $('extractBtn'); btn.disabled = true;
+  msg.textContent = '识别中…（LLM 抽取 + 高德实体对齐，约 3~10 秒）';
+  try {
+    const res = await fetch(
+      `/extract?text=${encodeURIComponent(text)}&city=${encodeURIComponent(currentCity)}`,
+      {method: 'POST'});
+    const d = await res.json();
+    if (!res.ok) { msg.textContent = '识别失败：' + (d.detail || res.status); return; }
+    // 城市同步：以 LLM 从攻略里识别到的城市为准——这是"任意城市可用"的关键一步
+    if (d.detected_city && d.detected_city !== currentCity) {
+      currentCity = d.detected_city;
+      $('cityInput').value = currentCity;
+      await loadDemoSpots();
+      log('城市', `攻略识别到城市：${currentCity}`);
+    }
+    // 低置信度条目不进计划：它们的坐标还是占位值，宁可少排也不要错排
+    const adopt = d.spots.filter(s => !s.needs_review);
+    const skipped = d.spots.filter(s => s.needs_review);
+    spots = adopt;
+    log('抽取', `识别 ${d.count} 个，采纳 ${adopt.length} 个，跳过待确认 ${skipped.length} 个`);
+    msg.textContent = `识别到 ${d.count} 个景点，采纳 ${adopt.length} 个`
+      + (skipped.length ? `；跳过 ${skipped.length} 个低置信度（${skipped.map(s => s.name).join('、')}）` : '')
+      + (d.needs_city ? ' ⚠️ 未能识别城市，请在上方「城市」填写后重试' : '')
+      + '。可直接点「开始规划」。';
+  } catch (e) {
+    msg.textContent = '识别失败：' + e.message;
+  } finally { btn.disabled = false; }
+};
+
 $('go').onclick = async () => {
   $('go').disabled = true; $('log').textContent = '';
   window.dateMismatch = false;  // 新规划按新日期生成，清除不一致提示
-  const req = { city:'西安', days: dayCount(),
+  window.cityMismatch = false;  // 新规划按当前城市生成
+  const req = { city: currentCity, days: dayCount(),
     budget: $('budget').value==='' ? null : Number($('budget').value),
     daily_start_h: timeToH($('start').value || '09:00'),
     daily_end_h: timeToH($('end').value || '18:00'), spots };
@@ -512,7 +595,7 @@ function toggleFav(name) {
             || spots.find(s=>s.name===name) || {name};
   const action = favSet.has(name) ? 'remove' : 'add';
   fetch('/favorites', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({action, spot: {...v, city: '西安'}})})
+    body: JSON.stringify({action, spot: {...v, city: currentCity}})})
     .then(r => r.json()).then(d => {
       favSet = new Set(d.favorites.map(f => f.name));
       if (plan) renderItin(); loadFavorites();
@@ -627,7 +710,7 @@ function openSpotDetail(name) {
       if (d.intro) chips.innerHTML = `<span style="background:#fff4e6;color:#e8590c;
         font-size:11px;padding:3px 9px;border-radius:8px">${esc(d.intro)}</span>`;
       const long = (d.reviews && d.reviews.intro_long) || base.desc
-        || `${name}是西安的热门去处，适合安排半天时间慢慢逛。建议避开节假日高峰，出行前确认开放时间。`;
+        || `${name}是${currentCity}的热门去处，适合安排半天时间慢慢逛。建议避开节假日高峰，出行前确认开放时间。`;
       $('spotIntroLong').textContent = long;
       // 好评/避雷双卡：有缓存立即渲染，没有则异步拉（AI 生成约 3s，不阻塞详情显示）
       const rt = $('rvTitle'), rc = $('spotReviews');
@@ -903,7 +986,7 @@ function openHotelPicker() {
     hotelMaps = {}; openMiniIdx = null;
     $('hotelResults').innerHTML = '<div class="uempty">搜索中…</div>';
     fetch('/hotel/search', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query: q, city: '西安'})})
+      body: JSON.stringify({query: q, city: currentCity})})
       .then(r => r.json()).then(d => {
         if (!d.results.length) { $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>'; return; }
         $('hotelResults').innerHTML = d.results.map((h, i) => {

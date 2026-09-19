@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-34%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-84%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -200,7 +200,7 @@ backend/
   editor.py               对话式编辑（LLM 意图解析 + 确定性执行 + 评价生成）
   tasks.py                异步任务与进度推送、媒体预取
   demo_data.py            西安演示数据
-  tests/                  45 个单元测试（含 CP-SAT、任务淘汰与对齐新规则）
+  tests/                  84 个单元测试（含 CP-SAT、任务淘汰与对齐新规则）
 static/index.html         路书前端（零构建）
 data/plans/               规划快照（软删除标记）
 docs/experiments.md       实验报告
@@ -231,6 +231,7 @@ ROADMAP.md                项目复盘与推进路线图
 
 ## 更新日志
 
+- **v1.2（2026-09-19）**：**多城市泛化**——新增城市中心表（`cities.py`）+ LLM 抽取识别城市 + 前端城市选择器与「粘贴攻略自动识别」入口；演示数据扩到 **5 城 54 个景点**（成都/北京/杭州/重庆 的坐标全部由 `tools/build_demo_data.py` 从高德真实抓取）；修复「抽取兜底坐标写死西安」导致粘成都攻略得到西安坐标且不报错的静默错误；测试增至 **84 个**（含坐标错配守卫）
 - **v1.1（2026-09-18）**：实体对齐 F1 90%→100%——尾部子景点惩罚、主名权威性先验（更名检测 + 主名重查）、LLM 仲裁兜底（答案锁定候选集内）；测试增至 45 个
 - **v1.0（2026-09-18）**：CP-SAT 精确解对照实验（gap 量化 + 下界约束保证不差于启发式）、日志与请求 ID、统一重试与超时、任务淘汰与内存保护、依赖锁定、前端 XSS 转义、Docker 部署文件、测试增至 34 个
 - **v0.9（2026-09-18）**：双页结构（规划 / 我的）、住宿锚点、景点详情卡与 AI 评价、图片灯箱、地图导航、历史规划软删除与批量清理、对话多轮记忆、快慢接口分离与后台预取、轻任务免费模型通道、评测脚本固定随机种子

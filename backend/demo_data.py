@@ -1,9 +1,28 @@
-"""演示数据：西安 14 个景点（坐标为 GCJ-02 近似值，仅用于跑通算法）。
+"""演示数据：多城市景点（零 Key、零成本可跑通）。
 
-之后由「LLM 抽取 + 高德 POI 校正」管线生成，这里手工造数据是为了
-让求解器可以零 Key、零成本先跑通。desc 是行程卡片上的一句话介绍。
+数据来源与可信度（重要）：
+- **西安 14 条**：初版手写数据，坐标为 GCJ-02 近似值，desc 是行程卡片上的一句话介绍。
+- **成都/北京/杭州/重庆 40 条**（`demo_spots.json`）：由 `tools/build_demo_data.py`
+  从高德 place/text 搜索抓取，**坐标是高德真实值**；门票/停留时长/开放时间为演示用
+  近似参数（非实时票价），评分优先取高德真实评分。要扩充城市请跑那个脚本，不要手写坐标。
+
+兼容性：`XI_AN_SPOTS` 这个名称被 8 处引用（evaluation / run_demo* / fetch_spot_details /
+main / 测试），因此保留为别名，不要重命名。
 """
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from cities import DEMO_CITIES, normalize_city
 from models import Spot
+
+BACKEND_DIR = Path(__file__).parent
+EXTRA_SPOTS_FILE = BACKEND_DIR / "demo_spots.json"
+
+# 只取 Spot 模型认得的字段（JSON 里还带 type_str/address/avg_cost，属抓取元信息）
+_SPOT_FIELDS = ("source_id", "name", "lat", "lon", "stay_min", "score",
+                "ticket", "open_h", "close_h", "desc")
 
 XI_AN_SPOTS = [
     Spot(source_id=1, name="秦始皇兵马俑博物馆", lat=34.3847, lon=109.2785,
@@ -49,3 +68,35 @@ XI_AN_SPOTS = [
          stay_min=60, score=6.8, ticket=0, open_h=8.5, close_h=17.0,
          desc="日本密宗祖庭，春季樱花是西安一绝"),
 ]
+
+
+def _load_extra_cities() -> dict[str, list[Spot]]:
+    """加载脚本生成的多城市数据；文件缺失时优雅降级为「只有西安」。"""
+    if not EXTRA_SPOTS_FILE.exists():
+        return {}
+    try:
+        raw = json.loads(EXTRA_SPOTS_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    out: dict[str, list[Spot]] = {}
+    for city, rows in raw.items():
+        try:
+            out[normalize_city(city)] = [
+                Spot(**{k: r[k] for k in _SPOT_FIELDS if k in r}) for r in rows
+            ]
+        except (TypeError, KeyError, ValueError):
+            continue  # 单城数据损坏不影响其他城市
+    return out
+
+
+DEMO_SPOTS: dict[str, list[Spot]] = {"西安": XI_AN_SPOTS, **_load_extra_cities()}
+
+
+def demo_spots(city: str | None) -> list[Spot]:
+    """取某城市的演示景点列表；未知城市返回空列表（调用方负责提示用户）。"""
+    return list(DEMO_SPOTS.get(normalize_city(city), []))
+
+
+def demo_cities() -> list[str]:
+    """实际可演示的城市（按 DEMO_CITIES 顺序，缺数据的城市不出现）。"""
+    return [c for c in DEMO_CITIES if DEMO_SPOTS.get(c)]

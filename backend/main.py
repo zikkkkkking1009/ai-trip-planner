@@ -6,12 +6,13 @@
 接口：
 - GET  /health          健康检查
 - GET  /                演示页（浏览器看实时进度与行程）
-- GET  /demo/spots      内置西安演示景点（零 Key 可跑）
+- GET  /cities          可演示城市列表（前端城市选择器数据源）
+- GET  /demo/spots      按城市返回演示景点（零 Key 可跑）
 - POST /plan            排期主接口（同步，简单场景/CI 用）
 - POST /plan/async      异步排期：立即返回 task_id，后台求解
 - GET  /task/{id}       任务状态轮询（降级方案）
 - WS   /ws/{id}         WebSocket 实时推送进度与最终结果
-- POST /extract         攻略文本 → LLM 抽取 → 实体对齐（需配 LLM Key）
+- POST /extract         攻略文本 → LLM 抽取（含城市识别）→ 实体对齐（需配 LLM Key）
 """
 from __future__ import annotations
 
@@ -36,13 +37,14 @@ from logging_setup import new_request_id, request_id_var, setup_logging
 setup_logging()
 log = logging.getLogger(__name__)
 
+from cities import DEFAULT_CITY, city_center, normalize_city
 from constraint_check import check_plan
-from demo_data import XI_AN_SPOTS
-from extractor import extract_spots
+from demo_data import demo_cities, demo_spots
+from extractor import extract_guide
 from models import PlanRequest, PlanResult
 from solver import Solver
 
-app = FastAPI(title="AI 行程规划 API", version="0.9.0")
+app = FastAPI(title="AI 行程规划 API", version="1.0.0")
 
 
 @app.middleware("http")
@@ -109,29 +111,40 @@ def make_plan(req: PlanRequest) -> PlanResult:
 
 
 @app.post("/extract")
-def extract(text: str, city: str = "西安") -> dict:
-    """攻略文本 → LLM 抽取 → 实体对齐到高德 POI（坐标校正为真实值）。
+def extract(text: str, city: str = "") -> dict:
+    """攻略文本 → LLM 抽取（含城市识别）→ 实体对齐到高德 POI（坐标校正为真实值）。
 
-    链路：LLM 抽取（占位坐标）→ POIAligner（标准名 + 真实坐标）
-    低置信度的条目标记 needs_review，坐标保持占位值，由前端让用户点选。
+    - `city`：前端已选城市，作为 LLM 未识别时的兜底
+    - 返回 `detected_city`（LLM 识别结果）与 `needs_city`（是否未能确定城市）——
+      `needs_city=true` 时前端必须提示用户选择，**不要静默按默认城市排行程**
+    - 对齐必须用**确定的城市**：高德搜索带 citylimit，用错城市会搜不到或搜到同名异地 POI
+    - 低置信度的条目标记 needs_review，坐标保持占位值，由前端让用户点选
     """
     try:
-        spots = extract_spots(text)
+        spots, detected_city = extract_guide(text, city_hint=city)
     except RuntimeError as e:
         raise HTTPException(503, str(e))
     except (ValueError, KeyError) as e:
         raise HTTPException(422, f"抽取失败：{e}")
 
+    resolved = detected_city or normalize_city(city)
+    needs_city = not resolved
+    align_city = resolved or DEFAULT_CITY
+    if needs_city:
+        log.warning("抽取未能确定城市，暂用 %s 对齐并向用户索取城市选择", align_city)
+
     from aligner import POIAligner, align_spot
     aligner = POIAligner()
     aligned, review = [], []
     for s in spots:
-        s, r = align_spot(s, aligner, city)
+        s, r = align_spot(s, aligner, align_city)
         item = s.model_dump() | {"confidence": r.confidence,
                                  "needs_review": r.needs_review}
         (review if r.needs_review else aligned).append(item)
     return {"count": len(spots), "spots": aligned + review,
             "needs_review_count": len(review),
+            "city": align_city, "detected_city": detected_city,
+            "needs_city": needs_city,
             "poi_api_stats": aligner.stats}
 
 
@@ -148,17 +161,30 @@ def index():
 
 
 @app.get("/demo/spots")
-def demo_spots() -> dict:
-    """演示景点，富化高德实景图与介绍（spot_media.json，预抓取零 Key 可用）。"""
+def demo_spot_list(city: str = DEFAULT_CITY) -> dict:
+    """按城市返回演示景点，富化高德实景图与介绍（spot_media.json，预抓取零 Key 可用）。
+
+    未知城市返回空列表 + supported 提示，**不会静默换成别的城市的数据**。
+    """
+    city = normalize_city(city) or DEFAULT_CITY
     media = json.loads(MEDIA_FILE.read_text(encoding="utf-8")) if MEDIA_FILE.exists() else {}
     spots = []
-    for s in XI_AN_SPOTS:
+    for s in demo_spots(city):
         d = s.model_dump()
         m = media.get(s.name) or {}
         d["image"] = m.get("image", "")
         d["intro"] = m.get("intro", "")
         spots.append(d)
-    return {"city": "西安", "spots": spots}
+    return {"city": city, "spots": spots,
+            "available": bool(spots), "supported_cities": demo_cities(),
+            "center": city_center(city)}
+
+
+@app.get("/cities")
+def list_cities() -> dict:
+    """可演示城市列表（前端城市选择器数据源）。"""
+    return {"cities": demo_cities(), "default": DEFAULT_CITY,
+            "centers": {c: city_center(c) for c in demo_cities()}}
 
 
 # ---------- 用户页：历史规划 + 收藏 ----------

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from cities import DEFAULT_CITY
+
 
 class Spot(BaseModel):
     """一个景点（POI）。
@@ -40,8 +42,12 @@ class Hotel(BaseModel):
 
 
 class PlanRequest(BaseModel):
-    """用户请求：一组景点 + 行程参数。"""
-    city: str = "西安"
+    """用户请求：一组景点 + 行程参数。
+
+    city 参与实体对齐（高德 citylimit 搜索）与通勤查询，**调用方必须显式传**；
+    默认值仅为兼容历史调用，不代表"可以随便用西安"（前端会强制带上当前城市）。
+    """
+    city: str = DEFAULT_CITY      # 见 backend/cities.py
     days: int = Field(ge=1, le=7)
     daily_start_h: float = 9.0   # 每天从酒店出发的时间
     daily_end_h: float = 18.0    # 每天必须回到酒店的时间

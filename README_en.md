@@ -3,7 +3,7 @@
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/tests-45%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-84%20passed-brightgreen)
 
 [简体中文](README.md) | [English](README_en.md)
 

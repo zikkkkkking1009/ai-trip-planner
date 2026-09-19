@@ -19,13 +19,13 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
 import re
 import time
 import urllib.parse
 import urllib.request
 
 from aligner import type_flag
+from cities import DEFAULT_CITY
 from commute import load_env_file
 from models import Spot
 from reliability import retry_call
@@ -135,7 +135,7 @@ def poi_search(query: str, lat: float, lon: float,
     return out
 
 
-def text_search(query: str, city: str = "西安") -> list[dict]:
+def text_search(query: str, city: str = DEFAULT_CITY) -> list[dict]:
     """高德全城文本搜索（周边搜不到时的降级），返回结构与 poi_search 一致。"""
     env = load_env_file()
     key = env.get("AMAP_KEY") or os.environ.get("AMAP_KEY")

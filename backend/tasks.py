@@ -18,6 +18,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
+from cities import DEFAULT_CITY
 from commute import CommuteMatrix
 from constraint_check import check_plan
 from models import DayPlan, PlanRequest
@@ -252,7 +253,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
 
         # 统一的 POI 搜索提供器：周边搜索 → 全城文本搜索兜底
         # （区域型查询如「未央区 酒店」周边半径内可能搜不到，必须能降级）
-        city = params.get("city", "西安")
+        city = params.get("city", DEFAULT_CITY)
         def search_provider(query, lat, lon):
             cands = editor.poi_search(query, lat, lon)
             if not cands:
@@ -347,7 +348,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                     for d in days for v in d["spots"] if v["name"] in spot_by_name)
                     + sum(s.score for s in new_spots_acc), 1)
                 req_for_check = PlanRequest(
-                    city=params.get("city", "西安"), days=len(days),
+                    city=params.get("city", DEFAULT_CITY), days=len(days),
                     budget=params.get("budget"),
                     daily_start_h=params.get("daily_start_h", 9.0),
                     daily_end_h=params.get("daily_end_h", 18.0),
@@ -357,7 +358,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                 MANAGER.say(task, "校验", "约束校验通过 ✅" if report["passed"]
                             else f"发现违规：{'; '.join(report['violations'])}")
                 task.result = {
-                    "city": params.get("city", "西安"), "days": days,
+                    "city": params.get("city", DEFAULT_CITY), "days": days,
                     "total_cost": total_cost, "total_score": total_score,
                     "unplanned": base.result.get("unplanned", []),
                     "check_report": report,
@@ -395,7 +396,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
         params = base.req_params
         from models import Hotel
         hotel_obj = Hotel(**params["hotel"]) if params.get("hotel") else None
-        new_req = PlanRequest(city=params.get("city", "西安"),
+        new_req = PlanRequest(city=params.get("city", DEFAULT_CITY),
                               days=params.get("days", 2),
                               budget=params.get("budget"),
                               daily_start_h=params.get("daily_start_h", 9.0),
@@ -475,7 +476,7 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
             cm.minutes(sp, hotel_obj)
             if i % 3 == 0 or i == len(base_spots):
                 MANAGER.say(task, "通勤矩阵", f"酒店通勤已算 {i}/{len(base_spots)} 个景点")
-        new_req = PlanRequest(city=params.get("city", "西安"),
+        new_req = PlanRequest(city=params.get("city", DEFAULT_CITY),
                               days=params.get("days", 2),
                               budget=params.get("budget"),
                               daily_start_h=params.get("daily_start_h", 9.0),

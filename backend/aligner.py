@@ -163,6 +163,16 @@ def detect_renamed_root(alias: str, pois: list[PoiCandidate]) -> str | None:
     return None
 
 
+def _confidence(raw_score: float) -> float:
+    """把加权分归一为 0~1 的对外置信度。
+
+    权重合计 W_CONTAIN+W_TEXT+W_TYPE+W_EXT = 1.15，理论上限 1.15，
+    直接对外输出会出现「置信度 1.02」这种不合理值。内部阈值判断仍用加权分
+    （AUTO_THRESHOLD=0.72 是在该尺度上调参的），只在对外输出时截断到 [0,1]。
+    """
+    return round(min(max(raw_score, 0.0), 1.0), 4)
+
+
 @dataclass
 class PoiCandidate:
     name: str
@@ -298,7 +308,7 @@ class POIAligner:
                 best.score = round(self._score(renamed_root, best, hint_type), 4)
                 return AlignResult(
                     alias=alias, best=best, candidates=[best],
-                    confidence=best.score, needs_review=False,
+                    confidence=_confidence(best.score), needs_review=False,
                     reason="renamed_main",
                 )
             # 主名重查无精确命中 → 证据不足，落回常规打分
@@ -325,7 +335,7 @@ class POIAligner:
 
         return AlignResult(
             alias=alias, best=best, candidates=pool,
-            confidence=best.score,
+            confidence=_confidence(best.score),
             needs_review=review,
             reason=("llm_arbitrated" if arbitrated
                     else "ok" if not review else "low_confidence"),
