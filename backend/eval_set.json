@@ -1,22 +1,114 @@
 [
-  {"alias": "兵马俑", "city": "西安", "expected": "秦始皇兵马俑博物馆"},
-  {"alias": "陕历博", "city": "西安", "expected": "陕西历史博物馆"},
-  {"alias": "西安城墙", "city": "西安", "expected": "西安城墙"},
-  {"alias": "大雁塔", "city": "西安", "expected": "大雁塔"},
-  {"alias": "华清池", "city": "西安", "expected": "华清宫"},
-  {"alias": "钟楼", "city": "西安", "expected": "钟楼"},
-  {"alias": "回民街", "city": "西安", "expected": "回民街"},
-  {"alias": "小雁塔", "city": "西安", "expected": "小雁塔"},
-  {"alias": "碑林", "city": "西安", "expected": "碑林博物馆"},
-  {"alias": "紫禁城", "city": "北京", "expected": "故宫博物院"},
-  {"alias": "天安门", "city": "北京", "expected": "天安门"},
-  {"alias": "颐和园", "city": "北京", "expected": "颐和园"},
-  {"alias": "鸟巢", "city": "北京", "expected": "鸟巢"},
-  {"alias": "水立方", "city": "北京", "expected": "水立方"},
-  {"alias": "熊猫基地", "city": "成都", "expected": "大熊猫繁育研究基地"},
-  {"alias": "宽窄巷子", "city": "成都", "expected": "宽窄巷子"},
-  {"alias": "锦里", "city": "成都", "expected": "锦里"},
-  {"alias": "都江堰", "city": "成都", "expected": "都江堰"},
-  {"alias": "西湖", "city": "杭州", "expected": "西湖"},
-  {"alias": "灵隐寺", "city": "杭州", "expected": "灵隐寺"}
+ {
+  "alias": "兵马俑",
+  "city": "西安",
+  "expected": "秦始皇兵马俑博物馆"
+ },
+ {
+  "alias": "陕历博",
+  "city": "西安",
+  "expected": "陕西历史博物馆"
+ },
+ {
+  "alias": "西安城墙",
+  "city": "西安",
+  "expected": "西安城墙"
+ },
+ {
+  "alias": "大雁塔",
+  "city": "西安",
+  "expected": "大雁塔"
+ },
+ {
+  "alias": "华清池",
+  "city": "西安",
+  "expected": "华清宫"
+ },
+ {
+  "alias": "钟楼",
+  "city": "西安",
+  "expected": "钟楼"
+ },
+ {
+  "alias": "回民街",
+  "city": "西安",
+  "expected": "回民街"
+ },
+ {
+  "alias": "小雁塔",
+  "city": "西安",
+  "expected": "小雁塔"
+ },
+ {
+  "alias": "碑林",
+  "city": "西安",
+  "expected": "碑林博物馆"
+ },
+ {
+  "alias": "紫禁城",
+  "city": "北京",
+  "expected": "故宫博物院"
+ },
+ {
+  "alias": "天安门",
+  "city": "北京",
+  "expected": "天安门"
+ },
+ {
+  "alias": "颐和园",
+  "city": "北京",
+  "expected": "颐和园"
+ },
+ {
+  "alias": "鸟巢",
+  "city": "北京",
+  "expected": "鸟巢"
+ },
+ {
+  "alias": "水立方",
+  "city": "北京",
+  "expected": "水立方"
+ },
+ {
+  "alias": "熊猫基地",
+  "city": "成都",
+  "expected": "大熊猫繁育研究基地"
+ },
+ {
+  "alias": "宽窄巷子",
+  "city": "成都",
+  "expected": "宽窄巷子"
+ },
+ {
+  "alias": "锦里",
+  "city": "成都",
+  "expected": "锦里"
+ },
+ {
+  "alias": "都江堰",
+  "city": "成都",
+  "expected": "都江堰"
+ },
+ {
+  "alias": "西湖",
+  "city": "杭州",
+  "expected": "西湖"
+ },
+ {
+  "alias": "灵隐寺",
+  "city": "杭州",
+  "expected": "灵隐寺"
+ },
+ {
+  "alias": "成都大熊猫繁育研究基地",
+  "city": "成都",
+  "expected": "成都大熊猫繁育研究基地",
+  "note": "A8：库里还有「…-熊猫塔」子点，不能选中它"
+ },
+ {
+  "alias": "杜甫草堂",
+  "city": "成都",
+  "expected": "成都杜甫草堂博物馆",
+  "note": "A8：库里还有「杜甫草堂-梅园 / -杜陵村」子点"
+ }
 ]

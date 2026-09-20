@@ -49,6 +49,7 @@ AUTO_THRESHOLD = 0.72   # >= 此置信度自动采纳，否则先 LLM 仲裁、�
 TOP_K = 5               # 召回候选数
 
 SUFFIX_PREFIX_MIN = 3   # 别名在候选名尾部时，前缀长度 >= 此值判为「子景点引用」
+APPENDED_SUFFIX_MAX = 5  # 候选名挂在别名之后的短后缀上限（A8；超过就不像子景点）
 RENAMED_ROOT_MIN = 2    # 主名先验：同一根名的「主名-子点」至少出现次数
 
 # 打分权重（在标注集上调参确定，见 eval_aligner.py）
@@ -112,14 +113,42 @@ def _is_tailed_subvenue(a: str, b: str) -> bool:
     return len(a) < len(b) and b.endswith(a) and len(b) - len(a) >= SUFFIX_PREFIX_MIN
 
 
+def _is_appended_subvenue(a: str, b: str) -> bool:
+    """候选 b 是否为「查询名 a + 分隔符 + 短后缀」的子景点形式（A8）。
+
+    与 `_is_tailed_subvenue` 对称——那是「别名在尾部」，这是「别名在前、后面挂短后缀」。
+    例：搜「成都大熊猫繁育研究基地」→ 库里给「成都大熊猫繁育研究基地-熊猫塔」；
+        搜「杜甫草堂」→「杜甫草堂-杜陵村」。
+    这类候选几乎是"景区里的一个小点"，用户要的是主景区本身。
+
+    **为什么必须要求分隔符 + 限制后缀长度**（否则会误伤真正的上级 POI）：
+    「故宫」→「故宫博物院」、「大雁塔」→「大雁塔文化休闲景区」都是**合法扩展名**
+    （无分隔符、或后缀很长），不该被当成子景点。只有「主名-短后缀」才是子景点。
+    实测把这两条约束去掉会让「故宫/大雁塔」这类正常对齐被误判为子点。
+    """
+    if not a or not b or b == a or not b.startswith(a):
+        return False
+    rest = b[len(a):]
+    for sep in ("-", "－", "—", "(", "（", "·"):
+        if rest.startswith(sep):
+            suffix = rest[len(sep):].strip(" )）(（")
+            return 0 < len(suffix) <= APPENDED_SUFFIX_MAX
+    return False
+
+
 def text_similarity(alias: str, candidate: str) -> float:
     """0~1 的字符相似度：difflib 序率 与 bigram Jaccard 取平均。
 
-    尾部子景点结构（见 _is_tailed_subvenue）直接记 0：候选名的辨识部分
-    是前缀而非别名，字符重叠是假信号。
+    两种子景点结构都直接记 0（字符重叠是假信号）：
+    - 尾部子景点（`_is_tailed_subvenue`）：候选的辨识部分是前缀
+    - 挂在后面的子景点（`_is_appended_subvenue`）：候选的辨识部分是那个短后缀
     """
     a, b = _normalize(alias), _normalize(candidate)
-    if not a or not b or _is_tailed_subvenue(a, b):
+    # 子景点结构判定必须用**原始名**：归一化会把分隔符（- / （ / ·）抹掉，
+    # 而"挂后缀"的判据恰恰依赖分隔符（踩过：传归一化名 → 判定永远为 False，
+    # 子景点又拿到 0.85 的高分）
+    if not a or not b or _is_tailed_subvenue(alias, candidate) \
+            or _is_appended_subvenue(alias, candidate):
         return 0.0
     difflib_sim = SequenceMatcher(None, a, b).ratio()
     ba, bb = _char_bigrams(a), _char_bigrams(b)
@@ -130,13 +159,17 @@ def text_similarity(alias: str, candidate: str) -> float:
 def containment(alias: str, candidate: str) -> float:
     """包含关系打分：完全匹配 1.0，单向包含 0.85（略降以区分完全相等）。
 
-    例外：长前缀 + 别名在尾部（「……远望紫禁城」）不视为包含——
-    那是别的 POI 在引用别名，不是别名所指实体本身。
+    例外：两种子景点结构都不视为包含——
+    「……远望紫禁城」是别的 POI 在引用别名（尾部结构）；
+    「……-熊猫塔」是别名在主景区后面挂了子点（前部结构）。
+    这两种情况下 `a in b` 成立但语义相反，给 0.85 会让子景点压过主景区。
     """
     a, b = _normalize(alias), _normalize(candidate)
     if a == b:
         return 1.0
-    if a and _is_tailed_subvenue(a, b):
+    # 同样用原始名判定子景点结构（归一化会抹掉分隔符）
+    if a and (_is_tailed_subvenue(alias, candidate)
+              or _is_appended_subvenue(alias, candidate)):
         return 0.0
     if a and (a in b or b in a):
         return 0.85
