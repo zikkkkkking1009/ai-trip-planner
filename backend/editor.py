@@ -469,6 +469,90 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
                     name, type(e).__name__, e)
     return None
 
+# ---- AI 总评：对整个行程给一次综合评价 ----
+# 与"对话式问答"的区别：这个是**主动**给出的整体判断（分数 + 总评 + 亮点 + 提醒），
+# 不需要用户提问。所以提示词要求它**中肯**（不要一律高分）并且**可执行**。
+_REVIEW_SYSTEM = """你是一位去过很多地方的旅行顾问。用户刚生成了一份行程，请你做一次总评。
+
+输出 JSON（不要解释、不要加 markdown 代码块）：
+{"score": 8.5, "summary": "两三句总评", "highlights": ["具体亮点"], "warnings": ["可执行的提醒"]}
+
+要求：
+- score：1~10 分，**必须中肯**——6 分是"还行"，问题明显就给更低，不要一律给高分
+- summary：2~3 句人话，说清这份行程的**特点**与**主要问题**，要引用具体景点名 / 天数 / 通勤分钟
+- highlights：1~3 条，具体到"哪个景点/哪一天为什么好"
+- warnings：1~3 条，**可执行**（如"第 2 天跨区太多，建议把 X 挪到第 1 天"）；没有就给空数组
+- 若提供了用户的长期偏好，评价时要把它算进去（例如不爱爬山就别推荐台阶多的路线）
+- **绝不编造**票价、营业时间、班次这类易过期信息；不确定就别说具体数字"""
+
+
+def build_review_summary(result: dict) -> str:
+    """行程 → 给总评用的文本摘要（比对话链路那份更详细：带上每天的通勤与门票）。"""
+    lines = []
+    for d in result.get("days", []):
+        names = "、".join(v.get("name", "") for v in d.get("spots", []))
+        lines.append(
+            f"Day{d.get('day')}：{names}"
+            f"（游玩 {d.get('active_min', 0):.0f} 分钟 / 通勤 {d.get('commute_min', 0):.0f} 分钟"
+            f" / 门票 ¥{d.get('cost', 0):.0f}）")
+    hotel = (result.get("hotel") or {}).get("name")
+    if hotel:
+        lines.append(f"住宿：{hotel}")
+    unplanned = result.get("unplanned") or []
+    if unplanned:
+        lines.append("未排入：" + "、".join(u.get("name", "") for u in unplanned[:5]))
+    total = result.get("total_cost")
+    if total is not None:
+        lines.append(f"总门票：¥{total:.0f}")
+    return "\n".join(lines)
+
+
+def review_plan(plan_summary: str, memory: list[str] | None = None) -> dict:
+    """对整个行程做一次 AI 总评。需要 LLM_API_KEY；失败抛 RuntimeError。
+
+    返回 {"score": float, "summary": str, "highlights": [...], "warnings": [...]}。
+    解析失败时给一个**可用的兜底**（只把原文当 summary），不让前端拿到空卡片。
+    """
+    from extractor import _tolerant_json_parse
+
+    client, model = _llm(fast=False)
+    mem_txt = ""
+    if memory:
+        mem_txt = "用户的长期偏好：\n" + "\n".join(f"- {m}" for m in memory[:8]) + "\n\n"
+    t0 = time.time()
+    try:
+        resp = retry_call(lambda: client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": _REVIEW_SYSTEM},
+                      {"role": "user",
+                       "content": f"{mem_txt}行程如下：\n{plan_summary}"}],
+            temperature=0.4,
+        ), what="行程总评 LLM 调用")
+    except Exception as e:
+        log.warning("行程总评失败: %s: %s", type(e).__name__, e)
+        raise RuntimeError(f"总评生成失败：{type(e).__name__}") from e
+
+    raw = resp.choices[0].message.content or ""
+    try:
+        parsed = _tolerant_json_parse(raw)
+    except Exception as e:
+        log.warning("总评 JSON 解析失败，退化为纯文本: %s: %s", type(e).__name__, e)
+        parsed = {"summary": raw.strip()[:400]}
+    log.info("行程总评完成：%s 分，耗时 %.2fs（模型 %s）",
+             parsed.get("score"), time.time() - t0, model)
+    score = parsed.get("score")
+    try:
+        score = round(float(score), 1)
+    except (TypeError, ValueError):
+        score = None
+    return {
+        "score": score,
+        "summary": str(parsed.get("summary") or "").strip(),
+        "highlights": [str(x) for x in (parsed.get("highlights") or [])][:3],
+        "warnings": [str(x) for x in (parsed.get("warnings") or [])][:3],
+    }
+
+
 def _llm(fast: bool = False):
     """返回 (OpenAI client, model)。
 

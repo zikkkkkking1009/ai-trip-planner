@@ -437,6 +437,32 @@ def get_task(task_id: str) -> dict:
     raise HTTPException(404, "任务不存在")
 
 
+def _load_task_payload(task_id: str) -> tuple[dict | None, dict, dict]:
+    """取任务结果：内存优先、磁盘快照兜底。返回 (result, params, spot_by_name)。
+
+    抽成公共函数是因为「稳健性模拟」和「AI 总评」都要用同一套取用逻辑——
+    两处各写一份的话，将来只改一处就会出现口径不一致（这类重复已经踩过）。
+    """
+    from models import Spot
+    from tasks import MANAGER
+
+    task = MANAGER.get(task_id)
+    if task is not None and task.status == "completed" and task.result:
+        return (task.result, dict(task.req_params or {}),
+                {s["name"]: Spot(**s) for s in (task.request_spots or [])})
+    f = PLANS_DIR / f"{task_id}.json"
+    if not f.exists():
+        raise HTTPException(404, "任务不存在或尚未完成")
+    snap = json.loads(f.read_text(encoding="utf-8"))
+    if snap.get("deleted"):
+        raise HTTPException(404, "任务已删除")
+    # 快照里的键名是 params（不是 req_params）
+    spot_by_name = {s["name"]: Spot(**s) for s in (snap.get("request_spots") or [])}
+    if not spot_by_name:
+        log.warning("快照缺少 request_spots（旧版本数据），将退化为无通勤口径 task_id=%s", task_id)
+    return snap.get("result"), (snap.get("params") or {}), spot_by_name
+
+
 @app.post("/plan/simulate")
 def simulate_task(body: dict) -> dict:
     """N3 稳健性模拟：给停留与通勤加噪声，返回「按时完成概率 + 风险点」。
@@ -448,33 +474,8 @@ def simulate_task(body: dict) -> dict:
     from commute import CommuteMatrix
     from models import DayPlan, Hotel, Spot
     from simulation import simulate as run_sim
-    from tasks import MANAGER
 
-    # 内存里的任务优先；内存已清则从磁盘快照兜底（与 /task 一致）
-    task = MANAGER.get(body.get("task_id", ""))
-    params: dict = {}
-    result: dict | None = None
-    if task is not None and task.status == "completed" and task.result:
-        params = dict(task.req_params or {})
-        result = task.result
-        # 模拟要每个景点的坐标与计划停留时长
-        spot_by_name = {s["name"]: Spot(**s) for s in (task.request_spots or [])}
-    else:
-        f = PLANS_DIR / f"{body.get('task_id', '')}.json"
-        if not f.exists():
-            raise HTTPException(404, "任务不存在或尚未完成")
-        snap = json.loads(f.read_text(encoding="utf-8"))
-        if snap.get("deleted"):
-            raise HTTPException(404, "任务已删除")
-        result = snap.get("result")
-        params = snap.get("params") or {}      # 快照里的键名是 params（不是 req_params）
-        # 旧快照没存 request_spots → 拿不到真实坐标，模拟会退化为"按计划停留、通勤为 0"。
-        # 这里不静默：明确记一条日志，避免用户以为概率是准的。
-        spot_by_name = {s["name"]: Spot(**s) for s in (snap.get("request_spots") or [])}
-        if not spot_by_name:
-            log.warning("快照缺少 request_spots（旧版本数据），模拟将退化为无通勤口径 task_id=%s",
-                        body.get("task_id"))
-
+    result, params, spot_by_name = _load_task_payload(body.get("task_id", ""))
     if not result or not result.get("days"):
         raise HTTPException(400, "该任务不是行程结果，无法模拟")
 
@@ -501,6 +502,36 @@ def simulate_task(body: dict) -> dict:
             "per_day": [vars(d) for d in sim.per_day],
             "risks": [vars(r) for r in sim.risks],
             "noise": sim.noise, "seed": sim.seed}
+
+
+@app.post("/plan/review")
+def review_task(body: dict) -> dict:
+    """AI 总评：对整个行程给一次综合评价（分数 / 总评 / 亮点 / 提醒）。
+
+    和"对话式问答"的区别：这是**主动**给出的整体判断，不需要用户提问。
+    同步调用 LLM（约 0.7~3s）——FastAPI 会把同步 def 放进线程池，不阻塞事件循环。
+    """
+    import os
+    from commute import load_env_file
+
+    env = load_env_file()
+    if not (env.get("LLM_API_KEY") or os.environ.get("LLM_API_KEY")):
+        raise HTTPException(503, "未配置 LLM_API_KEY，无法生成总评")
+
+    result, _params, _spots = _load_task_payload(body.get("task_id", ""))
+    if not result or not result.get("days"):
+        raise HTTPException(400, "该任务不是行程结果，无法评价")
+
+    from editor import build_review_summary, review_plan
+
+    memory = [str(m).strip() for m in (body.get("memory") or []) if str(m).strip()][:10]
+    digest = build_review_summary(result)
+    try:
+        out = review_plan(digest, memory=memory)
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+    out["digest"] = digest        # 便于前端展示与排查"它是基于什么评的"
+    return out
 
 
 @app.post("/plan/edit")

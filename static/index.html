@@ -162,6 +162,28 @@
                     padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600; }
   .chatbar button:disabled { opacity:.5; }
 
+  /* AI 总评卡片（位于稳健性模拟上方） */
+  #reviewBox { display:none; }
+  #reviewBox.on { display:block; }
+  .rv-card { background:linear-gradient(135deg,#f7fbff,#eef5ff); border:1px solid #dbe9ff;
+             border-radius:14px; padding:15px 16px; margin-bottom:12px;
+             box-shadow:0 4px 16px rgba(22,119,255,.07); }
+  .rv-card.rv-loading { color:#98a2b3; font-size:13px; line-height:1.7; }
+  .rv-head { display:flex; align-items:center; gap:6px; font-size:11.5px; color:#7c93b5;
+             margin-bottom:10px; }
+  .rv-top { display:flex; align-items:flex-start; gap:14px; }
+  .rv-score { font-size:32px; font-weight:800; letter-spacing:-1.5px; color:#1677ff;
+              line-height:1; flex-shrink:0; }
+  .rv-score small { font-size:13px; font-weight:600; color:#98a2b3; margin-left:1px; }
+  .rv-summary { font-size:13.5px; line-height:1.75; color:#1d2939; flex:1; min-width:0; }
+  .rv-money { margin-top:11px; padding-top:10px; border-top:1px dashed #d8e6ff;
+              font-size:12.5px; color:#475467; display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .rv-money b { color:#e8590c; font-weight:700; }
+  .rv-money span { color:#98a2b3; }
+  .rv-list { margin-top:11px; display:flex; flex-direction:column; gap:6px; }
+  .rv-item { font-size:12.5px; line-height:1.65; color:#475467; display:flex; gap:7px; }
+  .rv-item b { flex-shrink:0; }
+
   /* N3 稳健性卡片 */
   #robustBox { display:none; }
   .rb-card { background:#fff; border:1px solid #eef1f6; border-radius:14px; padding:14px 16px;
@@ -425,6 +447,9 @@
 
       <!-- 右栏：行程结果与地图 -->
       <div class="stage">
+
+    <!-- AI 总评（在稳健性模拟上面），由 loadReview() 填充 -->
+    <div id="reviewBox"></div>
 
     <!-- N3 稳健性模拟（按时概率 + 风险点），由 loadRobustness() 填充 -->
     <div id="robustBox"></div>
@@ -893,6 +918,7 @@ function render() {
   renderItin();          // 规划完成立即渲染总览（这行丢过两次，不能再丢）
   switchView('itin');
   loadRobustness();      // N3：异步算稳健性（不阻塞上面的渲染）
+  loadReview();          // AI 总评（同样异步，放在稳健性之上）
 }
 
 function renderItin() {
@@ -1295,6 +1321,8 @@ function resetPlanView() {
   petMood('idle'); petState('待命');
   simForTask = null;                                     // 重置后允许重新模拟
   const rb = $('robustBox'); if (rb) { rb.style.display = 'none'; rb.innerHTML = ''; }
+  reviewForTask = null;                                  // 重置后允许重新总评
+  const rv = $('reviewBox'); if (rv) { rv.classList.remove('on'); rv.innerHTML = ''; }
   $('chips').innerHTML = '<span class="chip">🎒 高德真实通勤</span>' +
     '<span class="chip">🧭 三级缓存</span><span class="chip">✅ 约束校验</span>';
   $('hotelText').textContent = '未设置（点此搜索选择）';  // 住宿字段一起清空
@@ -1543,6 +1571,53 @@ document.querySelectorAll('#robRow .pref').forEach(el => {
     $('robHint').textContent = ROB_HINT[el.dataset.rob] || '';
   };
 });
+
+// ---- AI 总评：主动给整份行程一个综合评价（分数 + 总评 + 花费 + 亮点/提醒）----
+let reviewForTask = null;      // 按 task_id 去重：LLM 调用（约 1~3 秒）不该被重复触发
+
+async function loadReview() {
+  const box = $('reviewBox');
+  if (!box) return;
+  if (!lastTaskId || !plan) { box.classList.remove('on'); box.innerHTML = ''; return; }
+  if (reviewForTask === lastTaskId) return;
+  reviewForTask = lastTaskId;
+  box.classList.add('on');
+  box.innerHTML = '<div class="rv-card rv-loading">🤖 正在通读这份行程，写总评…（约 1~3 秒）</div>';
+  try {
+    const r = await fetch('/plan/review', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({task_id: lastTaskId, memory: loadMem()})});
+    if (!r.ok) { box.classList.remove('on'); box.innerHTML = ''; return; }
+    renderReview(await r.json());
+  } catch (e) {
+    box.classList.remove('on'); box.innerHTML = '';   // 总评失败不打扰用户
+  }
+}
+
+function renderReview(d) {
+  const box = $('reviewBox'); if (!box) return;
+  const score = (d.score == null) ? ''
+    : `<div class="rv-score">${d.score}<small>/10</small></div>`;
+  // 总花费：门票是**真实数据**；交通费用没有可靠单价，不编（明确标注"不含交通"）
+  const ticket = Number(plan?.total_cost || 0);
+  const nDays = (plan?.days || []).length || 1;
+  const commute = (plan?.days || []).reduce((s, x) => s + (x.commute_min || 0), 0);
+  const money = `<div class="rv-money">
+      💰 总花费 <b>¥${ticket.toFixed(0)}</b><span>（门票，不含交通餐饮）</span>
+      <span>· 每天约 ¥${(ticket / nDays).toFixed(0)}</span>
+      <span>· 通勤合计 ${Math.round(commute)} 分钟</span>
+    </div>`;
+  const hl = (d.highlights || [])
+    .map(x => `<div class="rv-item"><b>✨</b><span>${esc(x)}</span></div>`).join('');
+  const wn = (d.warnings || [])
+    .map(x => `<div class="rv-item"><b>⚠️</b><span>${esc(x)}</span></div>`).join('');
+  box.innerHTML = `<div class="rv-card">
+    <div class="rv-head">🤖 AI 总评 · 通读整份行程（${nDays} 天）</div>
+    <div class="rv-top">${score}<div class="rv-summary">${esc(d.summary || '')}</div></div>
+    ${money}
+    ${(hl || wn) ? `<div class="rv-list">${hl}${wn}</div>` : ''}
+  </div>`;
+}
 
 // ---- N3 稳健性模拟：这个行程有多大把握按时走完 ----
 // 结果直接给"去掉哪个景点能提升多少个百分点"，点一下就走对话链路执行——
