@@ -167,92 +167,42 @@
   .rb-loading { color:#98a2b3; font-size:13px }
   .rb-note { font-size:11px; color:#b4b2a9; margin-top:8px }
 
-  /* ===== 小舟：DeepSeek 蓝鲸风格桌宠 =====
-     形象纯 SVG 手绘、动画纯 CSS（项目约束：单文件、无图片资源、无 CDN）。
-     状态机参考 petdex.dev/pets/deepseek 的 8 态（Idle / Run L·R / Waving / Jumping /
-     Failed / Waiting / Running），但用 CSS keyframes 实现，不需要雪碧图。
-     状态映射：idle→待机、running→正在处理、waiting→等用户输入、
-     waving→有建议/打招呼、jumping→成功、failed→出错。 */
-  #pet { position:fixed; right:16px; bottom:16px; z-index:900; width:72px; height:72px;
+  /* ===== 小舟：petdex「deepseek酱」原版 sprite =====
+     资源 static/vendor/pet/deepseek.webp：1536×1872，8 列 × 9 行，帧 192×208。
+     切帧方式与官方 CSS 完全一致：background-size:1536px auto，
+     行偏移 = row × -208px、帧偏移 = frames × -192px；
+     这里按 0.5 倍显示（96×104px，整数倍缩放才能保持 pixelated 不糊）。
+     状态 → sprite 行（行号取自 petdex 页面 State viewer）：
+       idle=row0(6帧) / running=row7(6) / waiting=row6(6)
+       waving=row3(4) / jumping=row4(5) / failed=row5(8)
+     原版另有 Run Left/Right（row2/1）用于跑动，本项目不做移动跟随，故未使用。 */
+  #pet { position:fixed; right:16px; bottom:16px; z-index:900;
          cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent;
-         filter:drop-shadow(0 8px 18px rgba(16,24,40,.22)); }
-  #pet svg { width:100%; height:100%; display:block; }
-  /* 朝向：跟随光标时整体翻转（对应 petdex 的 Run Left / Run Right） */
-  #pet .pet-flip { transform-origin:36px 42px; transition:transform .28s ease; }
-  #pet[data-face="left"] .pet-flip { transform:scaleX(-1); }
-
-  /* 呼吸 + 眨眼（idle 基础） */
-  #pet .pet-body { animation:petBreath 3.4s ease-in-out infinite; transform-origin:36px 62px; }
-  @keyframes petBreath {
-    0%,100% { transform:translateY(0) scaleY(1) }
-    50%     { transform:translateY(-1.5px) scaleY(1.035) } }
-  #pet .pet-eyes { animation:petBlink 4.8s infinite; transform-origin:35px 36px; }
-  @keyframes petBlink { 0%,92%,100% { transform:scaleY(1) } 96% { transform:scaleY(.12) } }
-
-  /* 头顶冒泡（待机 / 等待时） */
-  #pet .pet-spout { opacity:0; transition:opacity .3s }
-  #pet[data-mood="idle"] .pet-spout, #pet[data-mood="waiting"] .pet-spout { opacity:1; }
-  #pet .drop { animation:petBubble 2.8s ease-in-out infinite; }
-  #pet .d2 { animation-delay:.7s } #pet .d3 { animation-delay:1.4s }
-  @keyframes petBubble {
-    0%   { transform:translateY(4px);  opacity:0 }
-    35%  {                            opacity:.95 }
-    100% { transform:translateY(-9px); opacity:0 } }
-
-  /* 嘴 / 眼的按状态显隐（比改 SVG path 兼容性好） */
-  #pet .mood { opacity:0; transition:opacity .18s }
-  #pet[data-mood="idle"]   .m-idle,
-  #pet[data-mood="running"] .m-idle,
-  #pet[data-mood="waiting"] .m-idle,
-  #pet[data-mood="waving"]  .m-idle,
-  #pet[data-mood="jumping"] .m-happy,
-  #pet[data-mood="failed"]  .m-failed,
-  #pet[data-mood="failed"]  .m-failed-eye { opacity:1 }
-
-  /* running：身体前倾 + 尾鳍快摆（"在干活"） */
-  @keyframes petLean {
-    0%,100% { transform:rotate(-3deg) translateY(0) }
-    50%     { transform:rotate(2.5deg) translateY(-2.5px) } }
-  @keyframes petTail { 0%,100% { transform:rotate(-9deg) } 50% { transform:rotate(11deg) } }
-  #pet .pet-tail { transform-origin:52px 45px; }
-  #pet[data-mood="running"] .pet-body { animation:petLean .52s ease-in-out infinite; }
-  #pet[data-mood="running"] .pet-tail { animation:petTail .3s ease-in-out infinite; }
-  #pet[data-mood="running"] .pet-eyes { animation:none; }
-
-  /* waiting：轻轻左右晃 */
-  @keyframes petSway { 0%,100% { transform:translateX(-2.2px) } 50% { transform:translateX(2.2px) } }
-  #pet[data-mood="waiting"] .pet-body { animation:petSway 2.2s ease-in-out infinite; }
-
-  /* waving：右鳍挥手 */
-  @keyframes petWave { 0%,100% { transform:rotate(0) } 50% { transform:rotate(-34deg) } }
-  #pet .fin-r { transform-origin:55px 43px; }
-  #pet[data-mood="waving"] .pet-body { animation:none; }
-  #pet[data-mood="waving"] .fin-r { animation:petWave .48s ease-in-out infinite; }
-
-  /* jumping：弹跳 + 压扁拉伸（成功时） */
-  @keyframes petJump {
-    0%   { transform:translateY(0)     scaleY(1)    scaleX(1) }
-    22%  { transform:translateY(2.5px) scaleY(.93)  scaleX(1.05) }
-    55%  { transform:translateY(-13px) scaleY(1.07) scaleX(.96) }
-    82%  { transform:translateY(1.5px) scaleY(.96)  scaleX(1.02) }
-    100% { transform:translateY(0)     scaleY(1)    scaleX(1) } }
-  #pet[data-mood="jumping"] .pet-body { animation:petJump .8s ease-in-out 2; }
-  #pet[data-mood="jumping"] .pet-eyes { animation:none; }
-
-  /* failed：下垂 + 汗滴 */
-  @keyframes petDroop {
-    0%,100% { transform:translateY(2.5px) rotate(-1.5deg) }
-    50%     { transform:translateY(3.5px) rotate(-3deg) } }
-  #pet[data-mood="failed"] .pet-body { animation:petDroop 1.7s ease-in-out infinite; }
-  #pet[data-mood="failed"] .pet-eyes { opacity:0; }
-
+         filter:drop-shadow(0 6px 16px rgba(16,24,40,.22)); }
+  .pet-sprite {
+    width:96px; height:104px;
+    background-image:url('/static/vendor/pet/deepseek.webp');
+    background-repeat:no-repeat;
+    background-size:768px 936px;          /* 1536×1872 × 0.5 */
+    image-rendering:pixelated;            /* 像素风：不能平滑缩放，否则糊 */
+  }
+  #pet[data-mood="idle"]    .pet-sprite { --y:0px;    --steps:6; animation:spritePlay 1.1s steps(6) infinite; }
+  #pet[data-mood="running"] .pet-sprite { --y:-728px; --steps:6; animation:spritePlay .8s  steps(6) infinite; }
+  #pet[data-mood="waiting"] .pet-sprite { --y:-624px; --steps:6; animation:spritePlay 1.1s steps(6) infinite; }
+  #pet[data-mood="waving"]  .pet-sprite { --y:-312px; --steps:4; animation:spritePlay .7s  steps(4) infinite; }
+  #pet[data-mood="jumping"] .pet-sprite { --y:-416px; --steps:5; animation:spritePlay .8s  steps(5) 2; }
+  #pet[data-mood="failed"]  .pet-sprite { --y:-520px; --steps:8; animation:spritePlay 1.2s steps(8) infinite; }
+  @keyframes spritePlay {
+    from { background-position:0 var(--y, 0); }
+    to   { background-position:calc(-96px * var(--steps, 6)) var(--y, 0); }
+  }
   #pet .pet-badge { position:absolute; top:-2px; right:-2px; width:14px; height:14px; border-radius:50%;
                     background:#e8590c; border:2px solid #fff; display:none }
   #pet.has-news .pet-badge { display:block; animation:petPop .5s ease }
   @keyframes petPop { 0% { transform:scale(.2) } 70% { transform:scale(1.25) } 100% { transform:scale(1) } }
-  #pet:active .pet-flip { transform:scale(.93); }
+  #pet:active .pet-sprite { transform:scale(.94); }
   @media (prefers-reduced-motion: reduce) {
-    #pet .pet-body, #pet .pet-eyes, #pet .drop, #pet .pet-tail, #pet .fin-r,
+    #pet .pet-sprite { animation:none !important; }   /* 停在第一帧 */
     #pet.has-news .pet-badge { animation:none !important; }
   }
 
@@ -471,64 +421,13 @@
   </div>
 
   <!-- ========= 桌宠助手：AI 对话操控行程（放在 .page 之外，切换页面时常驻）========= -->
-  <div id="pet" data-mood="idle" data-face="right" role="button" tabindex="0"
+  <div id="pet" data-mood="idle" role="button" tabindex="0"
        aria-label="打开 AI 行程助手" title="小舟 · 点我聊聊怎么改行程">
-    <svg viewBox="0 0 72 72" aria-hidden="true">
-      <defs>
-        <linearGradient id="petBody" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#63AEFF"/>
-          <stop offset="100%" stop-color="#1B63CE"/>
-        </linearGradient>
-        <linearGradient id="petBelly" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#FFFFFF"/>
-          <stop offset="100%" stop-color="#D8E9FF"/>
-        </linearGradient>
-      </defs>
-
-      <!-- 头顶喷水（待机/等待时冒泡；纯 SVG 圆点，无图片） -->
-      <g class="pet-spout">
-        <circle class="drop d1" cx="36" cy="11" r="2.1" fill="#9CCBFF"/>
-        <circle class="drop d2" cx="29.5" cy="14" r="1.5" fill="#9CCBFF"/>
-        <circle class="drop d3" cx="42.5" cy="13.5" r="1.7" fill="#9CCBFF"/>
-      </g>
-
-      <!-- 朝向：跟随光标时整体左右翻转（对应 petdex 的 Run Left / Run Right） -->
-      <g class="pet-flip">
-        <g class="pet-body">
-          <!-- 尾鳍（running 时快摆） -->
-          <path class="pet-tail" d="M54 41 q11 -9 14 .5 q-3 9 -14 8.5 z" fill="#2E7DE8"/>
-          <!-- 身体（胖圆的鲸鱼身） -->
-          <ellipse cx="34" cy="42" rx="25" ry="20.5" fill="url(#petBody)"/>
-          <!-- 白肚皮 -->
-          <ellipse cx="32" cy="50.5" rx="16.5" ry="11" fill="url(#petBelly)"/>
-          <!-- 左鳍（静止）/ 右鳍（waving 时挥动） -->
-          <ellipse class="pet-fin fin-l" cx="10.5" cy="45" rx="5.4" ry="8.6"
-                   fill="#2E7DE8" transform="rotate(-16 10.5 45)"/>
-          <ellipse class="pet-fin fin-r" cx="57" cy="47" rx="5.4" ry="8.6" fill="#2E7DE8"/>
-          <!-- 眼睛（可眨眼、瞳孔可随光标微动） -->
-          <g class="pet-eyes">
-            <ellipse cx="25.5" cy="36" rx="4.6" ry="5.2" fill="#fff"/>
-            <ellipse cx="43.5" cy="36" rx="4.6" ry="5.2" fill="#fff"/>
-            <circle class="pet-pupil" cx="26.6" cy="37" r="2.6" fill="#10305C"/>
-            <circle class="pet-pupil" cx="44.6" cy="37" r="2.6" fill="#10305C"/>
-            <circle cx="27.6" cy="35" r=".95" fill="#fff"/>
-            <circle cx="45.6" cy="35" r=".95" fill="#fff"/>
-          </g>
-          <!-- 失败：眼睛变 × -->
-          <g class="mood m-failed-eye" stroke="#B42318" stroke-width="1.9"
-             stroke-linecap="round" fill="none">
-            <path d="M22.5 32.5 l6 6 M28.5 32.5 l-6 6"/>
-            <path d="M40.5 32.5 l6 6 M46.5 32.5 l-6 6"/>
-          </g>
-          <!-- 嘴：三态 -->
-          <path class="mood m-idle" d="M31 45.5 q4 3.2 8 0" fill="none"
-                stroke="#10305C" stroke-width="1.7" stroke-linecap="round" opacity=".75"/>
-          <path class="mood m-happy" d="M29.5 44.5 q5.5 6 11 0" fill="none"
-                stroke="#0F6E56" stroke-width="1.9" stroke-linecap="round"/>
-          <ellipse class="mood m-failed" cx="35" cy="47.5" rx="2.8" ry="3.2" fill="#B42318"/>
-        </g>
-      </g>
-    </svg>
+    <!-- 原版模型：petdex.dev 的 deepseek酱（sprite 雪碧图，8 列 × 9 行、帧 192×208）。
+         切帧完全照搬官方 CSS：background-size:1536px auto + background-position
+         按 row(-208px/行)、frames(-192px/帧) 移动，pixelated 保持像素风。
+         资源：static/vendor/pet/deepseek.webp -->
+    <div class="pet-sprite" aria-hidden="true"></div>
     <span class="pet-badge"></span>
   </div>
 
@@ -1797,31 +1696,8 @@ function petToggle(open) {
   }
 }
 
-// 光标跟随：借鉴 page-mascot 的两条细节 —— 触摸设备不做跟随（否则会僵住）、
-// 近距离设死区（避免抖动）。这里额外做了 petdex 的"朝向"：光标在左边就整体转过去。
-(function petFollow() {
-  const pet = $('pet'); if (!pet) return;
-  const fine = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
-  if (!fine) return;
-  const pupils = pet.querySelectorAll('.pet-pupil');
-  let raf = null;
-  document.addEventListener('mousemove', e => {
-    if (raf) return;
-    raf = requestAnimationFrame(() => {
-      raf = null;
-      const r = pet.getBoundingClientRect();
-      const dx = e.clientX - (r.left + r.width / 2);
-      const dy = e.clientY - (r.top + r.height / 2);
-      const dist = Math.hypot(dx, dy);
-      if (dist < 40) return;                       // 死区
-      const face = dx < 0 ? 'left' : 'right';      // 鲸鱼头朝光标方向
-      if (pet.dataset.face !== face) pet.dataset.face = face;
-      const k = Math.min(1.5, dist / 240);         // 瞳孔只微动，别"飞出眼眶"
-      const t = `translate(${(dx / dist * k).toFixed(2)} ${(dy / dist * k).toFixed(2)})`;
-      pupils.forEach(el => el.setAttribute('transform', t));
-    });
-  }, { passive: true });
-})();
+// 说明：原自绘 SVG 有「瞳孔跟随光标」，改用原版 sprite 后没有该图层，
+// 因此不再做光标跟随（petdex 的 Run Left/Right 是跑动用，本项目没有移动跟随场景）。
 
 $('pet').onclick = () => petToggle();
 $('pet').onkeydown = e => {
