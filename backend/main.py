@@ -224,7 +224,10 @@ def save_plan_snapshot(task) -> None:
         PLANS_DIR.mkdir(parents=True, exist_ok=True)
         (PLANS_DIR / f"{task.id}.json").write_text(
             json.dumps({"task_id": task.id, "created_at": task.created_at,
-                        "params": task.req_params, "result": task.result},
+                        "params": task.req_params, "result": task.result,
+                        # 景点明细也存：稳健性模拟（N3）需要每个景点的坐标与计划停留时长，
+                        # 只靠 result 里的名字没法重算通勤时间线
+                        "request_spots": task.request_spots},
                        ensure_ascii=False), encoding="utf-8")
     except Exception as e:
         # 持久化失败不影响主流程，但必须留痕——静默吞异常是踩过的坑（HANDOFF 坑表）
@@ -432,6 +435,69 @@ def get_task(task_id: str) -> dict:
                     "progress": [], "result": d.get("result"),
                     "error": None}
     raise HTTPException(404, "任务不存在")
+
+
+@app.post("/plan/simulate")
+def simulate_task(body: dict) -> dict:
+    """N3 稳健性模拟：给停留与通勤加噪声，返回「按时完成概率 + 风险点」。
+
+    为什么放服务端算：模拟要按真实通勤重算时间线（前端只有分钟数），
+    且 1000 次抽样叠加"逐个景点去掉再评"（共同随机数）在浏览器里会卡。
+    通勤走 CommuteMatrix 的磁盘缓存 → 不额外消耗高德配额。
+    """
+    from commute import CommuteMatrix
+    from models import DayPlan, Hotel, Spot
+    from simulation import simulate as run_sim
+    from tasks import MANAGER
+
+    # 内存里的任务优先；内存已清则从磁盘快照兜底（与 /task 一致）
+    task = MANAGER.get(body.get("task_id", ""))
+    params: dict = {}
+    result: dict | None = None
+    if task is not None and task.status == "completed" and task.result:
+        params = dict(task.req_params or {})
+        result = task.result
+        # 模拟要每个景点的坐标与计划停留时长
+        spot_by_name = {s["name"]: Spot(**s) for s in (task.request_spots or [])}
+    else:
+        f = PLANS_DIR / f"{body.get('task_id', '')}.json"
+        if not f.exists():
+            raise HTTPException(404, "任务不存在或尚未完成")
+        snap = json.loads(f.read_text(encoding="utf-8"))
+        if snap.get("deleted"):
+            raise HTTPException(404, "任务已删除")
+        result = snap.get("result")
+        params = snap.get("params") or {}      # 快照里的键名是 params（不是 req_params）
+        # 旧快照没存 request_spots → 拿不到真实坐标，模拟会退化为"按计划停留、通勤为 0"。
+        # 这里不静默：明确记一条日志，避免用户以为概率是准的。
+        spot_by_name = {s["name"]: Spot(**s) for s in (snap.get("request_spots") or [])}
+        if not spot_by_name:
+            log.warning("快照缺少 request_spots（旧版本数据），模拟将退化为无通勤口径 task_id=%s",
+                        body.get("task_id"))
+
+    if not result or not result.get("days"):
+        raise HTTPException(400, "该任务不是行程结果，无法模拟")
+
+    runs = max(200, min(int(body.get("runs") or 1000), 5000))
+    plan_days = [DayPlan(**d) for d in result["days"]]
+    hotel = Hotel(**params["hotel"]) if params.get("hotel") else None
+    req_obj = PlanRequest(
+        city=params.get("city", DEFAULT_CITY),
+        days=max(1, len(plan_days)),
+        daily_start_h=params.get("daily_start_h", 9.0),
+        daily_end_h=params.get("daily_end_h", 18.0),
+        spots=list(spot_by_name.values()) or [Spot(
+            source_id=0, name=v.name, lat=hotel.lat if hotel else 34.26,
+            lon=hotel.lon if hotel else 108.94, stay_min=60, score=8.0)
+            for v in plan_days[0].spots],
+        hotel=hotel,
+    )
+    cm = CommuteMatrix()
+    sim = run_sim(plan_days, spot_by_name, req_obj, cm.minutes, runs=runs)
+    return {"runs": sim.runs, "on_time_prob": sim.on_time_prob,
+            "per_day": [vars(d) for d in sim.per_day],
+            "risks": [vars(r) for r in sim.risks],
+            "noise": sim.noise, "seed": sim.seed}
 
 
 @app.post("/plan/edit")

@@ -35,7 +35,7 @@ LOG_EXEMPT_MODULES = {
     "media_cache.py",    # 只有读写与降级，关键失败已 log.warning（保留在豁免表是防未来改动）
     "fetch_spot_details.py",  # 一次性脚本：用 print 输出进度
     "run_demo.py", "run_demo_amap.py", "evaluation.py", "bench_models.py",
-    "eval_aligner.py", "eval_gap.py", "eval_cluster.py", "eval_preference.py",
+    "eval_aligner.py", "eval_gap.py", "eval_cluster.py", "eval_preference.py", "eval_simulation.py",
     "solver_cpsat.py",
 }
 # 明确允许不重试的外部调用（函数名: 理由）
@@ -240,7 +240,7 @@ def _re_raises(node: ast.ExceptHandler) -> bool:
 SCRIPT_MODULES = {
     "fetch_spot_details.py", "run_demo.py", "run_demo_amap.py",
     "evaluation.py", "bench_models.py", "eval_aligner.py", "eval_gap.py",
-    "eval_cluster.py", "eval_preference.py", "build_demo_data.py",
+    "eval_cluster.py", "eval_preference.py", "eval_simulation.py", "build_demo_data.py",
 }
 
 
@@ -284,7 +284,7 @@ REQUIRED_CONSTS = {
 CITY_LITERAL_ALLOW = {
     "cities.py", "demo_data.py", "models.py", "tasks.py", "main.py",
     "fetch_spot_details.py", "editor.py", "extractor.py",  # extractor 的提示词里有示例 JSON
-    "run_demo.py", "run_demo_amap.py", "evaluation.py", "bench_models.py",
+    "run_demo.py", "run_demo_amap.py", "evaluation.py", "bench_models.py", "eval_simulation.py", "eval_preference.py", "eval_cluster.py",
 }
 CITY_NAMES = ("西安", "成都", "北京", "杭州", "重庆")
 HARDCODED_COORD_HINTS = ("34.2", "34.3", "108.9", "108.94", "34.26")
