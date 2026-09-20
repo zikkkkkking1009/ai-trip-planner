@@ -57,6 +57,10 @@ class PlanRequest(BaseModel):
     # A2 偏好：balanced（默认）/ less_walk（少走路）/ save_money（省钱）/ more_spots（多玩）
     # 只影响目标函数的加权，不改硬约束；非法值由 solver.normalize_preference 回退默认。
     preference: str = "balanced"
+    # N3b 稳妥度：要求排出的行程有这么大的把握「按时走完」（0 = 不要求）。
+    # 例如 0.8 → 若模拟显示按时概率不足 80%，就收窄时间窗重排（见 tasks.run_plan_task）。
+    # 这是**独立维度**：可以同时"少走路"且"要稳妥"，所以不做成第 5 种偏好。
+    robustness: float = Field(default=0.0, ge=0.0, le=0.95)
 
 
 class VisitedSpot(BaseModel):

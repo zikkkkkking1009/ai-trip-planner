@@ -335,6 +335,16 @@
         </div>
         <div class="pref-hint" id="prefHint">按景点价值排，通勤顺路即可</div>
       </div>
+      <!-- N3b 稳妥度：独立维度（可以同时"少走路"且"要稳妥"），不足目标就收窄时间窗重排 -->
+      <div class="field" style="margin-top:10px">
+        <label>要多稳妥（可选）</label>
+        <div class="pref-row" id="robRow">
+          <span class="pref on" data-rob="0">不要求</span>
+          <span class="pref" data-rob="0.7">70% 把握</span>
+          <span class="pref" data-rob="0.85">85% 把握</span>
+        </div>
+        <div class="pref-hint" id="robHint">按纸面时间排（可能偏紧）</div>
+      </div>
       <details class="adv">
         <summary>🕘 默认每天 9:00 出发 · 18:00 返回（点击调整）</summary>
         <div class="grid3" style="margin-top:8px">
@@ -686,7 +696,7 @@ $('go').onclick = async () => {
     budget: $('budget').value==='' ? null : Number($('budget').value),
     daily_start_h: timeToH($('start').value || '09:00'),
     daily_end_h: timeToH($('end').value || '18:00'),
-    preference: currentPref, spots };
+    preference: currentPref, robustness: currentRob, spots };
   const {task_id, ws_url} = await fetch('/plan/async', {method:'POST',
     headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)}).then(r=>r.json());
   log('任务', `task_id=${task_id}`);
@@ -1332,6 +1342,22 @@ document.querySelectorAll('#prefRow .pref').forEach(el => {
   el.onclick = () => setPref(el.dataset.pref);
 });
 
+// ---- N3b 稳妥度：给波动留缓冲（独立于偏好）----
+let currentRob = 0;
+const ROB_HINT = {
+  '0':    '按纸面时间排（可能偏紧，生成后看稳健性卡片）',
+  '0.7':  '不足 70% 把握就收窄时间窗重排 —— 会少排 1~2 个景点换确定性',
+  '0.85': '更保守：不足 85% 把握就重排 —— 景点更少，但基本不会赶不上',
+};
+document.querySelectorAll('#robRow .pref').forEach(el => {
+  el.onclick = () => {
+    currentRob = Number(el.dataset.rob);
+    document.querySelectorAll('#robRow .pref').forEach(
+      x => x.classList.toggle('on', x === el));
+    $('robHint').textContent = ROB_HINT[el.dataset.rob] || '';
+  };
+});
+
 // ---- N3 稳健性模拟：这个行程有多大把握按时走完 ----
 // 结果直接给"去掉哪个景点能提升多少个百分点"，点一下就走对话链路执行——
 // 模拟 → 建议 → 执行 形成闭环（这是 N3 的价值所在，不只是显示一个概率）
@@ -1364,10 +1390,18 @@ function renderRobustness(d) {
   const days = (d.per_day || []).map(x =>
     `第${x.day}天 ${Math.round(x.on_time_prob * 100)}%（通常 ${x.return_p50.toFixed(1)} 点回）`).join(' · ');
   const risks = d.risks || [];
+  // 开了稳妥度时，显示"目标 vs 达成"——用户要看的是"我要求的把握有没有被满足"
+  const rb = plan && plan.robustness;
+  const targetLine = rb ? `<div class="rb-days" style="margin-top:6px">
+      🎯 目标稳妥度 ${Math.round(rb.target * 100)}% → 实测 ${Math.round((rb.achieved || 0) * 100)}%
+      ${rb.reached ? '✅ 已达标' : '⚠️ 未达标'}
+      ${rb.rounds > 1 ? `（重排了 ${rb.rounds - 1} 轮，时间窗收到 ${rb.daily_end_h} 时）` : ''}
+    </div>` : '';
   box.innerHTML = `<div class="rb-card rb-${tone}">
     <div class="rb-head">🛡 稳健性模拟 · ${d.runs} 次抽样 · 给停留与通勤加了波动</div>
     <div class="rb-prob">${pct}%<span>的把握按时走完</span></div>
     <div class="rb-days">${esc(days)}</div>
+    ${targetLine}
     <div class="rb-risks">${risks.length
       ? risks.slice(0, 2).map(x =>
           `<button class="rb-fix" data-name="${esc(x.name)}">去掉「${esc(x.name)}」+${x.drop_gain_pp}pp</button>`).join('')

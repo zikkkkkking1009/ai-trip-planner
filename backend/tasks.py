@@ -24,6 +24,14 @@ from constraint_check import check_plan
 from models import DayPlan, PlanRequest
 from solver import Solver, normalize_preference
 
+# ---- N3b 稳健排程参数 ----
+# 目标按时概率不足时，收窄每天的时间窗（预留缓冲）后重排——把波动"排进去"，
+# 而不是排完再告知用户"你只有 3% 概率走得完"。
+ROBUST_STEP_H = 0.5            # 每轮收窄 30 分钟
+ROBUST_MAX_ROUNDS = 3          # 最多调整轮数（每轮 = 一次求解 + 一次 600 抽样模拟）
+ROBUST_MIN_HOURS = 5.0         # 时间窗下限（再收就没法玩了，宁可承认达不到目标）
+ROBUST_RUNS = 600              # 稳健化过程中的模拟次数（比展示用的 1000 少，省时间）
+
 log = logging.getLogger(__name__)
 
 
@@ -118,7 +126,9 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
                        "daily_start_h": req.daily_start_h,
                        "daily_end_h": req.daily_end_h, "hotel": None,
                        # 偏好（A2）：后续编辑重排、换酒店、历史回看都要沿用
-                       "preference": normalize_preference(req.preference)}
+                       "preference": normalize_preference(req.preference),
+                       # 稳妥度（N3b）：同样要沿用
+                       "robustness": float(getattr(req, "robustness", 0.0))}
     task.request_spots = [s.model_dump() for s in req.spots]
     MANAGER.say(task, "启动", f"收到排期请求：{req.city} {req.days} 天，"
                               f"{len(req.spots)} 个景点，预算 {req.budget or '不限'}")
@@ -146,8 +156,29 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
 
         day_plans, unplanned, total_cost, total_score = await asyncio.to_thread(work_solve)
 
-        # 阶段 4：约束校验
-        report = check_plan(req, day_plans, total_cost)
+        # 阶段 3.5（N3b 稳健排程）：把波动"排进去"，而不是事后告知
+        # （逻辑抽在 robustness.py，便于单测——原先内联在这个 async 流程里没法验证）
+        robustness_info = None
+        if getattr(req, "robustness", 0) > 0:
+            from robustness import robustify
+            from simulation import simulate as run_sim
+            spot_by_name = {s.name: s for s in req.spots}
+
+            def _solve(r):
+                return Solver(r, cm.minutes).solve()
+
+            def _sim(days, r):
+                # 判定用**原始** req（用户的真实截止时间）；排程才用内缩窗口
+                return run_sim(days, spot_by_name, r, cm.minutes, runs=ROBUST_RUNS)
+
+            day_plans, unplanned, total_cost, total_score, robustness_info = (
+                await asyncio.to_thread(
+                    robustify, req, day_plans, unplanned, total_cost, total_score,
+                    _sim, _solve,
+                    lambda m: MANAGER.say(task, "稳健化", m)))
+
+        # 阶段 4：约束校验（用**调整后**的 req，否则校验口径与实际排程不一致）
+        report = check_plan(req, day_plans, total_cost)   # 校验按用户原始时间窗
         report["stats"]["commute_api"] = cm.stats
         report["stats"]["cache_hit_rate"] = round(cm.hit_rate(), 3)
         MANAGER.say(task, "校验", "约束校验通过 ✅" if report["passed"]
@@ -158,6 +189,8 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
             "total_cost": total_cost, "total_score": total_score,
             "unplanned": [u.model_dump() for u in unplanned],
             "check_report": report,
+            # N3b：稳妥度目标的达成情况（没开稳妥度时为 None）
+            "robustness": robustness_info,
         }
         task.status = "completed"
         task.version += 1
@@ -409,6 +442,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                               daily_start_h=params.get("daily_start_h", 9.0),
                               daily_end_h=params.get("daily_end_h", 18.0),
                               preference=params.get("preference", "balanced"),
+                              robustness=float(params.get("robustness", 0.0)),
                               spots=new_spots,
                               hotel=hotel_obj)
         cm = CommuteMatrix()
@@ -491,6 +525,7 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
                               daily_start_h=params.get("daily_start_h", 9.0),
                               daily_end_h=params.get("daily_end_h", 18.0),
                               preference=params.get("preference", "balanced"),
+                              robustness=float(params.get("robustness", 0.0)),
                               spots=base_spots, hotel=hotel_obj)
         def work():
             return Solver(new_req, cm.minutes).solve(

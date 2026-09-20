@@ -481,11 +481,14 @@ def simulate_task(body: dict) -> dict:
     runs = max(200, min(int(body.get("runs") or 1000), 5000))
     plan_days = [DayPlan(**d) for d in result["days"]]
     hotel = Hotel(**params["hotel"]) if params.get("hotel") else None
+    # 稳妥度（N3b）：稳健化**判定用的就是用户原始时间窗**（排程才内缩留缓冲），
+    # 所以这里也用原始时间窗 → 与稳健化的 achieved 口径一致
+    eff_end_h = params.get("daily_end_h", 18.0)
     req_obj = PlanRequest(
         city=params.get("city", DEFAULT_CITY),
         days=max(1, len(plan_days)),
         daily_start_h=params.get("daily_start_h", 9.0),
-        daily_end_h=params.get("daily_end_h", 18.0),
+        daily_end_h=eff_end_h,
         spots=list(spot_by_name.values()) or [Spot(
             source_id=0, name=v.name, lat=hotel.lat if hotel else 34.26,
             lon=hotel.lon if hotel else 108.94, stay_min=60, score=8.0)
