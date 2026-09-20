@@ -31,6 +31,19 @@
   .site-nav .spacer { flex:1; }
   .site-nav .navtag { font-size:12.5px; color:#475467; background:#f2f4f8;
                       padding:6px 13px; border-radius:999px; white-space:nowrap; }
+  /* 右上角城市：可点击切换（原来只是一块死文本） */
+  .site-nav .navcity { cursor:pointer; user-select:none; display:inline-flex; align-items:center; }
+  .site-nav .navcity:hover { background:#e7eaf0; color:#1f2937; }
+  .site-nav .navcity::after { content:'▾'; font-size:10px; color:#98a2b3; margin-left:4px; }
+  .city-menu { display:none; position:fixed; top:54px; right:24px; z-index:600;
+               background:#fff; border:1px solid #eef1f6; border-radius:12px; padding:6px;
+               box-shadow:0 14px 34px rgba(16,24,40,.15); max-height:60vh; overflow-y:auto;
+               min-width:132px; }
+  .city-menu.open { display:block; }
+  .city-item { padding:7px 12px; border-radius:8px; font-size:13px; color:#475467;
+               cursor:pointer; white-space:nowrap; }
+  .city-item:hover { background:#f2f5fa; }
+  .city-item.on { color:var(--acc); background:#eef4ff; font-weight:600; }
   /* Hero：大标题区（替代原来那个"App 渐变头"） */
   .hero { padding:64px 24px 40px; text-align:center;
           background:radial-gradient(1100px 300px at 50% -80px, #e8f1ff 0%, rgba(247,249,252,0) 72%); }
@@ -291,8 +304,11 @@
       <a id="navUser" onclick="switchPage('user')">我的</a>
     </span>
     <span class="spacer"></span>
-    <span class="navtag" id="navCity">📍 西安</span>
+    <span class="navtag navcity" id="navCity" role="button" tabindex="0"
+          title="点击切换城市">📍 选择城市</span>
   </nav>
+  <!-- 右上角城市下拉（点 navCity 展开） -->
+  <div id="cityMenu" class="city-menu"></div>
 
   <!-- ========= 页面一：规划 ========= -->
   <div class="page active" id="pagePlan">
@@ -312,8 +328,8 @@
       <div class="sheet">
       <div class="field">
         <label>城市</label>
-        <input id="cityInput" list="cityOptions" placeholder="如 西安 / 成都"
-               value="西安" onchange="onCityChange()" style="width:100%">
+        <input id="cityInput" list="cityOptions" placeholder="选择或输入城市"
+               onchange="onCityChange()" style="width:100%">
         <datalist id="cityOptions"></datalist>
       </div>
       <div class="field datefield" onclick="openCalendar()">
@@ -485,6 +501,8 @@ let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {}
 let lastTaskId = null, favSet = new Set();
 // 当前城市：所有请求（规划 / 编辑 / 收藏 / 酒店搜索 / 详情兜底文案）都用它，
 // 不要再写死某个城市——写死会导致「粘成都攻略得到西安坐标」这类静默错误。
+// currentCity 的初值**只是 /cities 请求失败时的兜底**——正常情况由 /cities 决定：
+// 优先「用户上次选的城市」（localStorage），其次后端默认。不要把它当成"默认城市"。
 let currentCity = '西安', demoCities = [], cityCenters = {};
 
 // ---- 默认日期：今天起 3 天 ----
@@ -502,12 +520,16 @@ function loadDemoSpots() {
     });
 }
 
-function onCityChange() {
-  const v = ($('cityInput').value || '').trim();
+// 城市切换的**唯一入口**（左侧表单输入框、右上角城市下拉都走这里，保证两处同步）
+const CITY_KEY = 'xiaozhou_city';       // 记住上次选择：回访不用再选，也不会弹回"西安"
+
+function pickCity(c) {
+  const v = (c || '').trim();
   if (!v || v === currentCity) return;
   currentCity = v;
   $('cityInput').value = v;
   syncNavCity();
+  try { localStorage.setItem(CITY_KEY, v); } catch (e) {}
   // 旧行程属于别的城市：标记失效并提示，不静默沿用
   if (plan) { window.cityMismatch = true; }
   if (map) { map.remove(); map = null; layers = {}; }   // 切城市后地图需按新城市重建视野
@@ -518,18 +540,51 @@ function onCityChange() {
   });
 }
 
-// 顶栏上的城市标记（网站形态下取代了原来的页内城市字段提示）
+function onCityChange() {
+  pickCity($('cityInput').value);
+}
+
+// 右上角城市标记（网站形态下取代了原来的页内提示）+ 下拉切换
 function syncNavCity() {
   const el = $('navCity');
   if (el) el.textContent = '📍 ' + currentCity;
 }
+
+function renderCityMenu() {
+  const box = $('cityMenu'); if (!box) return;
+  box.innerHTML = demoCities.map(c =>
+    `<div class="city-item${c === currentCity ? ' on' : ''}" data-city="${esc(c)}">${esc(c)}</div>`
+  ).join('');
+  box.querySelectorAll('.city-item').forEach(el => {
+    el.onclick = () => { box.classList.remove('open'); pickCity(el.dataset.city); };
+  });
+}
+function toggleCityMenu() {
+  const box = $('cityMenu'); if (!box) return;
+  if (!box.classList.contains('open')) renderCityMenu();
+  box.classList.toggle('open');
+}
+$('navCity').onclick = toggleCityMenu;
+$('navCity').onkeydown = e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCityMenu(); }
+};
+document.addEventListener('click', e => {      // 点空白处收起
+  const box = $('cityMenu'), tag = $('navCity');
+  if (box && box.classList.contains('open') && !box.contains(e.target) && e.target !== tag) {
+    box.classList.remove('open');
+  }
+});
 
 fetch('/cities').then(r => r.json()).then(d => {
   demoCities = d.cities || [];
   cityCenters = d.centers || {};      // 地图初始视野按当前城市取，不再写死西安
   const dl = $('cityOptions');
   if (dl) dl.innerHTML = demoCities.map(c => `<option value="${esc(c)}"></option>`).join('');
-  if (d.default) { currentCity = d.default; $('cityInput').value = d.default; }
+  // 优先用上次选过的城市（且现在仍可用），否则才用后端的默认值
+  let saved = '';
+  try { saved = localStorage.getItem(CITY_KEY) || ''; } catch (e) {}
+  const initial = (saved && demoCities.includes(saved)) ? saved : d.default;
+  if (initial) { currentCity = initial; $('cityInput').value = initial; }
   syncNavCity();
   return loadDemoSpots();
 });
