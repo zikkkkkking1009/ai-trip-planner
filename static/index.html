@@ -213,6 +213,16 @@
   .pp-hint { font-size:11.5px; padding:4px 10px; border-radius:999px; background:#eef4ff;
              color:#1d4ed8; border:1px solid #dbe6ff; cursor:pointer }
   .pp-hint:hover { background:#dbe6ff }
+  #ppMem { display:none; max-height:150px; overflow-y:auto; padding:10px 12px;
+           border-bottom:1px solid #eef0f4; background:#fbfcfe; font-size:12.5px }
+  .mem-head { display:flex; justify-content:space-between; align-items:center;
+              color:#98a2b3; font-size:11.5px; margin-bottom:6px }
+  .mem-head button, .mem-item button { border:none; background:none; cursor:pointer; font-size:11.5px }
+  .mem-head button { color:var(--acc) }
+  .mem-item { display:flex; justify-content:space-between; align-items:center;
+              gap:8px; padding:4px 0; color:#475467 }
+  .mem-item button { color:#b42318 }
+  .mem-empty { color:#b4b2a9; line-height:1.6 }
   #ppInputRow { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #eef0f4 }
   #ppInputRow input { flex:1 }
   /* A2 偏好选择 */
@@ -415,8 +425,10 @@
       <span aria-hidden="true">🛶</span>
       <span class="pp-title">小舟 · 行程助手</span>
       <span class="pp-state" id="ppState">待命</span>
+      <button class="pp-x" id="ppMemBtn" title="小舟记住的事（跨会话）">🧠</button>
       <button class="pp-x" id="ppClose" title="收起">✕</button>
     </div>
+    <div id="ppMem"></div>
     <div id="ppMsgs"></div>
     <div id="ppHints"></div>
     <div id="ppInputRow">
@@ -1415,6 +1427,48 @@ function renderRobustness(d) {
   });
 }
 
+// ---- 小舟的跨会话记忆 ----
+// 存在 localStorage，刷新/重开浏览器都在；每次对话随请求带给后端，作为上下文注入 LLM。
+// 「记住…/忘掉…」这类**元指令在前端处理**（不进 LLM）——让模型去解析"记住"很容易乱做成
+// 行程操作，而这里的语义其实很确定，用正则更可靠。
+const MEM_KEY = 'xiaozhou_memory';
+const REMEMBER_RE = /^(?:小舟[，,：:]?\s*)?记住[，,：:]?\s*(.+)$/;
+const FORGET_RE = /^(?:忘掉|忘记|删除记忆)[，,：:]?\s*(.+)$/;
+
+function loadMem() {
+  try {
+    const v = JSON.parse(localStorage.getItem(MEM_KEY) || '[]');
+    return Array.isArray(v) ? v.filter(x => typeof x === 'string') : [];
+  } catch (e) { return []; }        // localStorage 不可用（隐私模式）→ 记忆功能静默降级
+}
+function saveMem(list) {
+  try { localStorage.setItem(MEM_KEY, JSON.stringify(list.slice(0, 20))); } catch (e) {}
+}
+function renderMemBtn() {
+  const b = $('ppMemBtn'); if (!b) return;
+  const n = loadMem().length;
+  b.textContent = n ? `🧠${n}` : '🧠';
+}
+function renderMemPanel() {
+  const box = $('ppMem'); if (!box) return;
+  const list = loadMem();
+  box.innerHTML = list.length
+    ? `<div class="mem-head"><span>小舟记住的事（${list.length}）</span>
+         <button id="memClose">收起</button></div>`
+      + list.map((m, i) => `<div class="mem-item"><span>${esc(m)}</span>
+           <button data-i="${i}">删</button></div>`).join('')
+    : `<div class="mem-empty">还没有记忆。对我说「记住我不喜欢爬山」就会记下来，
+         以后每次安排都会考虑它。</div>`;
+  box.style.display = 'block';
+  box.querySelectorAll('.mem-item button').forEach(b => {
+    b.onclick = () => {
+      const l = loadMem(); l.splice(Number(b.dataset.i), 1);
+      saveMem(l); renderMemPanel(); renderMemBtn();
+    };
+  });
+  const c = $('memClose'); if (c) c.onclick = () => { box.style.display = 'none'; };
+}
+
 // ---- 页面切换 ----
 function switchPage(which) {
   $('pagePlan').classList.toggle('active', which==='plan');
@@ -1614,12 +1668,40 @@ $('pet').onkeydown = e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); petToggle(); }
 };
 $('ppClose').onclick = () => petToggle(false);
+$('ppMemBtn').onclick = () => { renderMemPanel(); renderMemBtn(); };
+$('ppInput').placeholder = '说人话就行，如：第二天少排点 / 记住我不爱爬山';
+renderMemBtn();
 
 // ---- 对话式修改（走桌宠气泡）----
 async function sendEdit() {
   const input = $('ppInput');
   const text = (input.value || '').trim();
   if (!text) return;
+  // 记忆类元指令在前端直接处理：语义确定（记住/忘掉某件事），
+  // 交给 LLM 反而容易被当成行程操作乱做
+  let mm = text.match(REMEMBER_RE);
+  if (mm) {
+    const fact = mm[1].trim();
+    const l = loadMem();
+    if (!l.includes(fact)) { l.push(fact); saveMem(l); }
+    input.value = '';
+    petSay('user', text);
+    petSay('bot', `好，我记住了：${fact}`
+      + `（共 ${l.length} 条，点上面的 🧠 可以查看或删）`);
+    petMood('happy'); petState('记住了'); renderMemBtn();
+    setTimeout(() => petMood('idle'), 1800);
+    return;
+  }
+  mm = text.match(FORGET_RE);
+  if (mm) {
+    const fact = mm[1].trim();
+    const l = loadMem().filter(x => !x.includes(fact));
+    saveMem(l); renderMemBtn();
+    input.value = '';
+    petSay('user', text);
+    petSay('bot', `好，和「${fact}」有关的记忆已删掉（现在剩 ${l.length} 条）。`);
+    return;
+  }
   if (!lastTaskId) {
     petSay('err', '还没有行程 —— 先在左边点「开始规划」生成一份，我再来帮你改。');
     return;
@@ -1630,7 +1712,7 @@ async function sendEdit() {
   petMood('thinking'); petState('理解你的指令…'); petTyping(true);
   try {
     const r = await fetch('/plan/edit', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({task_id: lastTaskId, instruction: text})});
+      body: JSON.stringify({task_id: lastTaskId, instruction: text, memory: loadMem()})});
     const d = await r.json();
     if (!r.ok) {
       petTyping(false); petMood('sad'); petState('出错了');

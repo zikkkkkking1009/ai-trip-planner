@@ -209,7 +209,8 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
         log.exception("排期任务失败 task_id=%s", task.id)
 
 
-async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> None:
+async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
+                        memory: list[str] | None = None) -> None:
     """对话式修改：LLM 解析意图 → 确定性执行 → 重排求解 → 校验。
 
     复用整套进度推送；完成后 result 与排期任务同构（多一个 reply/changes）。
@@ -235,7 +236,8 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
             plan_summary += f"\n当前住宿：{hotel_now}"
         def work_parse():
             return editor.parse_instruction(instruction, plan_summary,
-                                            history=list(base.chat_history))
+                                            history=list(base.chat_history),
+                                            memory=memory)
         parsed = await asyncio.to_thread(work_parse)
         ops, reply = parsed.get("ops", []), parsed.get("reply", "")
         # 调试可见性：把模型原始输出暴露到进度日志（排查「不聪明」问题的第一现场）

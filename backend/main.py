@@ -513,6 +513,9 @@ async def edit_plan(body: dict) -> dict:
     import os
     base_task_id = body.get("task_id", "")
     instruction = (body.get("instruction") or "").strip()
+    # 跨会话长期偏好：由前端持久化（localStorage）后随每次对话带来，
+    # 只作为上下文注入 LLM，不改变操作语义
+    memory = [str(m).strip() for m in (body.get("memory") or []) if str(m).strip()][:20]
     if not base_task_id or not instruction:
         raise HTTPException(400, "需要 task_id 和 instruction")
     from commute import load_env_file
@@ -523,7 +526,7 @@ async def edit_plan(body: dict) -> dict:
     if MANAGER.get(base_task_id) is None or MANAGER.get(base_task_id).status != "completed":
         raise HTTPException(404, "基准任务不存在或未完成")
     task = MANAGER.create()
-    asyncio.create_task(run_edit_task(task.id, base_task_id, instruction))
+    asyncio.create_task(run_edit_task(task.id, base_task_id, instruction, memory=memory))
     return {"task_id": task.id, "ws_url": f"/ws/{task.id}",
             "poll_url": f"/task/{task.id}"}
 

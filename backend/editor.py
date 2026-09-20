@@ -77,11 +77,14 @@ ops 支持五种操作：
 
 
 def parse_instruction(instruction: str, plan_summary: str,
-                      history: list[dict] | None = None) -> dict:
+                      history: list[dict] | None = None,
+                      memory: list[str] | None = None) -> dict:
     """调 LLM 把自然语言指令解析成结构化操作。需要 LLM_API_KEY。
 
     history：之前几轮对话 [{q, ops, reply}]——支撑「换到西安站」这类
     指代之前内容的多轮指令。
+    memory：**跨会话的长期偏好**（用户说过「记住…」的那些）——由前端持久化后随请求带来。
+    它只作为上下文注入，不改变操作语义（比如"不爱爬山"会影响选点建议，但不会凭空删景点）。
     返回 {"ops": [...], "reply": "...", "_raw": 模型原始输出(截断)}。
     """
     from extractor import _tolerant_json_parse
@@ -93,7 +96,12 @@ def parse_instruction(instruction: str, plan_summary: str,
         hist_txt += (f"用户：{h.get('q', '')}\n"
                      f"助手：{h.get('reply', '')}"
                      f"（操作：{json.dumps(h.get('ops', []), ensure_ascii=False)}）\n")
-    user_content = (f"当前行程：\n{plan_summary}\n\n"
+    mem_txt = ""
+    if memory:
+        mem_txt = ("用户的长期偏好（他之前让我记住的，安排时应当考虑；"
+                   "但不要为了它擅自删改景点，需要时在 reply 里提一句）：\n"
+                   + "\n".join(f"- {m}" for m in memory[:10]) + "\n\n")
+    user_content = (f"当前行程：\n{plan_summary}\n\n" + mem_txt
                     + (f"之前的对话记录：\n{hist_txt}\n" if hist_txt else "")
                     + f"用户指令：{instruction}")
     _t0 = time.time()
