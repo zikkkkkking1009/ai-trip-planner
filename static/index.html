@@ -196,8 +196,13 @@
   .pp-hint:hover { background:#dbe6ff }
   #ppInputRow { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #eef0f4 }
   #ppInputRow input { flex:1 }
-  /* 酒店输入的快捷区域 + 历史 */
-  .hotel-quick { display:flex; gap:6px; flex-wrap:wrap; padding:0 16px 8px }
+  /* A2 偏好选择 */
+  .pref-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px }
+  .pref { font-size:12.5px; padding:6px 12px; border-radius:999px; cursor:pointer;
+          background:#f2f4f8; color:#475467; border:1px solid #e7eaf0; user-select:none }
+  .pref:hover { background:#e7eaf0 }
+  .pref.on { background:#eef4ff; color:var(--acc); border-color:#b9d0ff; font-weight:600 }
+  .pref-hint { font-size:11.5px; color:#98a2b3; margin-top:6px; line-height:1.5 }
   .hotel-quick span { font-size:11.5px; padding:4px 10px; border-radius:999px;
                       background:#f2f4f8; color:#475467; cursor:pointer; border:1px solid #e7eaf0 }
   .hotel-quick span:hover { background:#e7eaf0; color:#1f2937 }
@@ -299,6 +304,17 @@
       <div class="grid3">
         <div class="field" style="grid-column:1/-1"><label>预算(空=不限)</label>
           <input id="budget" type="number" value="500"></div>
+      </div>
+      <!-- A2 偏好：告诉求解器"更看重什么"（实测：少走路=通勤少 17 分钟，省钱=门票省 54%） -->
+      <div class="field" style="margin-top:10px">
+        <label>这一趟更看重什么</label>
+        <div class="pref-row" id="prefRow">
+          <span class="pref on" data-pref="balanced">⚖️ 均衡</span>
+          <span class="pref" data-pref="less_walk">🚶 少走路</span>
+          <span class="pref" data-pref="save_money">💰 省钱</span>
+          <span class="pref" data-pref="more_spots">🎒 多玩</span>
+        </div>
+        <div class="pref-hint" id="prefHint">按景点价值排，通勤顺路即可</div>
       </div>
       <details class="adv">
         <summary>🕘 默认每天 9:00 出发 · 18:00 返回（点击调整）</summary>
@@ -647,7 +663,8 @@ $('go').onclick = async () => {
   const req = { city: currentCity, days: dayCount(),
     budget: $('budget').value==='' ? null : Number($('budget').value),
     daily_start_h: timeToH($('start').value || '09:00'),
-    daily_end_h: timeToH($('end').value || '18:00'), spots };
+    daily_end_h: timeToH($('end').value || '18:00'),
+    preference: currentPref, spots };
   const {task_id, ws_url} = await fetch('/plan/async', {method:'POST',
     headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)}).then(r=>r.json());
   log('任务', `task_id=${task_id}`);
@@ -1262,6 +1279,33 @@ function updateLoading(text) {
 function hideLoading() {
   const ov = $('loadOv'); if (ov) ov.remove();
 }
+
+// ---- A2 偏好：告诉求解器"更看重什么" ----
+// 提示语写清代价，避免用户以为"少走路"是免费的（实测：少走路会少去约 0.2 个景点，
+// 省钱会跳过收费景点、少去约 1.5 个；多玩是每天多玩 1.5 小时）
+let currentPref = 'balanced';
+const PREF_HINT = {
+  balanced:   '按景点价值排，通勤顺路即可',
+  less_walk:  '通勤权重提高：实测少走约 17~25 分钟，代价是可能放弃 1 个远景点',
+  save_money: '门票计入目标：实测门票省约一半，会跳过部分收费景点',
+  more_spots: '每天多玩 1.5 小时（18:00 → 19:30），能多排 1 个左右',
+};
+function setPref(p) {
+  currentPref = p;
+  document.querySelectorAll('#prefRow .pref').forEach(
+    el => el.classList.toggle('on', el.dataset.pref === p));
+  $('prefHint').textContent = PREF_HINT[p] || '';
+  // 已经排好行程时直接改偏好 → 让桌宠帮忙重排（走同一条对话链路）
+  if (lastTaskId && plan) {
+    petToggle(true);
+    petSay('bot', `偏好已切到「${(PREF_LABEL[p] || p)}」，要我按新偏好重新排一次吗？`
+      + '（也可以直接说「按这个重新排」）');
+  }
+}
+const PREF_LABEL = {balanced:'均衡', less_walk:'少走路', save_money:'省钱', more_spots:'多玩'};
+document.querySelectorAll('#prefRow .pref').forEach(el => {
+  el.onclick = () => setPref(el.dataset.pref);
+});
 
 // ---- 页面切换 ----
 function switchPage(which) {

@@ -28,9 +28,13 @@ from solver import Solver
 OUT_FILE = Path(__file__).parent / "eval_cluster.json"
 
 
-def run_once(req, use_cluster: bool) -> dict:
-    """跑一次求解；use_cluster 控制是否启用地理聚类候选轮。"""
+def run_once(req, use_cluster: bool, pref: str = "balanced") -> dict:
+    """跑一次求解；use_cluster 控制是否启用地理聚类候选轮，pref 指定偏好。
+
+    ⚠️ 偏好要写到 req 上（Solver 从请求里读），只改 PREFERENCES 表是无效的。
+    """
     solver_mod.USE_GEO_CLUSTER = use_cluster
+    req.preference = pref
     solver = Solver(req)
     days, unplanned, cost, score = solver.solve()
     commute = sum(d.commute_min for d in days)
@@ -56,13 +60,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=50)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--pref", default="balanced",
+                    help="偏好（复测 N2：在 less_walk 下看聚类是否有用）")
     args = ap.parse_args()
 
     scenarios = gen_scenarios(args.n, args.seed)
     off_rows, on_rows, detail = [], [], []
     for i, req in enumerate(scenarios):
-        off = run_once(req, False)
-        on = run_once(req, True)
+        off = run_once(req, False, args.pref)
+        on = run_once(req, True, args.pref)
         off_rows.append(off)
         on_rows.append(on)
         detail.append({
@@ -81,7 +87,7 @@ def main() -> None:
     worse = sum(1 for d in detail if d["delta_ratio"] > 1e-6)
     tie = len(detail) - better - worse
 
-    print("\n=== 汇总（n={} / seed={}）===".format(len(scenarios), args.seed))
+    print("\n=== 汇总（n={} / seed={} / 偏好={}）===".format(len(scenarios), args.seed, args.pref))
     print(f"{'指标':<16}{'关闭聚类':>12}{'开启聚类':>12}{'变化':>10}")
     for key, label, better_smaller in [
         ("ratio", "通勤占比", True), ("commute_min", "通勤分钟", True),

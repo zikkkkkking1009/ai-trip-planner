@@ -22,7 +22,7 @@ from cities import DEFAULT_CITY
 from commute import CommuteMatrix
 from constraint_check import check_plan
 from models import DayPlan, PlanRequest
-from solver import Solver
+from solver import Solver, normalize_preference
 
 log = logging.getLogger(__name__)
 
@@ -116,7 +116,9 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
     task.req_params = {"city": req.city, "days": req.days,
                        "budget": req.budget,
                        "daily_start_h": req.daily_start_h,
-                       "daily_end_h": req.daily_end_h, "hotel": None}
+                       "daily_end_h": req.daily_end_h, "hotel": None,
+                       # 偏好（A2）：后续编辑重排、换酒店、历史回看都要沿用
+                       "preference": normalize_preference(req.preference)}
     task.request_spots = [s.model_dump() for s in req.spots]
     MANAGER.say(task, "启动", f"收到排期请求：{req.city} {req.days} 天，"
                               f"{len(req.spots)} 个景点，预算 {req.budget or '不限'}")
@@ -394,6 +396,11 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
 
         # 阶段 3：重排求解 + 校验（复用排期流水线）
         params = base.req_params
+        # 偏好切换（A2）：写回请求参数——后续重排、换酒店、历史回看都沿用同一偏好
+        pref_ops = [o for o in ops if o.get("op") == "pref"]
+        if pref_ops:
+            params["preference"] = normalize_preference(pref_ops[-1].get("value"))
+            log.info("偏好切换 task_id=%s → %s", task.id, params["preference"])
         from models import Hotel
         hotel_obj = Hotel(**params["hotel"]) if params.get("hotel") else None
         new_req = PlanRequest(city=params.get("city", DEFAULT_CITY),
@@ -401,6 +408,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str) -> No
                               budget=params.get("budget"),
                               daily_start_h=params.get("daily_start_h", 9.0),
                               daily_end_h=params.get("daily_end_h", 18.0),
+                              preference=params.get("preference", "balanced"),
                               spots=new_spots,
                               hotel=hotel_obj)
         cm = CommuteMatrix()
@@ -482,6 +490,7 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
                               budget=params.get("budget"),
                               daily_start_h=params.get("daily_start_h", 9.0),
                               daily_end_h=params.get("daily_end_h", 18.0),
+                              preference=params.get("preference", "balanced"),
                               spots=base_spots, hotel=hotel_obj)
         def work():
             return Solver(new_req, cm.minutes).solve(

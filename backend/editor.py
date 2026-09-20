@@ -50,6 +50,13 @@ ops 支持五种操作：
 - replace:  {"op":"replace","old":"要移除的景点名","query":"搜索关键词","day":天数或null}
 - pin_add:  {"op":"pin_add","name":"用户想加的地点名","query":"搜索词","day":天数,"after":"插到该景点之后或null表示路线中间"}
 - hotel:    {"op":"hotel","name":"酒店名","query":"搜索词"}
+- pref:     {"op":"pref","value":"less_walk|save_money|more_spots|balanced"}
+  偏好：用户表达"想怎么玩"而不是"改哪个景点"时用。映射：
+  · 少走路/不想走太多/轻松点/别太赶/腿要断了 → less_walk（通勤权重提高，会为省通勤放弃远处景点）
+  · 省钱/预算紧/便宜点/门票太贵 → save_money（门票计入目标，会少去收费景点）
+  · 多玩/安排满一点/难得来一次/想多去几个 → more_spots（每天多玩 1.5 小时）
+  · 都行/随便/均衡/默认 → balanced
+  一次只给一个 pref；改偏好后行程会**整体重排**，并在 reply 里说清代价（少走路会少去几个、省钱会跳过收费景点）
 规则：
 - remove 的 name 必须逐字取自当前行程，不要改写
 - add/replace 必须给 query（用于地图搜索），如"咖啡馆""美食街""博物馆"
@@ -233,6 +240,11 @@ def apply_ops(base_spots: list[Spot], ops: list[dict],
     changes: list[str] = []
     for op in ops:
         kind = op.get("op")
+        if kind == "pref":
+            # 偏好不改景点列表，只记一条说明——真正的切换由上层（run_edit_task）
+            # 写回请求参数后重排。放在这里处理是为了让 changes 里能看到它。
+            changes.append(f"偏好切换为「{op.get('value', '')}」，行程已按新偏好重排")
+            continue
         if kind == "remove":
             name = op.get("name", "")
             before = len(spots)

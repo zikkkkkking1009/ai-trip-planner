@@ -1,0 +1,30 @@
+{
+ "balanced": {
+  "ratio": 0.1049,
+  "commute_min": 125.226,
+  "cost": 285.92,
+  "planned": 10.2,
+  "score": 79.456
+ },
+ "less_walk": {
+  "ratio": 0.0905,
+  "commute_min": 100.668,
+  "cost": 265.32,
+  "planned": 10,
+  "score": 77.828
+ },
+ "save_money": {
+  "ratio": 0.0825,
+  "commute_min": 77.496,
+  "cost": 140.92,
+  "planned": 8.72,
+  "score": 67.714
+ },
+ "more_spots": {
+  "ratio": 0.1072,
+  "commute_min": 131.182,
+  "cost": 311.12,
+  "planned": 10.42,
+  "score": 81.382
+ }
+}

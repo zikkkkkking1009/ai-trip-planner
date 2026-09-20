@@ -54,6 +54,9 @@ class PlanRequest(BaseModel):
     budget: float | None = None  # 总预算（元），None = 不限
     spots: list[Spot]
     hotel: Hotel | None = None   # 住宿锚点（对话中可设定/更换）
+    # A2 偏好：balanced（默认）/ less_walk（少走路）/ save_money（省钱）/ more_spots（多玩）
+    # 只影响目标函数的加权，不改硬约束；非法值由 solver.normalize_preference 回退默认。
+    preference: str = "balanced"
 
 
 class VisitedSpot(BaseModel):

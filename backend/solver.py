@@ -31,6 +31,29 @@ COMMUTE_OVERHEAD_MIN = 8.0  # 进出站/等车固定开销
 # 把后续高收益组合挤掉。CP-SAT 对照实验显示这类实例 gap 可达 22~24%，
 # 而随机重启 + 保留最优能把 gap 压到 0~1%（实测见 docs/experiments.md 实验四）。
 SCORE_OBJ_W = 1000              # 目标权重：收益优先、通勤为次（与 CP-SAT 对照同口径）
+
+# ---- A2：偏好权重（用户可选择"更看重什么"）----
+# 每种偏好对应一组目标函数权重。**权重不是拍脑袋给的**：
+# 判据是「该偏好必须在对应指标上产生可感知的差异」——
+# 少走路 → 通勤占比明显下降；省钱 → 总门票明显下降；多玩 → 景点数/收益优先。
+# 标定过程与数据见 docs/experiments.md 实验六。
+PREFERENCES: dict[str, dict[str, float]] = {
+    "balanced":   {"score": 1000.0, "commute": 1.0,  "cost": 0.0},  # 均衡（默认，与 CP-SAT 同口径）
+    "less_walk":  {"score": 1000.0, "commute": 120.0, "cost": 0.0}, # 少走路：通勤 122→97 分钟
+    "save_money": {"score": 1000.0, "commute": 1.0,  "cost": 120.0},  # 省钱：门票 282→144 元
+    "more_spots": {"score": 1000.0, "commute": 0.3,  "cost": 0.0},  # 多玩：弱化通勤，倾向多排
+}
+DEFAULT_PREFERENCE = "balanced"
+
+# 「多玩」不是靠调权重实现的：实测降低通勤权重后结果纹丝不动——
+# 因为景点数的真正上限是**时间窗**（9:00-18:00 已经排满）。所以要"多玩"，
+# 只能放宽每天的时间窗（多玩 1.5 小时），而不是在目标函数上做文章。
+MORE_SPOTS_EXTRA_H = 1.5
+
+
+def normalize_preference(p: object) -> str:
+    """偏好归一化：非法/未知值一律回退默认——避免拼写或大小写差异静默走错分支。"""
+    return p if isinstance(p, str) and p in PREFERENCES else DEFAULT_PREFERENCE
 MULTISTART_MIN_SPOTS = 7        # 景点数少于此 → 单次贪心（实测已达最优）
 MULTISTART_ITERS = 600          # 随机重启次数上限（实测 200→600 可把最差实例 gap 24%→0%）
 MULTISTART_TIME_BUDGET_S = 1.5  # 时间预算硬上限：实测均值 410ms / 最大 882ms，交互可接受
@@ -118,7 +141,14 @@ class _Seq:
 
 class Solver:
     def __init__(self, req: PlanRequest, commute_fn=None):
+        # 偏好（A2）：用 getattr 兼容还没加该字段的历史调用方
+        pref = normalize_preference(getattr(req, "preference", DEFAULT_PREFERENCE))
+        if pref == "more_spots":
+            # 放宽时间窗（只改本求解器内的副本，不污染调用方传进来的 req）
+            req = req.model_copy(update={
+                "daily_end_h": req.daily_end_h + MORE_SPOTS_EXTRA_H})
         self.req = req
+        self.pref = pref
         self.commute_fn = commute_fn or commute_min
         self.hotel = req.hotel  # 住宿锚点：每天的起点与终点
         self.last_elapsed_ms: float = 0.0   # 上次 solve() 耗时，供实验脚本与日志取值
@@ -199,9 +229,19 @@ class Solver:
     def _planned_score(self) -> float:
         return sum(s.score for d in self.days for s in d.spots)
 
+    def _planned_cost(self) -> float:
+        """已排景点的总门票（省钱偏好要用到）。"""
+        return sum(s.ticket for d in self.days for s in d.spots)
+
     def _objective(self) -> float:
-        """目标值：收益为主、通勤为次（与 CP-SAT 对照同一口径）。"""
-        return SCORE_OBJ_W * self._planned_score() - self._global_commute()
+        """目标值：收益为主，通勤与门票按偏好加权。
+
+        balanced 下与旧口径一致（`1000·收益 − 通勤`），保证与 CP-SAT 的 gap 对照不受影响。
+        """
+        w = PREFERENCES[self.pref]
+        return (w["score"] * self._planned_score()
+                - w["commute"] * self._global_commute()
+                - w["cost"] * self._planned_cost())
 
     def _construct(self, order: list[Spot]) -> list[UnplannedSpot]:
         """按给定顺序贪心插入（预算硬约束生效），返回未安排列表。"""
@@ -218,13 +258,44 @@ class Solver:
                 unplanned.append(UnplannedSpot(name=s.name, reason=reason))
         return unplanned
 
+    def _drop_improve(self) -> bool:
+        """按目标函数尝试**主动放弃**景点：移除后目标值更高就移除。
+
+        为什么需要这个算子（这是 A2 的关键，也是踩过坑才明白的）：
+        构造的插入判据是固定的「通勤/分数」，而 2-opt 与跨日搬运**本来就在最小化通勤**——
+        算法已经在尽力少走路了。所以「少走路」唯一的杠杆是**为省通勤而放弃远景点**，
+        而这个取舍只有在通勤权重足够高时才划算（放弃一个景点损失 ≈ 1000×9，
+        省下的通勤约 45 分钟 → 权重要到 200 量级才会真的放弃）。
+        只调 `_objective` 的权重而不加这个算子，偏好**完全没有效果**（实测权重 1→40
+        通勤占比纹丝不动）。
+
+        balanced 下通勤权重低，移除几乎不会让目标值提升 → 行为与旧版一致（无回归）。
+        """
+        improved = False
+        for day in self.days:
+            for idx in range(len(day.spots) - 1, -1, -1):
+                s = day.spots[idx]
+                before = self._objective()
+                day.spots.pop(idx)
+                if (day.timeline(self.req, self.hotel) is not None
+                        and self._objective() > before + 1e-6):
+                    self._unplanned.append(UnplannedSpot(
+                        name=s.name, score=s.score, ticket=s.ticket,
+                        stay_min=s.stay_min,
+                        reason=f"按「{self.pref}」偏好主动放弃：通勤成本高于其收益"))
+                    improved = True
+                else:
+                    day.spots.insert(idx, s)
+        return improved
+
     def _optimize(self, max_rounds: int = 3) -> None:
-        """天内 2-opt + 跨日搬运，迭代至收敛。"""
+        """天内 2-opt + 跨日搬运，迭代至收敛；末尾按偏好做一次「是否放弃景点」的取舍。"""
         for _ in range(max_rounds):
             changed = any(self._intra_2opt(di) for di in range(len(self.days)))
             changed |= self._relocate()
             if not changed:
                 break
+        self._drop_improve()
 
     def _snapshot(self) -> tuple[list[list[Spot]], list[UnplannedSpot]]:
         return [list(d.spots) for d in self.days], list(self._unplanned)
