@@ -1363,5 +1363,295 @@
     "address": "鹅岭正街1号",
     "lat": 29.551101,
     "lon": 106.540183
+  },
+  "丽江|丽江古城": {
+    "image": "http://store.is.autonavi.com/showpic/79301b10705b92ec03da88565b18e0f5",
+    "intro": "风景名胜 · 评分4.9 · 七一街",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/79301b10705b92ec03da88565b18e0f5",
+      "http://store.is.autonavi.com/showpic/32af1b552ecf66276bd13cb2479cec34",
+      "http://store.is.autonavi.com/showpic/02ac3dbfd652ba26e28f7afe9da58c92"
+    ],
+    "opentime": "",
+    "address": "民主路与福慧路交叉口东南",
+    "lat": 26.870507,
+    "lon": 100.235517,
+    "reviews": {
+      "good": [
+        "丽江古城风景美",
+        "七一街很热闹",
+        "民主路小吃多",
+        "福慧路夜景佳"
+      ],
+      "bad": [
+        "商业化有点重",
+        "人流量大拥挤",
+        "部分设施旧",
+        "物价稍偏高"
+      ],
+      "intro_long": "丽江古城是中国著名的历史文化名城，位于云南省丽江市，地处丽江坝子中，是纳西族的主要聚居地之一。古城以其独特的纳西族东巴文化、保存完好的古建筑、独特的民族风情和美丽的自然风光而闻名于世。丽江古城中心是四方街，周边分布着七一街、民主路、福慧路等主要街道，是游客体验纳西族文化和丽江风情的必到之地。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|束河古镇": {
+    "image": "http://store.is.autonavi.com/showpic/9196b3570203be7ec07ba065498c084a",
+    "intro": "风景名胜 · 评分4.8 · 束河古镇",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/9196b3570203be7ec07ba065498c084a",
+      "http://store.is.autonavi.com/showpic/822c43f5f0b8cf0f65914ecfafed5ba9",
+      "http://store.is.autonavi.com/showpic/1aa7e47cd323e724df68efd2ef17122a"
+    ],
+    "opentime": "",
+    "address": "束河镇",
+    "lat": 26.9196,
+    "lon": 100.205679,
+    "reviews": {
+      "good": [
+        "古镇风光好",
+        "小桥流水美",
+        "茶马文化浓",
+        "氛围很悠闲"
+      ],
+      "bad": [
+        "商业化较重",
+        "旺季人太多",
+        "物价稍偏高",
+        "个别店铺乱"
+      ],
+      "intro_long": "束河古镇位于丽江束河镇，是纳西族文化的重要载体，拥有美丽的自然风光和丰富的茶马古道历史。古镇内小桥流水、古街古巷，营造出宁静古朴的氛围。游客可以品尝当地特色美食，体验独特的民族风情，感受古镇的悠闲生活。但旺季游客较多，商业化现象也较明显，建议错峰前往。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|四方街": {
+    "image": "http://store.is.autonavi.com/showpic/7eaac3f5eb4801471f47131152c63a2b",
+    "intro": "风景名胜 · 评分4.8 · 五一街兴仁上段",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/7eaac3f5eb4801471f47131152c63a2b",
+      "http://store.is.autonavi.com/showpic/dd7b0551d1eaea8e81e56e91dc903ac6",
+      "http://store.is.autonavi.com/showpic/6cd0513d2990dcaa26a296f5b3a80213"
+    ],
+    "opentime": "",
+    "address": "丽江古城五一路下段",
+    "lat": 26.872039,
+    "lon": 100.233949,
+    "reviews": {
+      "good": [
+        "四方街：古城中心",
+        "四方街：热闹繁华",
+        "四方街：历史韵味",
+        "四方街：小吃众多"
+      ],
+      "bad": [
+        "四方街：人多拥挤",
+        "四方街：商业化重",
+        "四方街：游客集中",
+        "四方街：物价偏高"
+      ],
+      "intro_long": "四方街是丽江古城的中心区域，位于五一路的交汇处。这里以其热闹的氛围、丰富的历史韵味和琳琅满目的特色小吃而闻名。作为古城的主要景点之一，四方街吸引了大量的游客，展现了丽江独特的纳西文化风情。不过，由于游客众多，这里有时会显得拥挤，商业化程度也相对较高，游客在体验的同时也需要注意这些特点。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|大研花巷": {
+    "image": "http://store.is.autonavi.com/showpic/33ac6a8863379e8a7e967b74dd849435",
+    "intro": "风景名胜 · 评分4.7",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/33ac6a8863379e8a7e967b74dd849435",
+      "https://store.is.autonavi.com/showpic/F57E2CA49EAA4209A044FB41CDCEE2D4",
+      "http://store.is.autonavi.com/showpic/df3bc799e501aacb40a850df6b6abe9a"
+    ],
+    "opentime": "",
+    "address": "大研街道金虹路6号(近古城北门)",
+    "lat": 26.874511,
+    "lon": 100.236291,
+    "reviews": {
+      "good": [
+        "花巷很美，拍照好看",
+        "特色小店多，逛着有趣",
+        "夜景尤其迷人",
+        "适合情侣约会"
+      ],
+      "bad": [
+        "人有点多，挤",
+        "商业化有点重",
+        "部分店铺价格偏高",
+        "高峰期排队时间长"
+      ],
+      "intro_long": "大研花巷位于丽江古城北门附近，是大研街道金虹路6号。这里以其独特的纳西族风情和丰富的特色小店而闻名，是游客体验丽江慢生活的好去处。花巷内风景优美，适合拍照，夜晚更是别有一番韵味。不过，由于人气较旺，高峰时段可能会比较拥挤，部分店铺的价格也偏高。总体来说，花巷是一个值得一游的景点，但建议避开人流高峰期，以免影响体验。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|丽江千古情景区": {
+    "image": "http://store.is.autonavi.com/showpic/5bddd03c43846b7fc5c3e51c3b9b85df",
+    "intro": "体育休闲服务 · 评分4.7 · 宋城千古情景区",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/5bddd03c43846b7fc5c3e51c3b9b85df",
+      "http://store.is.autonavi.com/showpic/71612a919ac620092ffacd4f0a3e44aa",
+      "http://store.is.autonavi.com/showpic/88f20b1c8a65c16fde911cb8b5673259"
+    ],
+    "opentime": "",
+    "address": "黄山街道玉兴西路88号",
+    "lat": 26.827705,
+    "lon": 100.218666,
+    "reviews": {
+      "good": [
+        "演出震撼人心",
+        "景色很美",
+        "服务态度好",
+        "值得一看"
+      ],
+      "bad": [
+        "人太多",
+        "票价有点贵",
+        "排队时间长",
+        "设施不够完善"
+      ],
+      "intro_long": "丽江千古情景区位于玉兴西路，是集文化演艺、休闲观光于一体的大型景区。这里有震撼的实景演出，展现丽江及云南多元文化。同时提供体育休闲服务，游客可以欣赏到美丽的自然风光和丰富的民族风情，是了解丽江历史文化的绝佳去处。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|古城南门牌坊": {
+    "image": "https://store.is.autonavi.com/showpic/e21e856785c973920000002437810822?type=pic",
+    "intro": "风景名胜 · 评分4.7",
+    "photos": [
+      "https://store.is.autonavi.com/showpic/e21e856785c973920000002437810822?type=pic",
+      "https://store.is.autonavi.com/showpic/e9a728c978382f330000000689678122?type=pic",
+      "https://aos-comment.amap.com/B0FFK2MD5J/comment/content_media_external_file_1000008349_ss__1765250927532_67956649.jpg"
+    ],
+    "opentime": "",
+    "address": "祥和路",
+    "lat": 26.865658,
+    "lon": 100.242071,
+    "reviews": {
+      "good": [
+        "牌坊宏伟壮观",
+        "历史悠久感足",
+        "位置便利易找",
+        "拍照背景绝佳"
+      ],
+      "bad": [
+        "维护略有欠缺",
+        "人流量较大",
+        "解说说明不足",
+        "商业化气息重"
+      ],
+      "intro_long": "古城南门牌坊是历史悠久的风景区，位于祥和路，以其宏伟的气势和丰富的文化内涵吸引着众多游客。牌坊不仅是古城的标志性建筑，也是研究古代建筑艺术的重要实例。尽管存在一些维护和商业化的问题，但整体上仍是游客体验古城文化的好去处。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|丽江之眼观景台": {
+    "image": "https://aos-comment.amap.com/B0FFI19RKS/comment/content_media_external_images_media_5952_1732693323282_55480665.jpg",
+    "intro": "风景名胜 · 评分4.7 · 四方街",
+    "photos": [
+      "https://aos-comment.amap.com/B0FFI19RKS/comment/content_media_external_images_media_5952_1732693323282_55480665.jpg",
+      "https://store.is.autonavi.com/showpic/ea9874ec57b76b7e7f979fdef062532b",
+      "https://aos-comment.amap.com/B0FFI19RKS/comment/70A268B0_502D_4240_88D0_AA1E328A3147_L0_001_2016_151_1749891361558_26855279.jpg"
+    ],
+    "opentime": "",
+    "address": "丽江古城内(北侧)",
+    "lat": 26.874554,
+    "lon": 100.236102,
+    "reviews": {
+      "good": [
+        "视野开阔，古城景色尽收眼底",
+        "位于古城内，方便到达",
+        "夜晚灯光璀璨，景色迷人",
+        "拍照打卡的好地方"
+      ],
+      "bad": [
+        "人流量大，有时需要排队",
+        "部分区域有施工，影响体验",
+        "收费略高",
+        "周边餐饮选择有限"
+      ],
+      "intro_long": "丽江之眼观景台位于丽江古城北侧的四方街附近，是欣赏丽江古城全景的绝佳地点。从这里可以俯瞰整个古城，夜晚的灯光更是美轮美奂。虽然有时会人流密集，但依然吸引了众多游客前来拍照留念。如果你想要一个高角度的视角来感受丽江的魅力，这里绝对值得一去。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|大石桥": {
+    "image": "http://store.is.autonavi.com/showpic/3dd6c892c2baeb2520b8db8ce932aca6",
+    "intro": "风景名胜 · 评分4.7 · 五一街兴仁上段",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/3dd6c892c2baeb2520b8db8ce932aca6",
+      "http://store.is.autonavi.com/showpic/a23b1800f0903ab6c073caf3bd416596",
+      "http://store.is.autonavi.com/showpic/edf4f700e5d170a15e91019b26eb5374"
+    ],
+    "opentime": "",
+    "address": "丽江古城",
+    "lat": 26.872292,
+    "lon": 100.234997,
+    "reviews": {
+      "good": [
+        "石桥风景独特",
+        "夜景美不胜收",
+        "拍照打卡圣地",
+        "历史悠久韵味足"
+      ],
+      "bad": [
+        "五一街人超多",
+        "游客摩肩接踵",
+        "商业化气息浓",
+        "停车有点困难"
+      ],
+      "intro_long": "大石桥位于丽江古城五一街兴仁上段，是一座历史悠久的风景名胜。石桥造型独特，夜景尤其迷人，是游客拍照打卡的热门地点。虽然风景优美，但五一期间人流量巨大，商业化较重，游客需做好心理准备。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|丽江古城白龙文化广场": {
+    "image": "https://store.is.autonavi.com/showpic/3B907CE79CDE4F88A6D22B8B717A84DC",
+    "intro": "风景名胜 · 评分4.6",
+    "photos": [
+      "https://store.is.autonavi.com/showpic/3B907CE79CDE4F88A6D22B8B717A84DC",
+      "https://store.is.autonavi.com/showpic/664CDD3DF6F04D7CA53C6C932340D035",
+      "https://store.is.autonavi.com/showpic/996004DA9FEE4D2191B36D4D23E7EC1B"
+    ],
+    "opentime": "",
+    "address": "丽江古城(西南角)",
+    "lat": 26.867111,
+    "lon": 100.231595,
+    "reviews": {
+      "good": [
+        "夜景迷人",
+        "酒吧文化浓",
+        "氛围轻松",
+        "适合拍照"
+      ],
+      "bad": [
+        "人流量大",
+        "商业化重",
+        "停车不便",
+        "游客较多"
+      ],
+      "intro_long": "丽江古城白龙文化广场位于丽江古城西南角，是古城内的一个重要公共空间。这里以其独特的夜景和浓厚的酒吧文化而闻名，是游客体验丽江夜生活的好去处。广场周围有许多特色酒吧和餐厅，氛围轻松，非常适合拍照留念。然而，由于地理位置优越，这里人流量较大，商业化程度较高，有时会显得有些拥挤，且停车不太方便。总体来说，白龙文化广场是丽江古城内一个充满活力和魅力的景点，值得一游。"
+    },
+    "reviews_ai": true
+  },
+  "丽江|五一街": {
+    "image": "https://aos-comment.amap.com/B0FFIMYOV7/comment/5b42e3772554f8ea67f8233f37c74c8a_2048_2048_80.jpg",
+    "intro": "风景名胜 · 评分4.6 · 五一街兴仁上段",
+    "photos": [
+      "https://aos-comment.amap.com/B0FFIMYOV7/comment/5b42e3772554f8ea67f8233f37c74c8a_2048_2048_80.jpg",
+      "https://aos-comment.amap.com/B0FFIMYOV7/comment/83cdceca6d1abcd55945015da6988750_2048_2048_80.jpg",
+      "https://aos-comment.amap.com/B0FFIMYOV7/comment/content_media_external_file_1000011089_ss__1770097742677_57376343.jpg"
+    ],
+    "opentime": "",
+    "address": "丽江古城(东北角)",
+    "lat": 26.87297,
+    "lon": 100.238456,
+    "reviews": {
+      "good": [
+        "风景优美，拍照打卡",
+        "小吃众多，味道不错",
+        "夜景迷人，氛围很好",
+        "交通便利，位置方便"
+      ],
+      "bad": [
+        "人流量大，比较拥挤",
+        "部分店铺价格偏高",
+        "道路狭窄，停车困难",
+        "卫生状况一般般"
+      ],
+      "intro_long": "五一街位于丽江古城东北角，是当地著名的风景名胜区之一。这里汇集了众多特色小吃和手工艺品店，吸引了大量游客前来打卡。夜晚的五一街更是热闹非凡，灯光璀璨，氛围浓厚。不过，由于人流密集，可能会遇到拥挤和停车困难的情况，建议游客提前规划行程。"
+    },
+    "reviews_ai": true
   }
 }
