@@ -951,22 +951,33 @@ function renderItin() {
 // 景点缩略图补齐：结果里的 spots[].image 只有预置景点才带（抽取路径是空的），
 // 所以没有图的先放占位、渲染后按需从 /poi/detail 取。
 // 规划完成后后台 prefetch_media 已经在抓这些图，所以多数请求会直接命中服务端缓存。
+//
+// ⚠️ 必须**限流**：`/poi/detail` 缓存未命中时会真调高德，而高德是全局 QPS 限频（0.35s/次）；
+// 一次放开 8 个请求会把用户后续操作（点按钮、切换视图）一起拖慢——实测新行程渲染后页面明显变钝。
+const THUMB_CONCURRENCY = 3;
+
 async function fillSpotThumbs() {
-  const targets = document.querySelectorAll('#view .thumb.lazy[data-lazy-name]');
+  const targets = [...document.querySelectorAll('#view .thumb.lazy[data-lazy-name]')];
   if (!targets.length) return;
-  await Promise.all([...targets].map(async (el) => {
-    const name = el.dataset.lazyName;
-    el.removeAttribute('data-lazy-name');          // 防止重复请求
-    try {
-      const r = await fetch(`/poi/detail?name=${encodeURIComponent(name)}&city=${encodeURIComponent(currentCity)}`);
-      if (!r.ok) { el.remove(); return; }          // 取不到就不留破图
-      const d = await r.json();
-      if (d.image) { el.src = d.image; el.classList.remove('lazy'); }
-      else { el.remove(); }
-    } catch (e) {
-      el.remove();                                 // 缩略图是增强项，失败不打扰用户
-    }
-  }));
+  let i = 0;
+  const worker = async () => {
+    while (i < targets.length) await loadOneThumb(targets[i++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(THUMB_CONCURRENCY, targets.length) }, worker));
+}
+
+async function loadOneThumb(el) {
+  const name = el.dataset.lazyName;
+  el.removeAttribute('data-lazy-name');          // 防止重复请求
+  try {
+    const r = await fetch(`/poi/detail?name=${encodeURIComponent(name)}&city=${encodeURIComponent(currentCity)}`);
+    if (!r.ok) { el.remove(); return; }          // 取不到就不留破图
+    const d = await r.json();
+    if (d.image) { el.src = d.image; el.classList.remove('lazy'); }
+    else { el.remove(); }
+  } catch (e) {
+    el.remove();                                 // 缩略图是增强项，失败不打扰用户
+  }
 }
 
 // ---- 收藏 ----
@@ -1563,7 +1574,8 @@ function renderRobustness(d) {
   const pct = Math.round((d.on_time_prob || 0) * 100);
   const tone = pct >= 90 ? 'good' : pct >= 70 ? 'warn' : 'bad';
   const days = (d.per_day || []).map(x =>
-    `第${x.day}天 ${Math.round(x.on_time_prob * 100)}%（通常 ${x.return_p50.toFixed(1)} 点回）`).join(' · ');
+    `第${x.day}天 ${Math.round((x.on_time_prob || 0) * 100)}%`
+    + `（通常 ${Number(x.return_p50 || 0).toFixed(1)} 点回）`).join(' · ');
   const risks = d.risks || [];
   // 开了稳妥度时，显示"目标 vs 达成"——用户要看的是"我要求的把握有没有被满足"
   const rb = plan && plan.robustness;
@@ -1585,8 +1597,20 @@ function renderRobustness(d) {
       —— 是估计值，可用真实打卡数据校准；风险点用共同随机数对比，排序比绝对数值更可信</div>
   </div>`;
   // 一键执行建议：复用对话链路（桌宠会真的去改并回复）
+  // ⚠️ 必须**先打开对话面板**：否则消息全写进隐藏面板，用户点了按钮看不到任何反应，
+  // 还以为卡死/没生效（实测就是这么被反馈"很卡有 bug"的）
   box.querySelectorAll('.rb-fix').forEach(btn => {
-    btn.onclick = () => { $('ppInput').value = '去掉' + btn.dataset.name; sendEdit(); };
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const label = btn.textContent;
+      btn.textContent = '正在按建议重排…';
+      petToggle(true);                       // 打开面板，让用户看到进展
+      petSay('bot', `好，我来去掉「${btn.dataset.name}」并按新行程重排。`);
+      $('ppInput').value = '去掉' + btn.dataset.name;
+      setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 8000);  // 兜底复位
+      sendEdit();
+    };
   });
 }
 
