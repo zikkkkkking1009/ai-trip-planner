@@ -94,6 +94,10 @@
   .seg .s { flex:1; text-align:center; padding:8px 0; font-size:13.5px; color:var(--dim);
             border-radius:8px; cursor:pointer; }
   .seg .s.active { background:#e8f1ff; color:var(--acc); font-weight:700; }
+  /* 分享长图：动作型按钮，不参与"切换视图"的均分 */
+  .seg .s-share { flex:0 0 auto; padding-left:14px; padding-right:14px;
+                  color:var(--acc); font-weight:600; }
+  .seg .s-share:hover { background:#eef4ff; }
   .daytabs { display:flex; gap:4px; padding:0 12px; background:#fff; overflow-x:auto;
              scrollbar-width:none; position:sticky; top:44px; z-index:410;
              border-bottom:1px solid var(--line); }
@@ -458,6 +462,8 @@
     <div class="seg" id="viewSeg" style="display:none">
       <div class="s active" onclick="switchView('itin')">📋 行程</div>
       <div class="s" onclick="switchView('map')">🗺 地图</div>
+      <div class="s s-share" onclick="shareImage()"
+           title="导出竖版长图（含 AI 总评与每天安排），可发朋友圈或当简历附件">📷 长图</div>
     </div>
     <div id="view"></div>
     <div id="mapView" style="display:none"><div id="map"></div><div class="legend" id="legend"></div>
@@ -1596,6 +1602,7 @@ async function loadReview() {
 
 function renderReview(d) {
   const box = $('reviewBox'); if (!box) return;
+  window.__lastReview = d;      // 留给"分享长图"用（长图里要带上 AI 总评）
   const score = (d.score == null) ? ''
     : `<div class="rv-score">${d.score}<small>/10</small></div>`;
   // 总花费：门票是**真实数据**；交通费用没有可靠单价，不编（明确标注"不含交通"）
@@ -1833,6 +1840,213 @@ function toggleDay(i) {
   dayOn[i] = !dayOn[i];
   if (layers[i]) { if (dayOn[i]) layers[i].addTo(map); else map.removeLayer(layers[i]); }
   $('lg'+i).classList.toggle('off', !dayOn[i]);
+}
+
+// ---- 分享长图：把整份行程画成一张竖版 PNG ----
+// 为什么是 Canvas 手绘而不是截图库 / 无头浏览器：项目纪律是单文件、零依赖、无 CDN；
+// 而且这台机器装不了新包（pillow / playwright 都装不上）。Canvas 手绘反而最稳、最可控。
+// 不画地图：Canvas 里放高德静态图会因跨域污染画布（toBlob 会抛 SecurityError），得不偿失。
+const SHARE_W = 750;           // 逻辑宽度，按手机/朋友圈竖图
+const SHARE_PAD = 46;
+const SHARE_DPR = 2;           // 2 倍分辨率，手机上不糊
+const SHARE_FONT = '"PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+
+function shareImage() {
+  if (!plan) { alert('先在左边规划一份行程，再来导长图'); return; }
+  try {
+    const canvas = drawPlanCanvas();
+    const filename = shareFileName();
+    if (canvas.toBlob) {
+      canvas.toBlob(b => {
+        if (!b) { alert('导出失败，换个浏览器（Chrome / Edge）再试'); return; }
+        saveBlobAs(b, filename);
+        log('分享', `已导出行程长图：${filename}`);
+      }, 'image/png');
+    } else {                                   // 老浏览器兜底（toBlob 不存在时）
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      log('分享', `已导出行程长图：${filename}`);
+    }
+  } catch (e) {
+    alert('长图生成失败：' + e.message);
+    log('错误', '长图生成失败: ' + e.message);
+  }
+}
+
+function shareFileName() {
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  return `${plan.city}${plan.days.length}天行程_${stamp}.png`;
+}
+
+function saveBlobAs(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function drawPlanCanvas() {
+  const days = plan.days || [];
+  const review = window.__lastReview;
+  const probe = document.createElement('canvas').getContext('2d');
+  if (!probe) throw new Error('这个浏览器不支持 Canvas 绘图');
+
+  // ---- 排版工具 ----
+  const wrapLines = (ctx, text, maxW) => {
+    const out = [];
+    let line = '';
+    for (const ch of String(text || '')) {
+      if (ch === '\n') { out.push(line); line = ''; continue; }
+      if (ctx.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; }
+      else line += ch;
+    }
+    if (line) out.push(line);
+    return out;
+  };
+  const roundRect = (ctx, x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  };
+
+  // ---- 第一遍：量算总高度与每行位置（Canvas 尺寸必须一次定死）----
+  const blocks = [];
+  probe.font = `600 30px ${SHARE_FONT}`;
+  const title = `${plan.city} · ${days.length} 天行程`;
+  blocks.push({ type: 'title', lines: [title] });
+
+  const spotCount = days.reduce((s, d) => s + (d.spots || []).length, 0);
+  blocks.push({ type: 'meta', lines: [
+    `${spotCount} 个景点 · 总门票 ¥${Number(plan.total_cost || 0).toFixed(0)}` +
+    ` · 通勤合计 ${Math.round(days.reduce((s, d) => s + (d.commute_min || 0), 0))} 分钟`] });
+
+  if (review && review.summary) {
+    probe.font = `400 25px ${SHARE_FONT}`;
+    const lines = wrapLines(probe, review.summary, SHARE_W - SHARE_PAD * 2 - 76);
+    blocks.push({ type: 'review', score: review.score, lines: lines.slice(0, 6) });
+  }
+
+  days.forEach(d => {
+    blocks.push({ type: 'day', label: `Day ${d.day}`,
+                  meta: `门票 ¥${Number(d.cost || 0).toFixed(0)} · 通勤 ${Math.round(d.commute_min || 0)} 分钟` });
+    (d.spots || []).forEach(s => {
+      probe.font = `400 25px ${SHARE_FONT}`;
+      const lines = wrapLines(probe, s.name, SHARE_W - SHARE_PAD * 2 - 150);
+      blocks.push({ type: 'spot', time: `${fmt(s.arrive_h)}–${fmt(s.depart_h)}`,
+                    lines, ticket: s.ticket ? `¥${s.ticket}` : '' });
+    });
+    if ((d.spots || []).length === 0) blocks.push({ type: 'empty', lines: ['（这天没有安排景点）'] });
+  });
+
+  // ---- 算高度 ----
+  const H = { title: 46, meta: 40, review: 30 + 0, day: 54, spot: 40, empty: 34 };
+  let height = 132;                                   // 顶部品牌区
+  blocks.forEach(b => {
+    if (b.type === 'title') height += H.title + 12;
+    else if (b.type === 'meta') height += H.meta;
+    else if (b.type === 'review') height += 78 + b.lines.length * 38 + 26;
+    else if (b.type === 'day') height += H.day + 8;
+    else if (b.type === 'spot') height += Math.max(H.spot, b.lines.length * 34) + 10;
+    else height += H.empty;
+  });
+  height += 96;                                       // 页脚
+
+  const canvas = document.createElement('canvas');
+  canvas.width = SHARE_W * SHARE_DPR;
+  canvas.height = Math.ceil(height) * SHARE_DPR;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(SHARE_DPR, SHARE_DPR);
+  ctx.textBaseline = 'top';
+
+  // ---- 背景 ----
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, SHARE_W, height);
+  const grad = ctx.createLinearGradient(0, 0, SHARE_W, 132);
+  grad.addColorStop(0, '#1677ff'); grad.addColorStop(1, '#3d8bff');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, SHARE_W, 132);
+
+  // ---- 头部 ----
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `700 34px ${SHARE_FONT}`;
+  ctx.fillText('🐋 小舟 · AI 行程规划', SHARE_PAD, 34);
+  ctx.font = `400 22px ${SHARE_FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  const d0 = new Date();
+  ctx.fillText(`生成于 ${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`,
+               SHARE_PAD, 82);
+
+  let y = 172;
+  blocks.forEach(b => {
+    if (b.type === 'title') {
+      ctx.fillStyle = '#101828';
+      ctx.font = `700 34px ${SHARE_FONT}`;
+      ctx.fillText(b.lines[0], SHARE_PAD, y); y += H.title + 12;
+    } else if (b.type === 'meta') {
+      ctx.fillStyle = '#667085';
+      ctx.font = `400 23px ${SHARE_FONT}`;
+      ctx.fillText(b.lines[0], SHARE_PAD, y); y += H.meta;
+    } else if (b.type === 'review') {
+      roundRect(ctx, SHARE_PAD, y, SHARE_W - SHARE_PAD * 2, 60 + b.lines.length * 38, 16);
+      ctx.fillStyle = '#f2f7ff'; ctx.fill();
+      ctx.strokeStyle = '#d8e6ff'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#1677ff';
+      ctx.font = `700 30px ${SHARE_FONT}`;
+      const scoreTxt = (b.score == null) ? '🤖 AI 总评' : `🤖 AI 总评  ${b.score}/10`;
+      ctx.fillText(scoreTxt, SHARE_PAD + 22, y + 18);
+      ctx.fillStyle = '#344054';
+      ctx.font = `400 25px ${SHARE_FONT}`;
+      let ty = y + 62;
+      b.lines.forEach(ln => { ctx.fillText(ln, SHARE_PAD + 22, ty); ty += 38; });
+      y += 60 + b.lines.length * 38 + 26;
+    } else if (b.type === 'day') {
+      ctx.fillStyle = '#101828';
+      ctx.font = `700 29px ${SHARE_FONT}`;
+      ctx.fillText(b.label, SHARE_PAD, y);
+      ctx.fillStyle = '#98a2b3';
+      ctx.font = `400 21px ${SHARE_FONT}`;
+      ctx.fillText(b.meta, SHARE_PAD + 96, y + 6);
+      ctx.strokeStyle = '#eaecf0'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(SHARE_PAD, y + 42); ctx.lineTo(SHARE_W - SHARE_PAD, y + 42); ctx.stroke();
+      y += H.day + 8;
+    } else if (b.type === 'spot') {
+      ctx.fillStyle = '#1677ff';
+      ctx.beginPath(); ctx.arc(SHARE_PAD + 7, y + 14, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#475467';
+      ctx.font = `400 22px ${SHARE_FONT}`;
+      ctx.fillText(b.time, SHARE_PAD + 24, y + 3);
+      ctx.fillStyle = '#101828';
+      ctx.font = `600 26px ${SHARE_FONT}`;
+      let sy = y;
+      b.lines.forEach(ln => { ctx.fillText(ln, SHARE_PAD + 150, sy); sy += 34; });
+      if (b.ticket) {
+        ctx.fillStyle = '#e8590c';
+        ctx.font = `600 23px ${SHARE_FONT}`;
+        ctx.fillText(b.ticket, SHARE_W - SHARE_PAD - 54, y + 3);
+      }
+      y += Math.max(H.spot, b.lines.length * 34) + 10;
+    } else {
+      ctx.fillStyle = '#98a2b3';
+      ctx.font = `400 22px ${SHARE_FONT}`;
+      ctx.fillText(b.lines[0], SHARE_PAD + 24, y); y += H.empty;
+    }
+  });
+
+  // ---- 页脚 ----
+  ctx.strokeStyle = '#eaecf0';
+  ctx.beginPath(); ctx.moveTo(SHARE_PAD, height - 74); ctx.lineTo(SHARE_W - SHARE_PAD, height - 74); ctx.stroke();
+  ctx.fillStyle = '#98a2b3';
+  ctx.font = `400 21px ${SHARE_FONT}`;
+  ctx.fillText('由小舟生成 · 行程为建议方案，出行前请核对开放时间与票价', SHARE_PAD, height - 54);
+  return canvas;
 }
 
 function switchView(which) {
