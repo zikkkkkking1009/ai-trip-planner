@@ -1943,5 +1943,295 @@
       "intro_long": "流花湖公园位于广州市荔湾区东风西路，是一个风景秀丽的城市公园。公园内有湖泊、绿地和多个休闲设施，是市民休闲娱乐的好去处。这里适合散步、跑步、野餐和垂钓，环境优美，空气清新。公园的面积较大，周末时人会比较多，但整体来说是一个值得一游的城市公园。"
     },
     "reviews_ai": true
+  },
+  "深圳|莲花山公园": {
+    "image": "http://aos-cdn-image.amap.com/sns/ugccomment/c59ff16b-a30e-40d4-8c83-58d0514c17db.jpg",
+    "intro": "风景名胜 · 评分4.8",
+    "photos": [
+      "http://aos-cdn-image.amap.com/sns/ugccomment/c59ff16b-a30e-40d4-8c83-58d0514c17db.jpg",
+      "http://store.is.autonavi.com/showpic/cc42a9755d8652f18fc1379d95657db4",
+      "http://store.is.autonavi.com/showpic/3b6de362479d72aeaabbce6f017d09bb"
+    ],
+    "opentime": "",
+    "address": "红荔路6030号",
+    "lat": 22.553594,
+    "lon": 114.058673,
+    "reviews": {
+      "good": [
+        "景色优美，空气清新",
+        "适合散步和晨练",
+        "公园设施维护得不错",
+        "地理位置优越，交通便利"
+      ],
+      "bad": [
+        "人流较多，周末尤其拥挤",
+        "部分区域指示牌不够清晰",
+        "部分设施略显陈旧",
+        "停车位紧张"
+      ],
+      "intro_long": "莲花山公园位于红荔路6030号，是一处著名的风景名胜。公园环境优美，绿树成荫，空气清新，是市民休闲娱乐、散步、晨练的好去处。公园内设施较为完善，但周末人流较多，停车位紧张。总体来说，莲花山公园是一个值得一游的好地方，适合想要远离城市喧嚣、享受自然风光的游客。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|深圳湾公园": {
+    "image": "https://store.is.autonavi.com/showpic/01097aeb2341fba5245e9211d7268f0d",
+    "intro": "风景名胜 · 评分4.9 · 欢乐海岸",
+    "photos": [
+      "https://store.is.autonavi.com/showpic/01097aeb2341fba5245e9211d7268f0d",
+      "https://store.is.autonavi.com/showpic/9e28d55171b9cb800000005045956334?type=pic",
+      "https://store.is.autonavi.com/showpic/75c81f06200f627c0000005586328672?type=pic"
+    ],
+    "opentime": "",
+    "address": "滨海大道",
+    "lat": 22.518968,
+    "lon": 113.972602,
+    "reviews": {
+      "good": [
+        "深圳湾公园：景色绝美",
+        "深圳湾公园：适合骑行",
+        "深圳湾公园：欢乐海岸邻近",
+        "深圳湾公园：日落时分惊艳"
+      ],
+      "bad": [
+        "深圳湾公园：人流量大",
+        "深圳湾公园：部分区域维护不足",
+        "深圳湾公园：周末拥挤不堪",
+        "深圳湾公园：洗手间数量少"
+      ],
+      "intro_long": "深圳湾公园位于深圳市南山区，与欢乐海岸、滨海大道相邻，拥有4.9分的高评分。公园以其壮丽的滨海景色和宽阔的骑行道而闻名，是游客休闲、骑行、观赏日落的理想之地。不过，周末和节假日人流量较大，部分区域设施维护有待提升。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|深圳世界之窗": {
+    "image": "http://store.is.autonavi.com/showpic/69a69293b76f898ade20f230c00c9502",
+    "intro": "风景名胜 · 评分4.8 · 世界之窗",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/69a69293b76f898ade20f230c00c9502",
+      "https://aos-comment.amap.com/B02F37V2O5/headerImg/603AB0AC_1D2C_495A_913C_15FE5150073C_L0_001_4032_3024__1656761134704_c42d0148.jpg",
+      "http://store.is.autonavi.com/showpic/67df4ca03f1f25484b353ec03af1f695"
+    ],
+    "opentime": "",
+    "address": "深南大道9037号(世界之窗地铁站旁)",
+    "lat": 22.534662,
+    "lon": 113.972981,
+    "reviews": {
+      "good": [
+        "景点丰富，世界风情",
+        "拍照打卡点多",
+        "适合亲子游玩",
+        "交通便利，地铁直达"
+      ],
+      "bad": [
+        "票价略高",
+        "排队时间较长",
+        "部分项目维护中",
+        "商业化气息重"
+      ],
+      "intro_long": "深圳世界之窗是一个以缩小版世界著名景点为特色的大型主题公园，位于深南大道，靠近世界之窗地铁站。园内有数十个国家和地区的标志性建筑，如埃菲尔铁塔、金字塔等，还有各种表演和游乐设施，适合想要一天之内“环游世界”的游客。不过需要注意的是，景点票价相对较高，且部分热门项目可能需要较长的排队时间。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|笔架山公园": {
+    "image": "http://store.is.autonavi.com/showpic/4c030655e69d88b3bbb8876df2bb9991",
+    "intro": "风景名胜 · 评分4.7",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/4c030655e69d88b3bbb8876df2bb9991",
+      "https://store.is.autonavi.com/showpic/b067b1003a41bab70000000731076214?type=pic",
+      "https://store.is.autonavi.com/showpic/df797188893a4de2537bf4879145e39e"
+    ],
+    "opentime": "",
+    "address": "梅岗路26号",
+    "lat": 22.562893,
+    "lon": 114.080876,
+    "reviews": {
+      "good": [
+        "风景优美，适合散步",
+        "空气清新，环境舒适",
+        "登高望远，视野开阔",
+        "适合拍照留念"
+      ],
+      "bad": [
+        "高峰期人较多",
+        "部分设施稍旧",
+        "停车位置紧张",
+        "部分路段较陡峭"
+      ],
+      "intro_long": "笔架山公园位于梅岗路26号，是一座风景秀丽的城市公园。公园以自然山水为基础，设有多个观景平台和步道，是市民休闲娱乐的好去处。公园内绿树成荫，空气清新，登高望远可俯瞰城市全景，非常适合散步、拍照和亲近自然。不过高峰期人流量较大，部分设施略显陈旧，建议提前规划行程。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|香蜜公园": {
+    "image": "http://store.is.autonavi.com/showpic/67a6f704bff6baeffb087fbc989585b0",
+    "intro": "风景名胜 · 评分4.7 · 香蜜湖",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/67a6f704bff6baeffb087fbc989585b0",
+      "https://store.is.autonavi.com/showpic/d1587f0b4ebb664b0000003004722173?type=pic",
+      "https://store.is.autonavi.com/showpic/b26aa89a3e67492e0000000666900087?type=pic"
+    ],
+    "opentime": "",
+    "address": "香蜜湖街道农园路30号",
+    "lat": 22.54664,
+    "lon": 114.022082,
+    "reviews": {
+      "good": [
+        "风景优美，适合散步",
+        "香蜜湖景色宜人",
+        "农园路位置方便",
+        "公园维护得不错"
+      ],
+      "bad": [
+        "周末人有点多",
+        "设施稍显陈旧",
+        "部分区域有异味",
+        "指示牌不够清晰"
+      ],
+      "intro_long": "香蜜公园位于香蜜湖街道农园路30号，是一个风景优美的风景名胜区。公园内有香蜜湖的自然景观，环境清幽，是附近居民休闲娱乐的好去处。虽然周末人流量较大，设施略显陈旧，但总体来说，公园维护得不错，值得一游。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|深圳中心公园": {
+    "image": "http://store.is.autonavi.com/showpic/d551f4ff852098f1d95ce49932a1fa64",
+    "intro": "风景名胜 · 评分4.7 · 华强北",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/d551f4ff852098f1d95ce49932a1fa64",
+      "http://store.is.autonavi.com/showpic/9d5c95e9e03b76fc407d44d02d7fec70",
+      "http://store.is.autonavi.com/showpic/4a57251e5e2b6c0b6c28471a62920b84"
+    ],
+    "opentime": "",
+    "address": "振华西路1号",
+    "lat": 22.542341,
+    "lon": 114.079473,
+    "reviews": {
+      "good": [
+        "绿化好，适合散步",
+        "公园很大，空间足",
+        "适合带娃玩",
+        "环境干净整洁"
+      ],
+      "bad": [
+        "部分设施旧",
+        "人流多，周末拥挤",
+        "有些地方有点脏",
+        "缺乏特色活动"
+      ],
+      "intro_long": "深圳中心公园位于华强北振华西路1号，是深圳市中心的一处大型城市公园。公园拥有广阔的绿化面积和多样化的休闲设施，适合市民日常散步、锻炼和亲子活动。公园内设有儿童游乐场、健身区、湖景区域等，环境整体较为整洁，是放松身心的好去处。不过，由于地理位置优越，公园在周末和节假日会较为拥挤，部分设施略显陈旧，有待进一步维护和升级。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|莲花山公园山顶广场": {
+    "image": "https://aos-comment.amap.com/B0FFH0LIRP/comment/124cd537b007c721d4760e86b9fa6aa9_2048_2048_80.jpg",
+    "intro": "风景名胜 · 评分4.7",
+    "photos": [
+      "https://aos-comment.amap.com/B0FFH0LIRP/comment/124cd537b007c721d4760e86b9fa6aa9_2048_2048_80.jpg",
+      "https://aos-comment.amap.com/B0FFH0LIRP/comment/1B6349AE_A401_45D3_88BD_007ED69D5FF2_L0_001_1134_201_1770980099183_95126243.jpg",
+      "https://aos-comment.amap.com/B0FFH0LIRP/comment/474B1442_3DD3_4320_AC46_F65E0FD2EDA4_L0_001_1500_200_1769323508168_16968471.jpg"
+    ],
+    "opentime": "",
+    "address": "红荔路6030号",
+    "lat": 22.553186,
+    "lon": 114.059469,
+    "reviews": {
+      "good": [
+        "山顶视野开阔",
+        "夜景璀璨迷人",
+        "适合拍照打卡",
+        "环境维护不错"
+      ],
+      "bad": [
+        "节假日人太多",
+        "部分设施陈旧",
+        "停车位置难找",
+        "票价偏高"
+      ],
+      "intro_long": "莲花山公园山顶广场位于红荔路6030号，是深圳市著名的风景名胜之一。这里以开阔的视野和迷人的夜景著称，是市民和游客休闲、观光、拍照的热门去处。广场周围绿树成荫，环境维护良好，但节假日人流密集，停车也需提前规划。总体来说，是一个值得一游的好地方。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|沙嘴牌坊": {
+    "image": "https://store.is.autonavi.com/showpic/2f6cc4b6aa3e0a09c63bcc18af7b8f63",
+    "intro": "风景名胜 · 评分4.7 · 新洲",
+    "photos": [
+      "https://store.is.autonavi.com/showpic/2f6cc4b6aa3e0a09c63bcc18af7b8f63",
+      "https://aos-comment.amap.com/B0K61COD0U/comment/content_media_external_file_340_1773371979368_66198679.jpg",
+      "https://store.is.autonavi.com/showpic/ec8749dd3feec6e10000003116368586?type=pic"
+    ],
+    "opentime": "",
+    "address": "沙嘴路与福沙路交叉口东北100米",
+    "lat": 22.519551,
+    "lon": 114.035615,
+    "reviews": {
+      "good": [
+        "牌坊宏伟壮观",
+        "历史悠久有韵味",
+        "拍照留念的好地方",
+        "位置便利易找到"
+      ],
+      "bad": [
+        "附近有点吵闹",
+        "维护管理可加强",
+        "人流高峰期拥挤",
+        "设施略显陈旧"
+      ],
+      "intro_long": "沙嘴牌坊位于新洲区沙嘴路与福沙路交叉口东北100米，是一座具有历史意义的风景名胜。牌坊宏伟壮观，历史悠久，是拍照留念的好地方。虽然附近有时会有些吵闹，且设施略显陈旧，但总体来说，这里是一个值得一游的地方，可以感受到浓厚的历史文化氛围。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|深圳华侨城旅游度假区": {
+    "image": "https://aos-comment.amap.com/B02F37U4VE/comment/content_media_external_images_media_100002511_1740312735444_30805358.jpg",
+    "intro": "风景名胜 · 评分4.7 · 华侨城",
+    "photos": [
+      "https://aos-comment.amap.com/B02F37U4VE/comment/content_media_external_images_media_100002511_1740312735444_30805358.jpg",
+      "https://aos-comment.amap.com/B02F37U4VE/comment/42859FE4_1DF2_4476_B47F_F165AC629243_L0_001_1242_809_1739452809248_42314676.jpg",
+      "https://aos-comment.amap.com/B02F37U4VE/comment/content_media_external_images_media_1000066520_ss__1731734831854_74329866.jpg"
+    ],
+    "opentime": "",
+    "address": "杜鹃山(华侨城地铁站A口步行390米)",
+    "lat": 22.531366,
+    "lon": 113.988596,
+    "reviews": {
+      "good": [
+        "风景优美，适合拍照",
+        "杜鹃山很漂亮",
+        "设施完善，游玩方便",
+        "适合带家人游玩"
+      ],
+      "bad": [
+        "人有点多",
+        "门票稍贵",
+        "部分项目排队时间长",
+        "交通高峰期拥堵"
+      ],
+      "intro_long": "深圳华侨城旅游度假区是一个集风景名胜、休闲娱乐于一体的大型综合性旅游区。这里以杜鹃山最为著名，山上有美丽的杜鹃花海，还有各种游乐设施和表演。园区内环境优美，设施完善，适合各个年龄段的人游玩。不过，由于知名度较高，节假日和周末游客较多，可能会遇到排队和交通拥堵的情况。总体来说，这里是一个值得一游的好地方，特别是喜欢自然风光和游乐设施的朋友。"
+    },
+    "reviews_ai": true
+  },
+  "深圳|荔枝公园": {
+    "image": "http://store.is.autonavi.com/showpic/0e8df9b0630ce924e76f3ccc20ef383a",
+    "intro": "风景名胜 · 评分4.7 · 荔枝公园片区",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/0e8df9b0630ce924e76f3ccc20ef383a",
+      "http://store.is.autonavi.com/showpic/93780420be63ed7b341f1e51eb9706f8",
+      "https://store.is.autonavi.com/showpic/ef404511c7aa05080000003004656875?type=pic"
+    ],
+    "opentime": "",
+    "address": "红岭中路1001号",
+    "lat": 22.545539,
+    "lon": 114.102313,
+    "reviews": {
+      "good": [
+        "风景优美",
+        "荔枝特色",
+        "适合散步",
+        "环境舒适"
+      ],
+      "bad": [
+        "人流较多",
+        "维护不足",
+        "设施一般",
+        "停车不便"
+      ],
+      "intro_long": "荔枝公园位于红岭中路1001号，是一处以荔枝为主题的风景名胜区。公园内荔枝树众多，四季景色各异，尤其春季荔枝盛开时，满园清香，是市民休闲娱乐的好去处。公园评分4.7，整体环境优美，适合散步和感受自然气息，但人流较多，部分设施有待提升。"
+    },
+    "reviews_ai": true
   }
 }
