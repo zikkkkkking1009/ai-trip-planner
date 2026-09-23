@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-195%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-228%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -66,6 +66,7 @@ This is not a gut feeling. A three-way evaluation over 50 programmatically gener
 - **Multi-city**: a city-center table (`cities.py`) + LLM city detection + a frontend city picker; **25 cities / 254 spots** preloaded. Unknown cities are surfaced explicitly and **never silently fall back to a default city**
 - **AI trip review**: a single holistic assessment (score / summary / highlights / actionable warnings); the cost line says "tickets only, excluding transit and meals" — unreliable numbers are not invented
 - **Spot media & AI reviews**: AMap photos + opening hours + address; review summaries are LLM-generated and cached, **prefetched in the background** while planning, so opening a card is instant
+- **Trip weather**: day-by-day weather for the trip dates (open-meteo, **no signup, no API key**), rainy days highlighted with one actionable hint (bring an umbrella / leave slack). **Deliberately positioned as a footnote to the itinerary**: no hourly data, no historical climate, no separate page. When it cannot be fetched (unknown city / beyond the 16-day forecast window / service down) it says so **rather than filling in fake data**
 - **Five-dimension robustness audit**: `tools/check_backend_health.py` statically checks timeouts / retries / task state / logging / cost via AST. **It runs in CI** and needs no API keys
 
 **Roadbook frontend (`static/index.html`, zero build, zero CDN)**
@@ -123,7 +124,7 @@ cp backend/.env.example backend/.env
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/` | Roadbook frontend |
+| GET | `/` · `/app` | Landing page / planner |
 | GET | `/health` | Health check (incl. solver and AMap status) |
 | GET | `/demo/spots` · `/demo/config` | Demo spots (with photos and intros) / basemap config |
 | GET | `/cities` | Demoable city list + city centers (frontend picker data source) |
@@ -133,19 +134,20 @@ cp backend/.env.example backend/.env
 | POST | `/plan/edit` | Conversational itinerary editing (multi-turn memory) |
 | POST | `/plan/simulate` | Robustness simulation: on-time probability + risk-spot suggestions (Monte Carlo) |
 | POST | `/plan/review` | AI trip review: score / summary / highlights / warnings |
+| GET | `/weather` | Day-by-day weather for the trip dates (open-meteo, keyless); returns `available=false` + a reason when it cannot be fetched |
 | POST | `/hotel/search` · `/hotel/set` | Hotel search / set as anchor and re-plan |
 | GET | `/poi/detail` · `/poi/reviews` | Place details (fast endpoint) / AI reviews (can be fetched async) |
 | GET | `/plans` | Plan history |
 | DELETE | `/plans/{id}` · POST `/plans/delete` | Delete / batch delete (soft delete, recoverable) |
 | GET | `/favorites` · POST `/favorites` | Favorites list / add-remove |
 
-**22 endpoints in total** (10 GET / 10 POST / 1 DELETE / 1 WebSocket).
+**24 endpoints in total** (12 GET / 10 POST / 1 DELETE / 1 WebSocket).
 
 ---
 
 ## Engineering practices
 
-- **Tests and CI**: **195 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards), GitHub Actions green
+- **Tests and CI**: **228 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather), GitHub Actions green
 - **Five CI gates**: unit tests + **frontend static check** (syntax gate + variable-shadowing guard + hardcoded-coordinate guard) + **backend five-dimension robustness audit** + **jsdom runtime smoke test** (14 DOM assertions) + a keyless solver demo
 - **Caching and throttling**: three-tier commute cache (repeat solves issue **zero** API calls); AMap throttled at 0.35 s
 - **Fast/slow endpoint split**: the details endpoint returns only millisecond-level AMap data; AI reviews arrive via a second async request, so the first paint never waits
@@ -164,7 +166,7 @@ cp backend/.env.example backend/.env
 
 ```
 backend/
-  main.py                 FastAPI entrypoint, 22 endpoints (21 HTTP + 1 WebSocket)
+  main.py                 FastAPI entrypoint, 24 endpoints (23 HTTP + 1 WebSocket)
   models.py               Pydantic domain models (Spot / PlanRequest / DayPlan / Hotel)
   extractor.py            Guide text → spot candidates (LLM + tolerant JSON parsing + city detection)
   aligner.py              Entity alignment (AMap POI search + score fusion + type filter + LLM arbitration)
@@ -180,8 +182,9 @@ backend/
   demo_data.py            Demo spots (14 hand-written for Xi'an + 240 script-fetched across 24 cities)
   media_cache.py          Media cache key rule (`city|name`) and atomic writes
   reliability.py          Unified timeouts and retries (shared by LLM and AMap)
+  weather.py              Trip weather (open-meteo, keyless; admits "unavailable" rather than inventing data)
   logging_setup.py        Logging config and request-id context
-  tests/                  195 unit tests
+  tests/                  228 unit tests
 static/index.html         Roadbook frontend (single file, zero build, zero CDN)
 tools/                    Check and verification scripts (five-dimension audit / frontend static check / multi-city end-to-end)
 data/plans/               Plan snapshots (soft-delete flag)
@@ -251,6 +254,7 @@ Architecture ideas drawn from [liketrek/TREK](https://github.com/liketrek/TREK),
 
 ## Changelog
 
+- **v1.5（2026-09-23）**: **One design system for both pages + trip weather + a sweep of silent errors** — the landing page and the planner are split into `/` and `/app`, and both now share **one set of oklch design tokens** (with an extra `--muted-3` step for dense UIs) plus one motion rule (**only react to explicit user actions; never animate data re-renders**); added **trip weather** (open-meteo, keyless; per-day, rain highlighted, honestly unavailable beyond the 16-day window); fixed a batch of **silent errors**: the coordinate check in the five-dimension audit had been neutered by an exemption list (5 hardcoded Xi'an coordinates while CI stayed green), the final commute leg was double-counted when no hotel anchor existed (systematically understating the on-time probability), the media-prefetch lock was a function-local variable (concurrent calls lost updates), `UnplannedSpot` received fields the pydantic model silently dropped, pin-insert commute excluded the hotel legs (making one day's figures incomparable with the rest), and the media-cache entry for "Sichuan Museum" actually held Xi'an data (AMap's loose `citylimit` bled data across cities; a write-side city check was added); the frontend checker gained **CSS self-reference / undefined-variable / attribute-escaping** guards; tests 195 → **228**
 - **v1.4（2026-09-21）**: **AI assistant and sharing** — desk-pet assistant "XiaoZhou" (sprite frame animation, **cross-session long-term memory**, answers trip questions as well as editing) + **AI review card** + **share long image** (hand-drawn on Canvas, exported as a vertical PNG, zero dependencies); **robust scheduling** (confidence target → adaptive buffer → shrink scheduling window and re-solve; measured 7 spots → 3.3% vs 6 spots → 95.3%), **alignment round 2: appended sub-venue suffixes** (previously a fully-confident error at `confidence=1.00`); plus one-tap "drop this spot to gain X pp", city switching, planning progress bar, itinerary thumbnails
 - **v1.3（2026-09-20）**: **Preferences and robustness** — **tunable preference weights** (walk-less / save-money / see-more; scan-calibrated, with a `_drop_improve` operator so preferences actually bite) and **robustness simulation** (1,000-run Monte Carlo + common-random-number risk ranking); **five-dimension robustness audit** landed and wired into **CI**; media cache keys gained a city dimension (fixes same-name spots bleeding across cities, e.g. "People's Park"); cities expanded to **25 cities / 254 spots**; **geo-clustered day assignment re-measured as a negative result** across 50 scenarios (0 improved / 0 worsened; left off by default with a re-test switch); frontend moved from a phone-shell mockup to a desktop site
 - **v1.2（2026-09-19）**: **Multi-city generalization** — city-center table (`cities.py`) + LLM city detection + frontend city picker and "paste a guide to auto-detect" entry; demo data expanded to **5 cities / 54 spots** (Chengdu / Beijing / Hangzhou / Chongqing coordinates fetched from real AMap data by `tools/build_demo_data.py`); fixed the silent error where extraction's fallback coordinates were hardcoded to Xi'an (pasting a Chengdu guide produced Xi'an coordinates with no error); tests grew to **84** (including coordinate-mismatch guards)
