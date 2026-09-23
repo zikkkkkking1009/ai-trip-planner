@@ -405,7 +405,7 @@
     },
     "reviews_ai": true
   },
-  "汉庭酒店(西安钟楼北大街地铁站店)": {
+  "西安|汉庭酒店(西安钟楼北大街地铁站店)": {
     "image": "https://store.is.autonavi.com/showpic/b56355d365ffb8445e28430412893782",
     "intro": "住宿服务 · 评分4.6 · 莲湖公园",
     "photos": [
@@ -432,7 +432,7 @@
     },
     "reviews_ai": true
   },
-  "汉庭酒店(西安北站店)": {
+  "西安|汉庭酒店(西安北站店)": {
     "image": "https://aos-comment.amap.com/B0FFKBVKVQ/comment/content_media_external_images_media_100000253_1743693776857_11643847.jpg",
     "intro": "住宿服务 · 评分4.5",
     "photos": [
@@ -459,7 +459,7 @@
     },
     "reviews_ai": true
   },
-  "宿适精选酒店(钟楼地铁站回民街店)": {
+  "西安|宿适精选酒店(钟楼地铁站回民街店)": {
     "image": "https://store.is.autonavi.com/showpic/cf7adbf5e37511fdb46b2129712603f5",
     "intro": "住宿服务 · 评分4.5 · 钟楼",
     "photos": [
@@ -488,7 +488,7 @@
     },
     "reviews_ai": true
   },
-  "全季酒店(西安钟楼省政府店)": {
+  "西安|全季酒店(西安钟楼省政府店)": {
     "image": "https://store.is.autonavi.com/showpic/6f4da1c0e393a56e7570524e6d82a1b1",
     "intro": "住宿服务 · 评分4.6 · 民乐园",
     "photos": [
@@ -517,7 +517,7 @@
     },
     "reviews_ai": true
   },
-  "西安钟楼希尔顿欢朋酒店": {
+  "西安|西安钟楼希尔顿欢朋酒店": {
     "image": "https://store.is.autonavi.com/showpic/18d0801e76b3a4f275f49a8f8268d813",
     "intro": "住宿服务 · 评分4.8",
     "photos": [
@@ -575,7 +575,7 @@
     },
     "reviews_ai": true
   },
-  "成都博物馆": {
+  "成都|成都博物馆": {
     "image": "http://store.is.autonavi.com/showpic/2892dfb3b4f73400dc26209b74a74fdb",
     "intro": "科教文化服务 · 评分4.8 · 人民中路",
     "photos": [
@@ -587,19 +587,6 @@
     "address": "小河街1号",
     "lat": 30.657297,
     "lon": 104.063749
-  },
-  "四川博物院": {
-    "image": "http://store.is.autonavi.com/showpic/79db7fd7451da35ee939cb797c8f22e9",
-    "intro": "科教文化服务 · 评分4.8 · 长安路",
-    "photos": [
-      "http://store.is.autonavi.com/showpic/79db7fd7451da35ee939cb797c8f22e9",
-      "http://store.is.autonavi.com/showpic/cf8dfe78fc744751c8df581401c2264b",
-      "http://store.is.autonavi.com/showpic/9202d90c717b42509292a1431cdf82fe"
-    ],
-    "opentime": "",
-    "address": "友谊西路72号",
-    "lat": 34.238589,
-    "lon": 108.941673
   },
   "成都|锦里古街": {
     "image": "http://store.is.autonavi.com/showpic/d474b5c8c8e429854cf808e1445bc15e",

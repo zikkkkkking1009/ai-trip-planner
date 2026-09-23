@@ -83,3 +83,21 @@ def test_save_failure_does_not_raise(monkeypatch, tmp_path):
     """写失败（磁盘满/权限）不能中断主流程。"""
     monkeypatch.setattr(media_cache, "MEDIA_FILE", tmp_path / "nonexistent_dir" / "x.json")
     save_media({"a": 1})   # 目录不存在 → OSError，应被吞掉并记日志
+
+
+def test_committed_spot_media_has_no_bare_keys():
+    """守卫：仓库里实际提交的 spot_media.json **不允许**出现裸名 key。
+
+    为什么值得测：迁移曾漏掉 7 条（酒店/博物馆等非 demo 景点），而裸名 key 会被
+    `get_entry()` 当作**任何城市**的回退命中，直接造成跨城市串味——静默错误。
+    这里直接读真实数据文件钉死规则，防止回归。
+
+    历史上唯一的例外是「四川博物院」：它的载荷地址「友谊西路72号」、坐标
+    34.2386/108.9417 与「西安|西安博物院」**逐字段完全相同**（高德 citylimit 不严格，
+    用西安查四川博物院返回了西安本地的结果并被缓存）。名实冲突无法迁移，且留着这条
+    等于让所有城市都查到西安数据 —— 2026-09-23 已**删除该条目**（宁可回落成「未收录」
+    再按正确城市重新抓取，也不要留着错数据）。因此白名单为空。
+    """
+    raw = json.loads(media_cache.MEDIA_FILE.read_text(encoding="utf-8"))
+    bare = {k for k in raw if "|" not in k}
+    assert not bare, f"出现裸名 key（会让同名景点跨城市串味）：{bare}"
