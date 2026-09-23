@@ -364,6 +364,9 @@
               box-shadow: var(--sh-3);
               display:none; flex-direction:column; overflow:hidden; }
   #petPanel.open { display:flex }
+  /* 修 bug 4（批次 1）：640px 以下桌宠 bottom:16px 会遮挡右下角的聊天/操作区，
+     抬高到 80px 并相应上移面板，避免覆盖关键交互。 */
+  @media (max-width: 640px) { #pet { bottom: 80px; right: 12px; } #petPanel { right: 12px; bottom: 170px; } }
   #petPanel .pp-head { display:flex; align-items:center; gap:8px; padding:10px 14px;
                        background:var(--fill); border-bottom:1px solid var(--border); }
   #petPanel .pp-title { font-size:14px; font-weight:600; flex:1 }
@@ -578,6 +581,49 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* ===== 批次 1 · 空状态引导（方向 A）=====
+     三块：empty-hero（卡身）/ empty-*（按钮组）/ quick-extract-area（右栏常驻识别卡）。
+     设计意图：把"开始规划"从左上搬到右栏正中，化解"我现在该做什么"的迷茫。 */
+  .empty-hero { background:var(--surface); border:1px dashed var(--border); border-radius:14px;
+                padding:32px 24px; text-align:center; }
+  .empty-title { font-size:20px; font-weight:800; font-family:var(--font-display);
+                 letter-spacing:-.022em; color:var(--fg); margin-bottom:8px; }
+  .empty-sub { font-size:13px; color:var(--muted-2); margin-bottom:20px; line-height:1.7; }
+  .empty-steps { text-align:left; max-width:340px; margin:0 auto 20px; font-size:13px;
+                 color:var(--muted-2); line-height:2; padding-left:0; list-style:none; }
+  .empty-steps li b { color:var(--acc); margin-right:8px; font-size:15px; }
+  .empty-go { background:var(--accent); color:var(--accent-ink); border:none; border-radius:10px;
+              padding:13px 32px; font-size:15px; font-weight:700; cursor:pointer;
+              letter-spacing:1px; box-shadow: var(--sh-2); transition:transform var(--t) var(--e-out); }
+  .empty-go:hover { transform:translateY(-1px); background:var(--accent-deep); }
+  .empty-divider { color:var(--muted-3); font-size:12px; margin:14px 0 8px; position:relative; }
+  .empty-divider::before, .empty-divider::after {
+    content:''; position:absolute; top:50%; width:30%; height:1px; background:var(--border); }
+  .empty-divider::before { left:10%; }
+  .empty-divider::after { right:10%; }
+  .empty-secondary { background:var(--surface); color:var(--acc); border:1px solid var(--accent-line);
+                     border-radius:10px; padding:10px 22px; font-size:13px; cursor:pointer;
+                     font-weight:600; }
+  .empty-secondary:hover { background:var(--accent-soft); }
+  .empty-fill { background:var(--accent-soft); color:var(--accent-deep); border:1px solid var(--accent-line);
+                border-radius:10px; padding:10px 22px; font-size:13px; cursor:pointer;
+                font-weight:600; margin-left:8px; }
+  .empty-fill:hover { background:var(--accent-line); }
+  /* 顶栏 AI 助手入口 —— 桌宠藏起来时点这个也能打开 */
+  .navpet { display:flex; align-items:center; justify-content:center; flex:none;
+            width:30px; height:30px; border-radius:9px; color:var(--muted-3);
+            background:transparent; border:none; cursor:pointer; padding:0; font-size:15px; }
+  .navpet:hover { background:var(--fill); color:var(--fg); }
+  /* 空状态卡里嵌入的常驻识别区（攻略识别不再藏在折叠里） */
+  .quick-extract-area { margin-top:18px; padding-top:18px; border-top:1px dashed var(--border); }
+  .quick-extract-area textarea { width:100%; box-sizing:border-box; padding:8px; border-radius:9px;
+                                  border:1px solid var(--border); font:inherit; font-size:13px;
+                                  resize:vertical; }
+  .quick-extract-btn { margin-top:8px; background:var(--accent-soft); color:var(--acc);
+                        border:1px solid var(--accent-line); border-radius:9px;
+                        padding:8px 18px; cursor:pointer; font-weight:600; font-size:13px; }
+  .quick-extract-btn:hover { background:var(--accent-line); }
 </style>
 </head>
 <body>
@@ -591,6 +637,8 @@
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M9.5 3.5 5 8l4.5 4.5"/></svg>
     </a>
+    <button class="navpet" id="navPetBtn" title="AI 助手 · 小舟"
+            data-act="nav-pet" style="display:none" aria-label="打开 AI 行程助手">🤖</button>
     <a class="brand" href="/" title="返回首页"><i></i>路书 · AI 行程规划</a>
     <span class="links">
       <a id="navPlan" class="on" onclick="switchPage('plan')">规划</a>
@@ -883,6 +931,11 @@ fetch('/cities').then(r => r.json()).then(d => {
   const initial = (saved && demoCities.includes(saved)) ? saved : d.default;
   if (initial) { currentCity = initial; $('cityInput').value = initial; }
   syncNavCity();
+  // 首次进入：桌宠先藏起来，让焦点给「空状态引导卡」。规划完成才挥手打招呼
+  // （方向 A：规划后桌宠才出现 —— 桌宠不抢首次焦点）
+  const petEl = $('pet'), navPetEl = $('navPetBtn');
+  if (petEl) petEl.style.display = 'none';
+  if (navPetEl) navPetEl.style.display = 'none';
   return loadDemoSpots();
 });
 loadFavorites();  // 启动即同步收藏状态，星标不再滞后
@@ -1139,7 +1192,10 @@ function gpDone(ok, text) {
 }
 
 function log(stage, msg) {
-  document.querySelector('details').open = true;
+  // 修 bug 1（批次 1）：原 `document.querySelector('details').open = true` 拿到的是
+  // DOM 里**第一个** details（攻略识别折叠），不是日志折叠。日志折叠里 #log
+  // 是唯一的子节点，从它 closest('details') 反向定位就准了。
+  $('log').closest('details').open = true;
   const div = document.createElement('div');
   // ⚠️ stage / msg 不可信：WebSocket 把后端进度原样推来（`(d.progress||[]).forEach(p => log(p.stage, p.msg))`），
   // 而后端会把 **LLM 原始输出**写进「调试」阶段、把 `json.dumps(op)` 写进「理解」阶段。
@@ -1184,14 +1240,51 @@ function render() {
   $('daytabs').firstChild.classList.add('active');
   renderItin();          // 规划完成立即渲染总览（这行丢过两次，不能再丢）
   switchView('itin');
+  // 规划完成：把桌宠放出来。首次露面 —— 走「waving」态（petdex 招手）
+  const petEl = $('pet'), navPetEl = $('navPetBtn');
+  if (petEl) petEl.style.display = '';
+  if (navPetEl) navPetEl.style.display = '';
   loadRobustness();      // N3：异步算稳健性（不阻塞上面的渲染）
   loadReview();          // AI 总评（同样异步，放在稳健性之上）
   loadWeather();         // 出行天气（可选增强，失败只降级成一条说明）
 }
 
+// ---- 空状态：首次进入 / 删完行程后右栏的引导卡 ----
+// 设计意图：把"开始规划"的入口从左上按钮搬到右栏正中，正面回应用户
+// "我现在该做什么"的问题。攻略识别升级为常驻卡（折叠版保留在表单底部）。
+function renderEmpty() {
+  const n = dayCount();
+  // 第三按钮：当前城市有预置景点时显示"一键填入 N 个"
+  const demo = (window.demoSpotsLoaded && window.demoSpotsLoaded.city === currentCity)
+    ? window.demoSpotsLoaded.n : 0;
+  const fillBtn = demo > 0
+    ? `<button class="empty-fill" data-act="empty-fill">一键填入 ${demo} 个示例景点</button>` : '';
+  return `<div class="empty-hero">
+    <div class="empty-title">把一段攻略，变成走得完的行程</div>
+    <div class="empty-sub">三步就能跑出可执行的行程：</div>
+    <ul class="empty-steps">
+      <li><b>①</b>城市已预选：${esc(currentCity)}</li>
+      <li><b>②</b>日期已默认 ${n} 天</li>
+      <li><b>③</b>点下方「开始规划」即可</li>
+    </ul>
+    <button class="empty-go" data-act="empty-go">开始规划 ${n} 天行程</button>
+    <div class="empty-divider">或者</div>
+    <button class="empty-secondary" data-act="empty-extract">🤖 粘攻略让 AI 自动识别</button>
+    ${fillBtn}
+    <div class="quick-extract-area">
+      <textarea id="quickGuideText" rows="3"
+        placeholder="粘一段攻略，例如：第一天去了宽窄巷子，中午在锦里吃小吃，下午去大熊猫基地…"
+        style="width:100%;margin-top:0;padding:8px;border-radius:10px;border:1px solid var(--border);
+               font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+      <button class="quick-extract-btn" data-act="quick-extract">识 别 攻 略</button>
+      <div id="quickExtractMsg" style="font-size:12px;color:var(--muted-3);margin-top:6px;line-height:1.5"></div>
+    </div>
+  </div>`;
+}
+
 function renderItin() {
   const v = $('view'); v.innerHTML = ''; $('mapView').style.display='none'; v.style.display='block';
-  if (!plan) return;
+  if (!plan) { v.innerHTML = renderEmpty(); return; }
   if (plan.reply || (plan.changes && plan.changes.length)) {
     const c = document.createElement('div');
     c.className = 'changes';
@@ -1336,7 +1429,9 @@ function openLightbox(idx) {
   };
   $('lbPrev').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx - 1 + lbUrls.length) % lbUrls.length; paint(); };
   $('lbNext').onclick = e => { e.stopPropagation(); lbIdx = (lbIdx + 1) % lbUrls.length; paint(); };
-  render();
+  // 修 bug 2（批次 1）：原来这里有 `render();` —— 切图片时把整个右栏重渲染一次，
+  // 不仅把缩略图 lazy 队列清空，还把天气/总评/稳健性卡一起重拉（白干一次网络往返）。
+  // 灯箱只换图，不需要也不该触发 render。
 }
 
 // ---- 景点详情卡（圆周旅迹式：图片组/AI介绍/好评避雷双卡/信息行/底部操作栏）----
@@ -1374,7 +1469,9 @@ function openSpotDetail(name) {
         border-radius:22px;padding:11px 28px;cursor:pointer;font-weight:700;font-size:14px">${fav}</button>
     </div>
   </div>`;
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;display:flex;align-items:flex-end;justify-content:center';
+  // 修 bug 3（批次 1）：`rgba(0,0,0,.55)` 在浅主题突兀。改用前景色 30% 透明，
+  // 浅主题是深色透明、深主题自动反过来 —— 不再分两套 CSS。
+  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in oklab, var(--fg) 30%, transparent);z-index:900;display:flex;align-items:flex-end;justify-content:center';
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   document.body.appendChild(overlay);
   overlay.querySelector('#spotFavBtn').onclick = function () {
@@ -1583,6 +1680,22 @@ function openPlan(taskId) {
   });
 }
 
+// ---- Hero chips：把顶部色带下的 chip 文案集中到一个函数（修 bug 5：resetPlanView
+// 之前写死了 3 个 chip，现在跟 render() 的"动态 chip"走同一套）----
+// 返回数组；调用方用 join('') 拼出 HTML。
+function heroChipsFor(state) {
+  if (state === 'empty' || state === 'reset') {
+    return [
+      `<span class="chip">📅 ${dayCount()} 天</span>`,
+      `<span class="chip">⚖️ 偏好</span>`,
+      `<span class="chip">💰 预算</span>`,
+      `<span class="chip">🎯 点开始规划</span>`,
+    ];
+  }
+  // 未知 state 兜底：与 reset 一致，避免页面卡在裸 chips
+  return heroChipsFor('empty');
+}
+
 // 删除当前行程后：规划页整体重置（清行程/对话/chips，回到初始态）
 function resetPlanView() {
   plan = null; currentDay = 0; lastTaskId = null;
@@ -1594,8 +1707,7 @@ function resetPlanView() {
   reviewForTask = null;                                  // 重置后允许重新总评
   const rv = $('reviewBox'); if (rv) { rv.classList.remove('on'); rv.innerHTML = ''; }
   const wb = $('weatherBox'); if (wb) { wb.classList.remove('on'); wb.innerHTML = ''; }
-  $('chips').innerHTML = '<span class="chip">🚗 通勤矩阵（缓存优先）</span>' +
-    '<span class="chip">🧭 三级缓存</span><span class="chip">✅ 约束校验</span>';
+  $('chips').innerHTML = heroChipsFor('reset').join('');
   $('hotelText').textContent = '未设置（点此搜索选择）';  // 住宿字段一起清空
   $('log').textContent = '';
   $('view').innerHTML = '<div class="uempty">行程已删除 —— 点「开始规划」生成新的行程</div>';
@@ -2560,6 +2672,60 @@ document.addEventListener('click', e => {
     case 'hotel-map':  toggleHotelMap(Number(d.idx), Number(d.lat), Number(d.lon), d.name); break;
     case 'hotel-pick': pickHotel(d.name, Number(d.lat), Number(d.lon)); break;
     case 'day':        toggleDay(Number(d.idx)); break;
+    // ---- 空状态引导 ----
+    case 'empty-go':   $('go').click(); break;
+    case 'empty-extract': {
+      // 把折叠的攻略识别 details 展开并触发提取（让已有逻辑接管）
+      const gb = $('guideBox'); if (gb) gb.open = true;
+      // 同步把文本复制过去（用户在空状态区粘的攻略保留下来）
+      const qt = $('quickGuideText'), gt = $('guideText');
+      if (qt && gt && qt.value) gt.value = qt.value;
+      $('extractBtn').click();
+      // 滚到左侧表单便于查看
+      const sheet = document.querySelector('.sheet'); if (sheet) sheet.scrollIntoView({behavior:'smooth', block:'start'});
+      break;
+    }
+    case 'empty-fill': {
+      // 把 demo_spots 浅拷贝到 spots（用户不点「开始规划」也能直接看到列表）
+      fetch(`/demo/spots?city=${encodeURIComponent(currentCity)}`)
+        .then(r => r.json()).then(d => {
+          spots = (d.spots || []).slice();
+          $('go').click();
+          log('示例', `已装入 ${spots.length} 个示例景点，可直接点开始规划`);
+        });
+      break;
+    }
+    case 'quick-extract': {
+      // 右栏常驻卡的「识别」按钮：复用折叠版的 /extract 路径
+      const qt = $('quickGuideText');
+      const text = (qt && qt.value || '').trim();
+      const msg = $('quickExtractMsg');
+      if (!text) { if (msg) msg.textContent = '请先粘贴攻略文本'; return; }
+      const btn = e.target.closest('[data-act]');
+      if (btn) btn.disabled = true;
+      if (msg) msg.textContent = '识别中…（LLM 抽取 + 高德实体对齐，约 3~10 秒）';
+      fetch(`/extract?text=${encodeURIComponent(text)}&city=${encodeURIComponent(currentCity)}`,
+            {method: 'POST'})
+        .then(r => r.json())
+        .then(d => {
+          if (!d || d.error) { if (msg) msg.textContent = '识别失败：' + (d.detail || '未知错误'); return; }
+          if (d.detected_city && d.detected_city !== currentCity) {
+            currentCity = d.detected_city;
+            $('cityInput').value = currentCity;
+            loadDemoSpots();
+            log('城市', `攻略识别到城市：${currentCity}`);
+          }
+          const adopt = (d.spots || []).filter(s => !s.needs_review);
+          spots = adopt;
+          renderItin();
+          if (msg) msg.textContent = `识别到 ${d.count} 个，采纳 ${adopt.length} 个。可直接点开始规划。`;
+        })
+        .catch(err => { if (msg) msg.textContent = '识别失败：' + err.message; })
+        .finally(() => { if (btn) btn.disabled = false; });
+      break;
+    }
+    // ---- 顶栏 AI 助手入口（桌宠藏起来时兜底用）----
+    case 'nav-pet':    petToggle(); break;
   }
 });
 </script>
