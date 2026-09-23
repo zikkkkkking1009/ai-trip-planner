@@ -706,37 +706,44 @@
                         padding:8px 18px; cursor:pointer; font-weight:600; font-size:13px; }
   .quick-extract-btn:hover { background:var(--accent-line); }
 
-  /* ===== 左栏表单重做：大卡片 + 大字号 + 大留白 =====
-     参考圆周旅迹（pitravel.cn）的干净大气：整块拆成独立卡片、小字号大写字距的标签、
-     目的地用 hero 级大输入、CTA 加大加投影。**行程日期整块保留原观感**（唯一不动）。 */
+  /* ===== 左栏表单：OpenDesign「modern-minimal」方向（Linear / Vercel）=====
+     样式来源（不是自己编的）：OpenDesign 桌面端
+       od tools directions --id modern-minimal
+     姿态：发丝级描边、除浮层外一律不用阴影、展示字号紧字距(-0.02em)、数字 tabular-nums、
+     克制的配色（一个主色 + 一个次级信号）。左栏据此收敛 —— 去掉宽字距标签、
+     accent 底色卡片、CTA 的 3px 字距与重投影（这几处正是"老土"的来源）。 */
+  .sheet { box-shadow:none; }              /* 发丝描边即可，浮层/弹层才用阴影 */
   .pcard { background:var(--surface); border:1px solid var(--border);
-           border-radius:14px; padding:16px; margin-bottom:12px; }
-  .plabel { font-size:11px; font-weight:700; letter-spacing:.14em;
-            color:var(--muted-3); margin-bottom:9px; }
-  /* 目的地：20px 大字号输入 —— 一眼就是这一屏的主角 */
-  .pcity { font-size:20px !important; font-weight:700; padding:12px 14px !important;
-           border-radius:11px !important; background:var(--fill) !important; }
-  .pcity:focus { background:var(--surface) !important; border-color:var(--acc) !important; }
-  /* 日期卡：沿用原「核心区」的 accent 底色，保证行程日期观感不变 */
+           border-radius:10px; padding:14px; margin-bottom:10px; }
+  .plabel { font-size:12px; font-weight:500; color:var(--muted-2);
+            margin-bottom:8px; letter-spacing:0; }
+  /* 目的地：仍是这一屏主角，但靠字号与紧字距，不靠底色 */
+  .pcity { font-size:19px !important; font-weight:600; letter-spacing:-.015em;
+           padding:10px 12px !important; border-radius:8px !important;
+           background:var(--fill) !important; }
+  .pcity:focus { border-color:var(--acc) !important; }
+  /* 日期卡：保留它原本的 accent 识别色（用户明确要求「行程日期保留」），
+     只做 modern-minimal 的收敛 —— 数字等宽、字重从 800 降到 600、字号 18→16。 */
   .pcard-date { background:var(--accent-soft) !important;
                 border-color:var(--accent-line) !important; }
-  .pcard-date .field > label { font-size:13px; font-weight:600; color:var(--accent-deep); }
-  .pcard-date .datebox b { font-size:18px; font-weight:800; }
-  /* 偏好：12px 小胶囊 → 14px 大方块 chip，选中态实心 */
-  #prefRow .pref { font-size:14px; padding:10px 16px; border-radius:12px;
+  .pcard-date .field > label { font-size:12px; font-weight:500; color:var(--accent-deep); }
+  .pcard-date .datebox b { font-size:16px; font-weight:600; letter-spacing:-.01em;
+                           font-variant-numeric:tabular-nums; }
+  /* 偏好 chip：发丝描边、选中态用次级信号（主色留给 CTA） */
+  #prefRow .pref { font-size:13px; padding:7px 13px; border-radius:8px;
                    border:1px solid var(--line); background:var(--surface); font-weight:500; }
   #prefRow .pref:hover { background:var(--fill-2); }
-  #prefRow .pref.on { background:var(--accent); color:var(--accent-ink);
-                      border-color:var(--accent); font-weight:700; box-shadow:var(--sh-1); }
-  /* CTA：更高更大 + 投影，成为左栏视觉落点 */
-  .go { margin-top:14px; padding:15px; font-size:17px; border-radius:12px;
-        box-shadow:var(--sh-2); letter-spacing:3px; }
-  /* 高级 / 攻略折叠：加大内边距，标题不再挤 */
-  details.adv > summary { padding:11px 14px; font-size:13px; }
+  #prefRow .pref.on { background:var(--accent-soft); color:var(--accent-deep);
+                      border-color:var(--accent-line); font-weight:600; box-shadow:none; }
+  /* CTA：唯一的主色实心块，去掉宽字距与投影 */
+  .go { margin-top:12px; padding:13px; font-size:15px; font-weight:600;
+        border-radius:9px; box-shadow:none; letter-spacing:.02em; }
+  /* 高级 / 攻略折叠：收紧，与发丝风格一致 */
+  details.adv > summary { padding:9px 12px; font-size:12.5px; font-weight:500; }
   /* 求解日志：收进一张低调的卡 */
-  details.plog { margin:12px 14px 8px; }
+  details.plog { margin:10px 14px 8px; }
   details.plog > summary { font-size:12px; color:var(--muted-3); background:var(--surface);
-    border:1px solid var(--border); border-radius:10px; padding:9px 12px;
+    border:1px solid var(--border); border-radius:8px; padding:8px 11px;
     list-style:none; cursor:pointer; }
   details.plog > summary::-webkit-details-marker { display:none; }
 </style>
@@ -847,7 +854,7 @@
           </div>
         </details>
       </details>
-      <button class="go" id="go">开 始 规 划</button>
+      <button class="go" id="go">开始规划</button>
       <!-- 规划进度条：原来进度只写进折叠的日志面板，主界面毫无反馈 → 看着像卡住。
            放在按钮正下方（点完按钮视线就在这），显示当前阶段 + 百分比。 -->
       <div class="go-progress" id="goProg">
@@ -1079,7 +1086,11 @@ fetch('/cities').then(r => r.json()).then(d => {
   const petEl = $('pet'), navPetEl = $('navPetBtn');
   if (petEl) petEl.style.display = 'none';
   if (navPetEl) navPetEl.style.display = 'none';
-  return loadDemoSpots();
+  // ⚠️ 首次进入必须渲染一次：右栏的空状态引导卡是 renderItin() 里 `!plan` 分支画的，
+  // 而其余 renderItin() 调用点全部带 `if (plan)` 守卫 —— 不在这里无条件调一次，
+  // 首次打开右栏就是一片空白（用户报的「打开是空的」）。日期已在上层同步写入，
+  // 所以这里 dayCount() 不会算出 NaN。
+  return loadDemoSpots().then(() => { renderItin(); });
 });
 loadFavorites();  // 启动即同步收藏状态，星标不再滞后
 
