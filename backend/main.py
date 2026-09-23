@@ -5,6 +5,7 @@
 
 接口：
 - GET  /health          健康检查
+- GET  /meta            首页用：接口清单 + 服务状态（均取自运行时，非手写）
 - GET  /                演示页（浏览器看实时进度与行程）
 - GET  /cities          可演示城市列表（前端城市选择器数据源）
 - GET  /demo/spots      按城市返回演示景点（零 Key 可跑）
@@ -20,11 +21,13 @@ import asyncio
 import json
 import logging
 import os
+import sys
 import time
 from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.routing import APIRoute
 
 from commute import CommuteMatrix, load_env_file
 
@@ -38,7 +41,7 @@ from logging_setup import new_request_id, request_id_var, setup_logging
 setup_logging()
 log = logging.getLogger(__name__)
 
-from cities import DEFAULT_CITY, city_center, normalize_city
+from cities import CITY_CENTERS, DEFAULT_CITY, city_center, normalize_city
 from constraint_check import check_plan
 from demo_data import demo_cities, demo_spots
 from extractor import extract_guide
@@ -87,13 +90,19 @@ def _load_favorites() -> list[dict]:
     return []
 
 
-@app.get("/health")
-def health() -> dict:
+def _service_status() -> dict:
+    """服务状态的真实取数：/health 与 /meta 共用同一份，避免两处口径漂移。"""
     from tasks import MANAGER
     cm = CommuteMatrix()
     return {"status": "ok", "solver": "greedy+2opt",
             "amap": "enabled" if cm.key else "fallback(estimate)",
             "tasks": MANAGER.stats()}
+
+
+@app.get("/health")
+def health() -> dict:
+    """健康检查：求解器、通勤数据源、内存任务队列的实时状态（首页「服务状态」与它同源）。"""
+    return _service_status()
 
 
 @app.post("/plan", response_model=PlanResult)
@@ -223,6 +232,61 @@ def get_weather(city: str, start: str, end: str) -> dict:
     if (d1 - d0).days > 31:
         raise HTTPException(400, "日期范围过大（最多 32 天）")
     return daily_weather(normalize_city(city) or DEFAULT_CITY, d0, d1)
+
+
+def _key_state(name: str) -> str:
+    """Key 是否配置：只回状态、不回值 —— 这个响应会直接渲染到首页，绝不能泄明文。"""
+    return "configured" if (load_env_file().get(name) or os.environ.get(name)) else "missing"
+
+
+def _api_catalog() -> dict:
+    """接口清单：从**运行时路由表**现算，不手写 —— 手写的第二份列表迟早与代码漂移。
+
+    框架自带的路由（/docs、/openapi.json 等）与无 HTTP 方法的路由（/static 挂载、
+    /ws WebSocket）一律跳过，但都记进 `skipped` 一并返回，让首页能如实说明
+    「这些去哪了」，而不是让人以为接口悄悄少了几个。
+    """
+    endpoints, skipped = [], []
+    for r in app.routes:
+        path = getattr(r, "path", "")
+        methods = sorted(getattr(r, "methods", None) or [])
+        if not methods:
+            skipped.append({"path": path, "reason": "无 HTTP 方法（静态挂载或 WebSocket）"})
+        elif not isinstance(r, APIRoute):
+            skipped.append({"path": path, "reason": "框架自带路由（非本项目接口）"})
+        else:
+            doc = (r.endpoint.__doc__ or "").strip().splitlines()
+            # 摘要优先取 docstring 首行；没写 docstring 就退回函数名，至少有个标识
+            endpoints.append({"methods": methods, "path": path,
+                              "summary": doc[0].strip() if doc else r.name})
+    endpoints.sort(key=lambda e: e["path"])
+    return {"endpoints": endpoints, "skipped": skipped}
+
+
+@app.get("/meta")
+def meta() -> dict:
+    """首页「接口清单 / 服务状态」的唯一数据源：全部取自运行时，不手写。
+
+    为什么单独开这个接口：首页 footer 的「接口文档 / 服务状态」原先分别指向 /docs
+    （Swagger UI 的静态资源从 CDN 加载，违反本站零 CDN 的纪律）与 /health
+    （137 字节裸 JSON，撑不起一个区块）。把真实路由表与真实配置状态汇总成一份数据，
+    首页即可在**站内**渲染这两块，且数据永远与代码一致。
+
+    这里不发任何外部请求，只读内存与常量 —— 状态接口不该有超时/重试风险。
+    """
+    status = _service_status()
+    city_list = demo_cities()
+    status.update({
+        # 只回状态不回 Key 值（见 _key_state）：响应会直接展示在页面上
+        "llm": _key_state("LLM_API_KEY"),
+        "amap_key": _key_state("AMAP_KEY"),
+        "cities": len(CITY_CENTERS),
+        "spots": {"total": sum(len(demo_spots(c)) for c in city_list),
+                  "by_city": {c: len(demo_spots(c)) for c in city_list}},
+        "python": sys.version.split()[0],
+        "version": app.version,
+    })
+    return {**_api_catalog(), "status": status}
 
 
 # ---------- 用户页：历史规划 + 收藏 ----------
@@ -383,6 +447,7 @@ def _soft_delete_plan(f) -> bool:
 
 @app.delete("/plans/{task_id}")
 def delete_plan(task_id: str) -> dict:
+    """删除单个历史规划（软删除，标记而非抹掉，可恢复）。"""
     f = PLANS_DIR / f"{task_id}.json"
     if not f.exists():
         raise HTTPException(404, "该规划不存在")
@@ -410,11 +475,13 @@ def delete_plans_batch(body: dict) -> dict:
 
 @app.get("/favorites")
 def get_favorites() -> dict:
+    """收藏的景点列表（按收藏时间倒序）。"""
     return {"favorites": _load_favorites()}
 
 
 @app.post("/favorites")
 def mod_favorites(body: dict) -> dict:
+    """新增或取消收藏（body.action = add / remove）。"""
     action = body.get("action")
     spot = body.get("spot") or {}
     if not spot.get("name"):
