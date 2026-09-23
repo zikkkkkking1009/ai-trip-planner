@@ -667,6 +667,8 @@
       <!-- 左栏：规划表单（滚动时吸顶） -->
       <div class="col-left">
       <div class="sheet">
+      <!-- 方向 B：核心区（城市 / 日期 / 偏好）始终可见，吸顶不折叠 -->
+      <div class="core">
       <div class="field">
         <label>城市</label>
         <input id="cityInput" list="cityOptions" placeholder="选择或输入城市"
@@ -679,20 +681,8 @@
           <b id="dateText">--</b><span class="nights" id="nightsText"></span><span>📅</span>
         </div>
       </div>
-      <input type="hidden" id="startDate">
-      <input type="hidden" id="endDate">
-      <div class="field datefield" onclick="openHotelPicker()">
-        <label>住宿酒店</label>
-        <div class="datebox">
-          <b id="hotelText">未设置（点此搜索选择）</b><span>🏨</span>
-        </div>
-      </div>
-      <div class="grid3">
-        <div class="field" style="grid-column:1/-1"><label>预算(空=不限)</label>
-          <input id="budget" type="number" value="500"></div>
-      </div>
-      <!-- A2 偏好：告诉求解器"更看重什么"（实测：少走路=通勤少 17 分钟，省钱=门票省 54%） -->
-      <div class="field" style="margin-top:10px">
+      <!-- A2 偏好：最常调的字段，放进核心区 -->
+      <div class="field" style="margin-top:4px">
         <label>这一趟更看重什么</label>
         <div class="pref-row" id="prefRow">
           <span class="pref on" data-pref="balanced">⚖️ 均衡</span>
@@ -702,22 +692,39 @@
         </div>
         <div class="pref-hint" id="prefHint">按景点价值排，通勤顺路即可</div>
       </div>
-      <!-- N3b 稳妥度：独立维度（可以同时"少走路"且"要稳妥"），不足目标就收窄时间窗重排 -->
-      <div class="field" style="margin-top:10px">
-        <label>要多稳妥（可选）</label>
-        <div class="pref-row" id="robRow">
-          <span class="pref on" data-rob="0">不要求</span>
-          <span class="pref" data-rob="0.7">70% 把握</span>
-          <span class="pref" data-rob="0.85">85% 把握</span>
+      </div><!-- /core -->
+      <input type="hidden" id="startDate">
+      <input type="hidden" id="endDate">
+      <!-- 方向 B：高级区（酒店 / 预算 / 稳妥度 / 出发返回时间）折叠，默认收起 -->
+      <details class="adv" id="advBox">
+        <summary>⚙️ 更多选项：酒店 · 预算 · 稳妥度 · 出发/返回时间</summary>
+        <div class="field datefield" onclick="openHotelPicker()" style="margin-top:8px">
+          <label>住宿酒店</label>
+          <div class="datebox">
+            <b id="hotelText">未设置（点此搜索选择）</b><span>🏨</span>
+          </div>
         </div>
-        <div class="pref-hint" id="robHint">按纸面时间排（可能偏紧）</div>
-      </div>
-      <details class="adv">
-        <summary>🕘 默认每天 9:00 出发 · 18:00 返回（点击调整）</summary>
-        <div class="grid3" style="margin-top:8px">
-          <div class="field"><label>每天出发</label><input id="start" type="time" value="09:00"></div>
-          <div class="field"><label>每天返回</label><input id="end" type="time" value="18:00"></div>
+        <div class="grid3">
+          <div class="field" style="grid-column:1/-1"><label>预算(空=不限)</label>
+            <input id="budget" type="number" value="500"></div>
         </div>
+        <!-- N3b 稳妥度：独立维度（可以同时"少走路"且"要稳妥"），不足目标就收窄时间窗重排 -->
+        <div class="field" style="margin-top:8px">
+          <label>要多稳妥（可选）</label>
+          <div class="pref-row" id="robRow">
+            <span class="pref on" data-rob="0">不要求</span>
+            <span class="pref" data-rob="0.7">70% 把握</span>
+            <span class="pref" data-rob="0.85">85% 把握</span>
+          </div>
+          <div class="pref-hint" id="robHint">按纸面时间排（可能偏紧）</div>
+        </div>
+        <details class="adv" style="margin-top:8px">
+          <summary>🕘 每天 9:00 出发 · 18:00 返回（点击调整）</summary>
+          <div class="grid3" style="margin-top:8px">
+            <div class="field"><label>每天出发</label><input id="start" type="time" value="09:00"></div>
+            <div class="field"><label>每天返回</label><input id="end" type="time" value="18:00"></div>
+          </div>
+        </details>
       </details>
       <button class="go" id="go">开 始 规 划</button>
       <!-- 规划进度条：原来进度只写进折叠的日志面板，主界面毫无反馈 → 看着像卡住。
@@ -729,6 +736,7 @@
           <span id="gpPct">0%</span>
         </div>
       </div>
+      <!-- 攻略识别：批次 1 已提升为右栏常驻卡，这里保留折叠版（高级用户）兜底 -->
       <details class="adv" id="guideBox">
         <summary>📋 粘贴攻略自动识别景点（需配置 LLM Key）</summary>
         <textarea id="guideText" rows="4" placeholder="粘贴一段攻略，例如：第一天去了宽窄巷子，中午在锦里吃小吃，下午去大熊猫基地…"
@@ -745,15 +753,8 @@
       <!-- 右栏：行程结果与地图 -->
       <div class="stage">
 
-    <!-- AI 总评（在稳健性模拟上面），由 loadReview() 填充 -->
-    <div id="reviewBox"></div>
-
-    <!-- N3 稳健性模拟（按时概率 + 风险点），由 loadRobustness() 填充 -->
-    <div id="robustBox"></div>
-
-    <!-- 出行天气（行程的注脚），由 loadWeather() 填充；拿不到就明说拿不到 -->
-    <div id="weatherBox"></div>
-
+    <!-- 方向 D：结果顺序 = 行程(含总览) → 天气(注脚) → AI 总评 → 稳健性(折叠)。
+         用户第一眼看到的是自己点的行程，AI 评不抢戏但仍是显眼模块。 -->
     <div class="daytabs" id="daytabs" style="display:none"></div>
     <div class="seg" id="viewSeg" style="display:none">
       <div class="s active" onclick="switchView('itin')">📋 行程</div>
@@ -762,6 +763,19 @@
            title="导出竖版长图（含 AI 总评与每天安排），可发朋友圈或当简历附件">📷 长图</div>
     </div>
     <div id="view"></div>
+
+    <!-- 出行天气（行程的注脚），由 loadWeather() 填充；拿不到就明说拿不到 -->
+    <div id="weatherBox"></div>
+
+    <!-- AI 总评（增强），由 loadReview() 填充 -->
+    <div id="reviewBox"></div>
+
+    <!-- N3 稳健性模拟（按时概率 + 风险点），由 loadRobustness() 填充；默认折叠 -->
+    <details class="robust-details" id="robustDetails" style="display:none">
+      <summary>🛡 稳健性模拟（点开看按时概率与风险点）</summary>
+      <div id="robustBox"></div>
+    </details>
+
     <div id="mapView" style="display:none"><div id="map"></div><div class="legend" id="legend"></div>
       <div class="empty-hint" id="mapEmpty">还没有行程 —— 点「开始规划」<br>生成后这里会画出按天分色的路线</div>
       <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
@@ -1226,6 +1240,7 @@ function render() {
   $('hotelText').textContent = plan.hotel ? plan.hotel.name : '未设置（点此搜索选择）';
   $('daytabs').style.display = 'flex';
   $('viewSeg').style.display = 'flex';
+  $('robustDetails').style.display = 'block';
   $('daytabs').innerHTML = `<div class="tab" data-day="0">总览</div>`
     + plan.days.map((d,i)=>`<div class="tab" data-day="${i+1}">${dateOf(i).split(' ')[0]}</div>`).join('');
   document.querySelectorAll('.daytabs .tab').forEach(t =>
@@ -1704,6 +1719,7 @@ function resetPlanView() {
   petMood('idle'); petState('待命');
   simForTask = null;                                     // 重置后允许重新模拟
   const rb = $('robustBox'); if (rb) { rb.style.display = 'none'; rb.innerHTML = ''; }
+  const rd = $('robustDetails'); if (rd) rd.style.display = 'none';
   reviewForTask = null;                                  // 重置后允许重新总评
   const rv = $('reviewBox'); if (rv) { rv.classList.remove('on'); rv.innerHTML = ''; }
   const wb = $('weatherBox'); if (wb) { wb.classList.remove('on'); wb.innerHTML = ''; }
