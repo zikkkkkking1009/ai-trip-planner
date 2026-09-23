@@ -2220,5 +2220,63 @@
       "intro_long": "荔枝公园位于红岭中路1001号，是一处以荔枝为主题的风景名胜区。公园内荔枝树众多，四季景色各异，尤其春季荔枝盛开时，满园清香，是市民休闲娱乐的好去处。公园评分4.7，整体环境优美，适合散步和感受自然气息，但人流较多，部分设施有待提升。"
     },
     "reviews_ai": true
+  },
+  "成都|锦里": {
+    "image": "http://store.is.autonavi.com/showpic/d474b5c8c8e429854cf808e1445bc15e",
+    "intro": "风景名胜 · 评分4.8 · 高升桥",
+    "photos": [
+      "http://store.is.autonavi.com/showpic/d474b5c8c8e429854cf808e1445bc15e",
+      "http://store.is.autonavi.com/showpic/fa2f82b05e0bdf05626cd4bb7f3ffe50",
+      "http://store.is.autonavi.com/showpic/05afef84c3ef348eb593611b79a1783e"
+    ],
+    "opentime": "",
+    "address": "武侯祠大街231号附1号",
+    "lat": 30.645994,
+    "lon": 104.049828,
+    "reviews": {
+      "good": [
+        "古色古香，很有氛围",
+        "小吃众多，选择丰富",
+        "夜景很美，拍照好看",
+        "离武侯祠近，方便游览"
+      ],
+      "bad": [
+        "人太多，有点拥挤",
+        "商业化重，价格偏高",
+        "有些小吃卫生堪忧",
+        "部分区域维护一般"
+      ],
+      "intro_long": "锦里是一条仿古商业街，紧邻武侯祠，以其独特的建筑风格和丰富的三国文化氛围闻名。这里汇集了众多成都特色小吃，是体验当地风情的好去处。夜晚的锦里灯火辉煌，尤其受欢迎。不过，由于游客众多，可能会比较拥挤，且部分小吃的卫生状况需要留意。"
+    },
+    "reviews_ai": true
+  },
+  "成都|成都大熊猫繁育研究基地-熊猫塔": {
+    "image": "https://store.is.autonavi.com/showpic/04c24cd5dd6c5b950000005187362634?type=pic",
+    "intro": "风景名胜 · 评分4.4 · 熊猫基地",
+    "photos": [
+      "https://store.is.autonavi.com/showpic/04c24cd5dd6c5b950000005187362634?type=pic",
+      "https://store.is.autonavi.com/showpic/a16b200a6f183c94f706b4c1ee6695cf",
+      "https://store.is.autonavi.com/showpic/7aa9dff0bdc2d6740000002479542251?type=pic"
+    ],
+    "opentime": "",
+    "address": "熊猫大道1375号成都大熊猫繁育研究基地内(西侧)",
+    "lat": 30.740536,
+    "lon": 104.133737,
+    "reviews": {
+      "good": [
+        "熊猫塔视野好",
+        "高处看熊猫佳",
+        "拍照留念好地方",
+        "景色开阔宜人"
+      ],
+      "bad": [
+        "排队时间较长",
+        "高峰期人多",
+        "位置略显偏僻",
+        "需爬楼梯较累"
+      ],
+      "intro_long": "成都大熊猫繁育研究基地内的熊猫塔，是观赏熊猫的绝佳位置。它位于熊猫大道1375号基地西侧，为游客提供了高处的视野，可以俯瞰大熊猫的日常活动。熊猫塔周边环境优美，是拍照留念的好去处。然而，由于位置相对偏僻，前往需要一些步行，且高峰期人多，排队时间较长，爬楼梯也需一定的体力。总体来说，熊猫塔是一个值得一游的景点，但游客需做好相应的准备。"
+    },
+    "reviews_ai": true
   }
 }
