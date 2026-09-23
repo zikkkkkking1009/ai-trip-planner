@@ -233,6 +233,44 @@
                 z-index:500; background:var(--surface); border-radius:12px; padding:14px 20px;
                 font-size:14px; color:var(--muted-2); text-align:center; line-height:1.9;
                 box-shadow: var(--sh-2); }
+
+  /* ===== 批次 2/3/4：表单层级 / 单天·总览时间线 / 视觉收敛 ===== */
+  /* 方向 B：核心区（城市 / 日期 / 偏好）实色背景突出，与折叠的高级区拉开层级 */
+  .core { background:var(--accent-soft); border:1px solid var(--accent-line);
+          border-radius:12px; padding:14px; margin-bottom:8px; }
+  .core > .field { gap:6px; margin-bottom:8px; }
+  .core > .field:last-child { margin-bottom:0; }
+  .core .field > label { font-size:13px; font-weight:600; color:var(--accent-deep); }
+  .core .datebox b { font-size:18px; font-weight:800; }
+  details.adv#advBox { margin-top:8px; }
+  details.adv#advBox > summary { color:var(--muted-2); font-weight:600; }
+
+  /* 方向 C：单天——左 70% 竖向时间线 + 右 30% 当天小地图（仅桌面端） */
+  .daywrap { display:flex; gap:18px; align-items:flex-start; }
+  .daywrap .tl { flex:1 1 70%; min-width:0; }
+  .daywrap .daymap { flex:0 0 30%; max-width:320px; }
+  @media (max-width:1023px) {
+    .daywrap { flex-direction:column; }
+    .daywrap .daymap { display:none; }   /* 移动端只留时间线 */
+  }
+  .tl-svg { width:100%; height:auto; display:block; }
+  .daymap-svg { width:100%; height:auto; display:block; background:var(--fill);
+                border:1px solid var(--border); border-radius:14px; box-sizing:border-box; }
+  .daymap-title { font-size:12px; color:var(--muted-3); margin:0 0 8px; font-weight:500; }
+  .tl-legend { font-size:12px; color:var(--muted-3); margin-top:8px; }
+
+  /* 方向 C：总览——横向时间线 */
+  .ov-svg { width:100%; height:auto; display:block; margin-top:6px; }
+  .ov-empty { color:var(--muted-3); font-size:13px; padding:8px 0; }
+
+  /* 方向 D：稳健性默认折叠，不抢 AI 总评的视觉 */
+  details.robust-details { margin:14px 14px 8px; }
+  details.robust-details > summary { background:var(--fill); border:1px solid var(--border);
+    border-radius:12px; padding:12px 14px; font-size:14px; font-weight:700; color:var(--fg);
+    list-style:none; cursor:pointer; }
+  details.robust-details > summary::-webkit-details-marker { display:none; }
+  details.robust-details[open] > summary { border-radius:12px 12px 0 0; border-bottom:none; }
+  details.robust-details .rb-card { border-radius:0 0 14px 14px; }
   /* 日志 + 对话框 */
   details { margin:0 14px 8px; }
   details.adv { margin:10px 0 0; }
@@ -854,7 +892,15 @@ function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g,
     c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 }
-const DAY_COLORS = ['#2f9e44','#f08c00','#7048e8','#1c7ed6','#e8590c','#0ca678','#ae3ec9'];
+// 方向 E：Day 色收敛为「同色相不同明度」——沿用 accent 色相（255），
+// 3 档明度循环（50/65/80），不再引入 7 个新色相。地图 / 时间线 / 图例共用 dayTint，
+// 既满足"全屏颜色 ≤ 5 种"，又让「哪天紧哪天松」仍靠位置+长度区分而非靠颜色。
+const DAY_TINTS = [50, 65, 80];
+const dayTint = i => {
+  const k = (((i % DAY_TINTS.length) + DAY_TINTS.length) % DAY_TINTS.length);
+  return `oklch(${DAY_TINTS[k]}% 0.13 255)`;
+};
+const DAY_COLORS = DAY_TINTS.map(l => `oklch(${l}% 0.13 255)`);
 const WD = ['周日','周一','周二','周三','周四','周五','周六'];
 let spots = [], plan = null, currentDay = 0, map = null, layers = {}, dayOn = {};
 let lastTaskId = null, favSet = new Set();
@@ -1313,41 +1359,156 @@ function renderItin() {
     c.textContent = `⚠️ 行程日期已改为 ${dayCount()} 天，与当前行程（${plan.days.length} 天）不一致——点「开始规划」按新日期重新生成`;
     v.appendChild(c);
   }
-  const days = currentDay === 0 ? plan.days : [plan.days[currentDay-1]];
-  days.forEach(d => {
-    const dayIdx = plan.days.indexOf(d);
-    if (!d.spots.length) return;
-    const blk = document.createElement('div'); blk.className='dayblock';
-    blk.innerHTML = `<div class="dayhead"><div class="daytitle">${dateOf(dayIdx)}</div>
-      <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟</div></div>`
-      + (plan.hotel ? (() => { const hn = plan.hotel.name.replace(/'/g,"\\'"); return `<div class="entry"><div class="bar" style="background:var(--stay)"></div>
-          <div class="body"><div><span class="tag" style="color:var(--stay)">住宿</span>
-          <span class="name" style="cursor:pointer" data-act="detail" data-name="${esc(plan.hotel.name)}">🏨 ${esc(plan.hotel.name)}</span></div>
-          <div class="desc">点击查看详情 · 每天从这里出发、傍晚回到这里</div></div></div>`; })() : '')
-      + d.spots.map(v => {
-        const color = DAY_COLORS[dayIdx % DAY_COLORS.length];
-        const isFav = favSet.has(v.name);
-        // 缩略图放在「景点」标签与景点名之间。
-        // 结果里没带图时（抽取路径常见）先放占位，渲染完成后按需从 /poi/detail 补齐。
-        const thumb = v.image
-          ? `<img class="thumb" src="${esc(v.image)}" alt="" loading="lazy"
-                  onerror="this.style.visibility='hidden'">`
-          : `<img class="thumb lazy" alt="" data-lazy-name="${esc(v.name)}">`;
-        const intro = v.intro ? `<div class="intro">${esc(v.intro)}</div>` : '';
-        return `<div class="entry"><div class="bar" style="background:${color}"></div>
-          <div class="body">
-          <div class="toprow"><span class="tag">景点</span>${thumb}<span class="name" style="cursor:pointer" data-act="detail" data-name="${esc(v.name)}">${esc(v.name)}</span>
-          ${v.ticket ? `<span class="ticket">¥${v.ticket}</span>` : ''}</div>
-          <div class="time">${fmt(v.arrive_h)} – ${fmt(v.depart_h)}</div>
-          ${v.desc ? `<div class="desc">${esc(v.desc)}</div>` : ''}${intro}</div>
-          <button class="fav" title="收藏" data-act="fav" data-name="${esc(v.name)}">${isFav?'⭐':'☆'}</button></div>`; }).join('');
-    v.appendChild(blk);
+  // 方向 C：day 0 = 横向总览时间线；day ≥ 1 = 当天竖向时间线 + 当天小地图
+  if (currentDay === 0) {
+    v.insertAdjacentHTML('beforeend', renderOverview(plan));
+    (plan.unplanned || []).forEach(u => {
+      const p = document.createElement('div');
+      p.className = 'unplanned';
+      p.textContent = `未安排：${esc(u.name)}（${esc(u.reason)}）`;
+      v.appendChild(p);
+    });
+    return;
+  }
+  const day = plan.days[currentDay - 1];
+  const dayIdx = currentDay - 1;
+  if (!day || !day.spots.length) {
+    v.insertAdjacentHTML('beforeend',
+      `<div class="empty-hero" style="padding:18px">
+        <div class="empty-title">这天还没有安排景点</div>
+        <div class="empty-sub">回到「总览」看其它天，或点「开始规划」按新日期重新生成。</div>
+      </div>`);
+    return;
+  }
+  v.insertAdjacentHTML('beforeend', renderDayTimeline(day, dayIdx));
+}
+
+// ---- 方向 C：总览视图（day 0）。纯函数，返回 HTML，便于单测。
+// 横向时间线：每天一条轨道，颜色走 dayTint（同色相不同明度）；9:00 / 18:00 虚线基准。
+function renderOverview(plan) {
+  const days = plan.days || [];
+  if (!days.length) return '<div class="ov-empty">还没有行程</div>';
+  const START = 8, END = 20, HOUR_W = 40, LEFT = 46, TOP = 12, ROW_H = 34, ROW_GAP = 14;
+  const W = LEFT + (END - START) * HOUR_W + 8;
+  const H = TOP * 2 + days.length * (ROW_H + ROW_GAP);
+  let svg = `<svg class="ov-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="行程总览">`;
+  [9, 18].forEach(h => {
+    const x = LEFT + (h - START) * HOUR_W;
+    svg += `<line x1="${x}" y1="${TOP}" x2="${x}" y2="${H - TOP}" style="stroke:var(--muted-3)" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>`;
+    svg += `<text x="${x}" y="${TOP - 1}" text-anchor="middle" style="fill:var(--muted-3)" font-size="10">${h}:00</text>`;
   });
-  if (currentDay === 0)
-    plan.unplanned.forEach(u => { const p=document.createElement('div');
-      p.className='unplanned'; p.textContent=`未安排：${u.name}（${u.reason}）`;
-      v.insertBefore(p, v.firstChild); });
-  fillSpotThumbs();   // 结果里没带图的景点，按需补齐缩略图
+  days.forEach((d, i) => {
+    const y = TOP + i * (ROW_H + ROW_GAP);
+    const tint = dayTint(i);
+    svg += `<text x="0" y="${y + ROW_H / 2 + 4}" style="fill:var(--fg)" font-size="12" font-weight="700">Day${i + 1}</text>`;
+    svg += `<line x1="${LEFT}" y1="${y + ROW_H}" x2="${W - 8}" y2="${y + ROW_H}" style="stroke:var(--border)" stroke-width="1"/>`;
+    (d.spots || []).forEach(s => {
+      const a = s.arrive_h, dp = s.depart_h;
+      if (a == null || dp == null) return;
+      const x = LEFT + Math.max(0, a - START) * HOUR_W;
+      const w = Math.max(8, (dp - a) * HOUR_W);
+      svg += `<rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${ROW_H}" rx="7" fill="${tint}">`
+           + `<title>${esc(s.name)} ${fmt(a)}–${fmt(dp)}</title></rect>`;
+    });
+  });
+  svg += `</svg>`;
+  return `<div class="dayhead"><div class="daytitle">行程总览</div>
+      <div class="daysub">${days.length} 天 · 柱越长=停留越久 · 虚线=9:00 / 18:00</div></div>${svg}`;
+}
+
+// ---- 方向 C：单天视图（day ≥ 1）。左 70% 竖向时间线（SVG）+ 右 30% 当天小地图（仅桌面）。
+function renderDayTimeline(day, dayIdx) {
+  const tint = dayTint(dayIdx);
+  const START = 8, END = 20, PX = 56, TOP = 8, GUT = 46, BARX = GUT + 6, BARW_MAX = 300;
+  const spots = day.spots || [];
+  let axis = '', bars = '', commute = '';
+  for (let h = START; h <= END; h++) {
+    const y = TOP + (h - START) * PX;
+    axis += `<line x1="0" y1="${y}" x2="${GUT - 4}" y2="${y}" style="stroke:var(--border)" stroke-width="1"/>`;
+    axis += `<text x="0" y="${y + 3}" style="fill:var(--muted-3)" font-size="10">${h}:00</text>`;
+  }
+  spots.forEach((s, k) => {
+    const a = s.arrive_h, dp = s.depart_h;
+    if (a == null || dp == null) return;
+    const yA = TOP + (a - START) * PX;
+    const durH = Math.max(0.5, dp - a);
+    const yD = yA + durH * PX;
+    const stay = (s.stay != null) ? s.stay : Math.round(durH * 60);
+    const bw = Math.min(BARW_MAX, 70 + stay * 0.7);
+    const nm = esc(s.name);
+    const ticket = s.ticket ? `¥${esc(s.ticket)}` : '';
+    const intro = s.intro ? esc(s.intro).slice(0, 26) : '';
+    bars += `<rect x="${BARX}" y="${yA.toFixed(1)}" width="${bw.toFixed(1)}" height="${(yD - yA).toFixed(1)}" rx="9" fill="${tint}" data-act="detail" data-name="${nm}">`
+          + `<title>${nm} ${fmt(a)}–${fmt(dp)}</title></rect>`;
+    bars += `<text x="${BARX + 10}" y="${(yA + 18).toFixed(1)}" style="fill:#fff" font-size="14" font-weight="700" data-act="detail" data-name="${nm}">${nm}</text>`;
+    bars += `<text x="${BARX + 10}" y="${(yA + 34).toFixed(1)}" style="fill:#fff" font-size="12" opacity=".92">${fmt(a)} – ${fmt(dp)}</text>`;
+    if (k < spots.length - 1) {
+      const nx = spots[k + 1];
+      const gap = (nx.arrive_h != null && dp != null) ? (nx.arrive_h - dp) * 60 : 0;
+      if (gap > 1) {
+        const ny = TOP + (nx.arrive_h - START) * PX;
+        const yMid = (yD + ny) / 2;
+        commute += `<line x1="${BARX + bw / 2}" y1="${yD.toFixed(1)}" x2="${BARX + bw / 2}" y2="${ny.toFixed(1)}" style="stroke:var(--muted-3)" stroke-width="2" stroke-dasharray="4 4"/>`;
+        commute += `<text x="${(BARX + bw / 2 + 6).toFixed(1)}" y="${yMid.toFixed(1)}" style="fill:var(--muted-3)" font-size="11">通勤 ${Math.round(gap)}′</text>`;
+      }
+    }
+    if (ticket || intro)
+      bars += `<text x="${BARX}" y="${(yD + 14).toFixed(1)}" style="fill:var(--muted-2)" font-size="11.5">${ticket}${ticket && intro ? ' · ' : ''}${intro}</text>`;
+  });
+  const H = TOP * 2 + (END - START) * PX, W = 360;
+  const tlSvg = `<svg class="tl-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="当天时间线">${axis}${commute}${bars}</svg>`;
+  const ft = plan.hotel ? plan.hotel.name : '';
+  return `<div class="daywrap">
+      <div class="tl">
+        <div class="dayhead"><div class="daytitle">${esc(dateOf(dayIdx))}</div>
+          <div class="daysub">门票 ¥${esc(day.cost)} · 通勤 ${esc(day.commute_min)} 分钟${ft ? ' · 🏨 ' + esc(ft) : ''}</div></div>
+        ${tlSvg}
+        <div class="tl-legend">柱高=停留时长 · 虚线=通勤 · 点色块看详情</div>
+      </div>
+      <div class="daymap">${dayMiniMap(day, dayIdx)}</div>
+    </div>`;
+}
+
+// ---- 方向 C：当天小地图（SVG）。酒店 + 当天景点投影成路径；无坐标时退化为序号列表。
+// 颜色与时间轴色块同色（dayTint）；仅桌面端（≥1024px）由 CSS 显示。
+function dayMiniMap(day, dayIdx) {
+  const tint = dayTint(dayIdx);
+  const pts = [];
+  if (plan.hotel && plan.hotel.lat != null)
+    pts.push({ kind: 'hotel', name: plan.hotel.name, lat: plan.hotel.lat, lon: plan.hotel.lon });
+  (day.spots || []).forEach(s => {
+    const g = spots.find(x => x.name === s.name);
+    if (g && g.lat != null) pts.push({ kind: 'spot', name: s.name, lat: g.lat, lon: g.lon });
+  });
+  const head = `<div class="daymap-title">🗺 当天路线（仅桌面端）</div>`;
+  if (pts.length < 2) {
+    const items = (day.spots || []).map((s, k) =>
+      `<div style="font-size:12px;color:var(--muted-2);padding:4px 0;display:flex;gap:6px;align-items:center">
+        <span style="width:18px;height:18px;border-radius:50%;background:${tint};color:#fff;font-size:11px;
+          display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">${k + 1}</span>
+        <span style="cursor:pointer" data-act="detail" data-name="${esc(s.name)}">${esc(s.name)}</span></div>`).join('');
+    return head + `<div class="daymap-svg" style="padding:12px;display:flex;flex-direction:column">${items || '<div class="ov-empty">无坐标</div>'}</div>`;
+  }
+  const lats = pts.map(p => p.lat), lons = pts.map(p => p.lon);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+  const W = 300, Hh = 300, PAD = 30;
+  const sx = lon => PAD + (maxLon === minLon ? .5 : (lon - minLon) / (maxLon - minLon)) * (W - 2 * PAD);
+  const sy = lat => PAD + (maxLat === minLat ? .5 : (maxLat - lat) / (maxLat - minLat)) * (Hh - 2 * PAD);
+  const path = pts.map(p => `${sx(p.lon).toFixed(1)},${sy(p.lat).toFixed(1)}`).join(' ');
+  let shapes = '';
+  pts.forEach(p => {
+    const cx = sx(p.lon).toFixed(1), cy = sy(p.lat).toFixed(1);
+    if (p.kind === 'hotel') {
+      shapes += `<rect x="${(Number(cx) - 7).toFixed(1)}" y="${(Number(cy) - 7).toFixed(1)}" width="14" height="14" rx="3" style="fill:var(--stay)" stroke="#fff" stroke-width="2"><title>🏨 ${esc(p.name)}</title></rect>`;
+    } else {
+      shapes += `<circle cx="${cx}" cy="${cy}" r="7" fill="${tint}" stroke="#fff" stroke-width="2" data-act="detail" data-name="${esc(p.name)}"><title>${esc(p.name)}</title></circle>`;
+      shapes += `<text x="${(Number(cx) + 9).toFixed(1)}" y="${(Number(cy) + 4).toFixed(1)}" style="fill:var(--muted-2)" font-size="11">${esc(p.name)}</text>`;
+    }
+  });
+  return head + `<svg class="daymap-svg" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="当天小地图">
+      <polyline points="${path}" fill="none" style="stroke:${tint}" stroke-width="3" stroke-opacity=".7" stroke-linejoin="round"/>
+      ${shapes}</svg>`;
 }
 
 // 景点缩略图补齐：结果里的 spots[].image 只有预置景点才带（抽取路径是空的），
@@ -1774,7 +1935,7 @@ function toggleHotelMap(i, lat, lon, name) {
     const ll = tileCfg.gcj ? [s.lat, s.lon] : gcj2wgs(s.lat, s.lon);
     pts.push(ll);
     L.circleMarker(ll, {radius: 5, color: '#fff', weight: 1.5,
-      fillColor: DAY_COLORS[di % DAY_COLORS.length], fillOpacity: .9})
+      fillColor: dayTint(di), fillOpacity: .9})
       .bindPopup(`Day${di + 1} ${esc(v.name)}`).addTo(m);
   }));
   setTimeout(() => { m.invalidateSize(); m.fitBounds(pts, {padding: [26, 26]}); }, 80);
@@ -2220,7 +2381,7 @@ function renderMap() {
   $('mapEmpty').style.display='none';
   Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
   $('legend').innerHTML = plan.days.map((d,i)=>{
-    const c = DAY_COLORS[i%DAY_COLORS.length]; dayOn[i]=true;
+    const c = dayTint(i); dayOn[i]=true;
     return `<div id="lg${i}" data-act="day" data-idx="${i}"><i style="background:${c}"></i>Day${i+1}</div>`;
   }).join('');
   const all = [];
@@ -2228,7 +2389,7 @@ function renderMap() {
     ? plan.days.map((d, i) => [d, i])
     : [[plan.days[currentDay - 1], currentDay - 1]];
   toDraw.forEach(([d, i]) => {
-    const color = DAY_COLORS[i % DAY_COLORS.length];
+    const color = dayTint(i);
     let latlngs = d.spots.map(v => {
       const s = spots.find(s => s.name === v.name) || spots[0];
       return tileCfg.gcj ? [s.lat, s.lon] : gcj2wgs(s.lat, s.lon); });
