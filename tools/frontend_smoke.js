@@ -73,8 +73,14 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const html = fs.readFileSync(HTML_PATH, 'utf8');
   const errors = [];
   const vc = new VirtualConsole();
-  vc.on('jsdomError', e => errors.push('jsdomError: ' + (e.message || e)));
-  vc.on('error', (...a) => errors.push('console.error: ' + a.join(' ')));
+  // jsdom 的 CSS 解析器不认 oklch() / :where() 等现代语法，会把整张样式表报成
+  // "Could not parse CSS stylesheet"。这是 jsdom 的局限，不是页面的问题
+  // （真实浏览器渲染正常，:root 令牌已由截图脚本读 computedStyle 验证过）；
+  // 而冒烟的断言查的是 DOM 结构与文本、不依赖 CSS —— 故过滤掉，免得噪音掩盖真问题。
+  const IGNORE = /Could not parse CSS stylesheet/;
+  const pushErr = s => { if (!IGNORE.test(s)) errors.push(s); };
+  vc.on('jsdomError', e => pushErr('jsdomError: ' + (e.message || e)));
+  vc.on('error', (...a) => pushErr('console.error: ' + a.join(' ')));
 
   // 关键：stub 必须在页面脚本执行之前注入（jsdom 在构造时就运行 <script>），
   // 因此用 beforeParse 钩子；事后赋 window.fetch 已太晚，页面首屏 fetch 会直接报错。

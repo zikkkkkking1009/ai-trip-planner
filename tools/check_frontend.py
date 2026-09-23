@@ -11,7 +11,9 @@
 1. `<script>` 提取后交给 `node --check` 做语法门（缺 node 时跳过并提示）
 2. 禁止在函数内声明与全局工具函数重名的局部变量（遮蔽）
 3. 禁止 `src="${...}"` 与 `data-*="${...}"` 属性里插未转义的外部值（错误级）
-4. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
+4. 禁止 CSS 自定义属性引用自己（`--ok: var(--ok)`，浏览器静默丢弃）
+5. 禁止 CSS 引用未定义的变量（`var(--x)` 而 `--x` 不存在，整条声明静默失效）
+6. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
 """
 from __future__ import annotations
 
@@ -23,7 +25,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-HTML = ROOT / "static" / "index.html"
+# 需要检查的页面：首页与规划器都已从单页里拆开，两个都要进 CI 门禁
+# （新增页面若漏进这份清单，就等于绕过了语法门与转义/坐标守卫）
+PAGES = ("static/index.html", "static/home.html")
 
 # 全局函数名：这些名字不允许被局部变量遮蔽
 GLOBAL_FN_NAMES = {
@@ -87,6 +91,9 @@ def check_shadowing(js: str) -> list[str]:
 # "原先写死西安坐标，是多城市泛化漏掉的一处"——注释改了、代码没改，所以必须机器守住。
 HARDCODED_COORD_RE = re.compile(r"\b(34\.2\d*|34\.3\d*|108\.9\d*|104\.0\d*|116\.4\d*)\b")
 
+# CSS 变量自引用：`--x: var(--x)` / `--x: var(--x, fallback)`。见 check_css_self_ref。
+CSS_SELF_REF_RE = re.compile(r"(--[A-Za-z0-9_-]+)\s*:\s*var\(\s*\1\s*[,)]")
+
 
 def check_hardcoded_coords(html: str) -> list[str]:
     """禁止前端出现城市坐标字面量：地图初始视野等一律从 /cities 拿。"""
@@ -131,6 +138,56 @@ def check_unescaped_attrs(js: str) -> list[str]:
     return errors
 
 
+def check_css_self_ref(html: str) -> list[str]:
+    """错误级：CSS 自定义属性不能引用自己（`--ok: var(--ok)`）。
+
+    为什么值得单独一条：2026-09-23 用脚本把色值批量收敛成令牌时，脚本是
+    「先插入新 :root、再全局替换色值」，于是刚写好的语义色令牌自己被替换成了
+    `--ok: var(--ok)`。CSS 变量自引用**不是语法错误**——浏览器只当它是无效值
+    静默丢弃，于是红/绿/橙全部失效（退回继承色），而 JS 语法门、五维审计、
+    页面本身都不会报任何错。与项目一贯警惕的「静默错误」是同一类。
+    别名（`--acc: var(--accent)`）是合法的，规则只认完全同名，不会误报。
+    """
+    errors: list[str] = []
+    style = "\n".join(re.findall(r"<style>(.*?)</style>", html, re.S))
+    for m in CSS_SELF_REF_RE.finditer(style):
+        line = style[:m.start()].count("\n") + 1
+        errors.append(
+            f"CSS 第 {line} 行：`{m.group(1)}: var({m.group(1)})` 是自引用——"
+            f"不是语法错误，浏览器当无效值静默丢弃，该令牌与所有引用它的颜色全部失效")
+    if not errors:
+        print("  ✓ 无 CSS 变量自引用")
+    return errors
+
+
+def check_undefined_css_vars(html: str) -> list[str]:
+    """错误级：CSS 里 `var(--x)` 引用了没定义的 `--x`。
+
+    为什么值得单独一条：这类错误**完全不报错**。浏览器把整条声明当无效值丢掉，
+    属性回退成继承 / 初始值。2026-09-23 做两页风格统一时连踩两次：
+      · 首页 `border-color:var(--accent-line)` —— 首页 :root 里没这个令牌，
+        hover 边框直接回退成 currentColor（深色），看起来像「故意设计成黑的」
+      · 首页 `background:var(--fill)` —— 同样没定义
+    两次都是靠截图脚本读 computedStyle 才发现的，机器守住成本更低。
+    """
+    css = "\n".join(re.findall(r"<style>(.*?)</style>", html, re.S))
+    defined = set(re.findall(r"(--[A-Za-z0-9_-]+)\s*:", css))
+    missing: dict[str, list[int]] = {}
+    for m in re.finditer(r"var\(\s*(--[A-Za-z0-9_-]+)", css):
+        name = m.group(1)
+        if name not in defined:
+            missing.setdefault(name, []).append(css[:m.start()].count("\n") + 1)
+    errors = []
+    for name, lines in sorted(missing.items()):
+        where = ", ".join(str(n) for n in lines[:4])
+        errors.append(
+            f"CSS 引用了未定义的变量 {name}（第 {where} 行）——"
+            f"浏览器会整条声明失效并回退成继承值，且不报任何错，请先在 :root 定义")
+    if not errors:
+        print("  ✓ 无未定义的 CSS 变量引用")
+    return errors
+
+
 def check_unescaped(js: str) -> list[str]:
     """提示级：innerHTML 模板里直接插外部字段的位置。"""
     warns: list[str] = []
@@ -144,25 +201,31 @@ def check_unescaped(js: str) -> list[str]:
 
 
 def main() -> int:
-    if not HTML.exists():
-        print(f"找不到 {HTML}")
-        return 1
-    html = HTML.read_text(encoding="utf-8")
-    js = extract_scripts(html)
-    print(f"检查 {HTML.relative_to(ROOT)}（脚本 {len(js.splitlines())} 行）")
-    errors = (check_syntax(js) + check_shadowing(js)
-              + check_hardcoded_coords(html) + check_unescaped_attrs(js))
-    warns = check_unescaped(js)
-    if warns:
-        print(f"  ⚠ 未转义的外部字段 {len(warns)} 处（提示，不阻塞）：")
-        for w in warns[:8]:
-            print(f"     - {w}")
-    if errors:
-        print("\n❌ 检查未通过：")
-        for e in errors:
+    all_errors: list[str] = []
+    for rel in PAGES:
+        path = ROOT / rel
+        if not path.exists():
+            all_errors.append(f"{rel}：文件不存在")
+            continue
+        html = path.read_text(encoding="utf-8")
+        js = extract_scripts(html)
+        print(f"检查 {rel}（脚本 {len(js.splitlines())} 行）")
+        errs = (check_syntax(js) + check_shadowing(js)
+                + check_hardcoded_coords(html) + check_unescaped_attrs(js)
+                + check_css_self_ref(html) + check_undefined_css_vars(html))
+        warns = check_unescaped(js)
+        if warns:
+            print(f"  ⚠ 未转义的外部字段 {len(warns)} 处（提示，不阻塞）：")
+            for w in warns[:8]:
+                print(f"     - {w}")
+        all_errors += [f"{rel}: {e}" for e in errs]
+        print()
+    if all_errors:
+        print("❌ 检查未通过：")
+        for e in all_errors:
             print(f"   - {e}")
         return 1
-    print("\n✅ 前端静态检查通过")
+    print("✅ 前端静态检查通过")
     return 0
 
 
