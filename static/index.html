@@ -46,14 +46,6 @@
     --note-line: #ffe58f;
     --note-ink:  #ad6800;
 
-    /* 图表语义色：让颜色回答「谁是主角」。
-       原先求解器与 LLM 直接排期用的是同一个蓝的深浅两档（#1779e1 / #7fb0ea），
-       而这两个恰是全篇最重要的对比项 —— 色盲或打印转灰度后几乎不可分。
-       现在改成「本项目 = 饱和蓝 / 对照 = 中灰 / 次级参考 = 浅灰空心」，
-       区分交给色相 + 实心与否两个通道，不再只靠明度。 */
-    --c-ctrl: #9aa3ad;   /* 对照 / 基线（实心灰） */
-    --c-ref:  #c9d0d8;   /* 次级参考（空心描边浅灰） */
-
     /* 留白分档：原来 8 个区块共用 96px 一档，节奏是平的。
        分档本身就是层级手段 —— 附录收窄了，主体才显得重要。 */
     --sp-sec:    96px;
@@ -617,7 +609,7 @@
       <h1>把一篇游记，变成可执行的行程</h1>
       <div class="meta">LLM 抽取 → 高德实体对齐 → OPTW 求解 → 独立约束校验</div>
       <div class="chips" id="chips">
-        <span class="chip">🎒 高德真实通勤</span>
+        <span class="chip">🚗 通勤矩阵（缓存优先）</span>
         <span class="chip">🧭 三级缓存</span>
         <span class="chip">✅ 约束校验</span>
       </div>
@@ -1159,12 +1151,22 @@ function log(stage, msg) {
 // ---- 行程渲染 ----
 function render() {
   const c = plan.check_report;
+  // 通勤 chip 按**本次行程的实际用量**生成，而不是声称「真实」——
+  // api_calls>0 才是真的走了高德；全是缓存命中也是真实数据（历史高德结果），
+  // 只有出现 fallbacks 才是降级。判据写错这里就是在向用户撒谎。
+  const ca = (c.stats && c.stats.commute_api) || {};
+  const fallbacks = ca.fallbacks || 0;
+  const apiCalls = ca.api_calls || 0;
+  const commuteChip = fallbacks > 0 && !apiCalls ? '🚗 通勤：直线估算（降级）'
+                    : apiCalls > 0 ? '🚗 通勤：高德真实驾车'
+                    : '🚗 通勤：缓存命中';
   $('chips').innerHTML =
     `<span class="chip">🎫 总门票 ¥${plan.total_cost}</span>` +
     `<span class="chip">📍 已排 ${c.stats.spots_planned} 个</span>` +
+    `<span class="chip">${commuteChip}</span>` +
     (plan.hotel ? `<span class="chip">🏨 ${esc(plan.hotel.name)}</span>` : '') +
     `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
-    `<span class="chip">🛰 API ${c.stats.commute_api.api_calls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
+    `<span class="chip">🛰 API ${apiCalls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('hotelText').textContent = plan.hotel ? plan.hotel.name : '未设置（点此搜索选择）';
   $('daytabs').style.display = 'flex';
   $('viewSeg').style.display = 'flex';
@@ -1592,7 +1594,7 @@ function resetPlanView() {
   reviewForTask = null;                                  // 重置后允许重新总评
   const rv = $('reviewBox'); if (rv) { rv.classList.remove('on'); rv.innerHTML = ''; }
   const wb = $('weatherBox'); if (wb) { wb.classList.remove('on'); wb.innerHTML = ''; }
-  $('chips').innerHTML = '<span class="chip">🎒 高德真实通勤</span>' +
+  $('chips').innerHTML = '<span class="chip">🚗 通勤矩阵（缓存优先）</span>' +
     '<span class="chip">🧭 三级缓存</span><span class="chip">✅ 约束校验</span>';
   $('hotelText').textContent = '未设置（点此搜索选择）';  // 住宿字段一起清空
   $('log').textContent = '';

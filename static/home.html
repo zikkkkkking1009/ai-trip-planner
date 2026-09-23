@@ -19,11 +19,12 @@
 -->
 <style>
   /* ===== 设计令牌 =====
-     与规划器 static/index.html **逐条同值**。这一点曾经反复出问题：
-     首页的令牌集一度比规划器少，于是用到 --accent-line / --fill / --muted-3 时
-     静默失效（浏览器把整条声明当无效值丢掉，不报任何错），
-     只能靠 tools/check_frontend.py 的未定义变量守卫抓出来。
-     所以：**新增令牌时两页一起加**。 */
+     与规划器 static/index.html **逐条同值**。这条规则的病因要记准：
+     首页曾因令牌集比规划器少，用到 --accent-line / --fill / --muted-3 时静默失效
+     （浏览器把整条声明当无效值丢掉，不报任何错），只能靠
+     tools/check_frontend.py 的未定义变量守卫抓出来。
+     所以精确的说法是：**两页共用的令牌必须两页同值同加；
+     只在一页使用的令牌（图表色、状态色）就写在那一页**。 */
   :root{
     --bg:      oklch(99% 0.002 240);
     --surface: oklch(100% 0 0);
@@ -65,6 +66,8 @@
        区分交给色相 + 实心与否两个通道，不再只靠明度。 */
     --c-ctrl: #9aa3ad;   /* 对照 / 基线（实心灰） */
     --c-ref:  #c9d0d8;   /* 次级参考（空心描边浅灰） */
+
+    --unknown-ink: oklch(48% 0.013 250);  /* 状态「没结论」：比 ok 的绿和 na 的橙都中性 */
 
     /* 留白分档：原来 8 个区块共用 96px 一档，节奏是平的。
        分档本身就是层级手段 —— 附录收窄了，主体才显得重要。 */
@@ -291,6 +294,7 @@
   .stat .n { font-size:12px; color:var(--muted-3); margin-top:5px; line-height:1.5; }
   .stat.is-ok .v { color:var(--ok-ink); }
   .stat.is-na .v { color:var(--warn); }
+  .stat.is-unknown .v { color:var(--unknown-ink); }   /* 探测没结论：不是好也不是坏 */
   @media (max-width:900px){
     .statgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
@@ -949,8 +953,10 @@
           <span>绝对概率不应当作精确值，风险点的相对排序才是可用的部分。</span></div>
         <div data-od-id="limit-3"><b>无数据库与用户体系。</b>
           <span>历史与收藏保存在本地文件，暂不支持多用户隔离。</span></div>
-        <div data-od-id="limit-4"><b>无网络 Key 时通勤降级为直线估算。</b>
-          <span>配置高德 Key 后才会使用真实驾车时长。</span></div>
+        <div data-od-id="limit-4"><b>没有配置 LLM Key 时，抽取 / 评价 / 总评 / 对话改行程四条链路不可用。</b>
+          <span>这不是崩溃，是明确降级：<code>/extract</code>、<code>/plan/review</code>、<code>/plan/edit</code> 返回 503 并说明原因，AI 评价区整块隐藏 —— 不做假数据填充。手工填景点、排期、地图、天气、稳健性模拟都不依赖 LLM，零 Key 仍可完整走通。</span></div>
+        <div data-od-id="limit-5"><b>无网络 Key 时通勤降级为直线估算。</b>
+          <span>配置高德 Key 后才会使用真实驾车时长；已缓存的通勤时长在无 Key 时仍会被复用，所以「无 Key」不等于「一定在估算」。</span></div>
       </div>
     </div>
   </section>
@@ -993,7 +999,8 @@
       <div class="statgrid reveal" id="statusGrid"></div>
       <p class="table-note">
         数据来自 <code>GET /meta</code>（与 <code>/health</code> 同源，不是另算一份）。打开页面时实时读取，刷新即最新。
-        密钥一律只显示「已配置 / 未配置」，不回传任何值。
+        密钥只显示「已启用 / 未启用 / 已配置但无效 / 未探测到」四种状态与原因，不回传任何值；
+        可用性是服务启动时<strong>真实探测</strong>出来的（结果缓存 6 小时），不是看一眼配置文件就下结论。
       </p>
     </div>
   </section>
@@ -1067,19 +1074,85 @@ function renderApi(d) {
   }
 }
 
+// 四态 → (值文案, 样式类)。查表而不是 if 链，是因为新增一态时最容易漏改的
+// 就是「默认落到哪个颜色」—— 查表让每一态的颜色都摆在同一处，一眼看全。
+// 默认分支必须落 is-unknown（灰）：没探到的就只能显示成「不知道」，
+// 显示成绿是谎报可用、显示成橙是诬告没配，两个都不许。
+var PROBE_TEXT = {
+  'ok':          ['已配置', 'is-ok'],
+  'invalid':     ['已配置但无效', 'is-na'],
+  'unreachable': ['已配置（未探测到）', 'is-unknown'],
+  'missing':     ['未启用（未配置 Key）', 'is-na']
+};
+
+function keyCell(state, isConfigured, probing) {
+  var hit = PROBE_TEXT[state];
+  if (hit) return hit;
+  // 还没探到（启动那一两秒 / 探测被跳过）：配置了的只能显示「不知道」
+  if (isConfigured) return [probing ? '检测中' : '已配置（未探测到）', 'is-unknown'];
+  return PROBE_TEXT['missing'];
+}
+
+var PROBE_REASON = {
+  'unauthorized': 'Key 被上游拒绝', 'quota': '额度或限流',
+  'model_not_found': '模型名不存在', 'config_error': '配置或权限问题',
+  'fast_key_missing': '快通道指向别家却没配对应的 Key',
+  'network': '探测时网络不通', 'dependency_missing': '缺少 openai 依赖',
+  'unknown': '原因未归类，详见服务日志'
+};
+
 function renderStatus(s) {
   var grid = document.getElementById('statusGrid');
   if (!grid) return;
-  var fb = /fallback/.test(s.amap || '');
+  var probe = s.probe || {};
+  var cfg = s.configured || {};
+  var probing = probe.state === 'probing';
   var t = s.tasks || {}, sp = s.spots || {};
+
+  // 通勤格：不能只看 /health 的 amap（它只表示「Key 存在」）。
+  // Key 配了但被上游拒绝时，通勤同样在降级 —— 这里必须一并判，否则会撒谎。
+  var amapOk = s.amap_key === 'ok';
+  var fb = /fallback/.test(s.amap || '') || (s.amap_key != null && !amapOk);
+
+  function keyNote(state, reason, base) {
+    var parts = [];
+    if (state === 'invalid' && reason && PROBE_REASON[reason]) {
+      parts.push(PROBE_REASON[reason] + '，相关功能会 503 或自动降级');
+    } else if (state === 'unreachable') {
+      parts.push('探测时网络不通，无法确认是否可用');
+    } else if (state === 'missing') {
+      parts.push('按设计降级，不影响其余功能');
+    } else {
+      parts.push(base);
+    }
+    // 陈旧的探测结果必须标出来，不能当成刚发生的事实
+    if (probe.state === 'ready' && probe.age_s != null) {
+      parts.push('自检 ' + (probe.age_s < 60 ? probe.age_s + ' 秒前'
+                                             : Math.round(probe.age_s / 60) + ' 分钟前'));
+    }
+    return parts.join(' · ');
+  }
+
+  var llmReason = (probe.reasons || {})['llm'] || '';
+  var llmCell = keyCell(s.llm, cfg.llm, probing);
+  var llmFast = s.llm_fast || '';
+  // 快通道：inherited 表示回落主模型 —— 那是**正常**，不是缺失，别吓人
+  var llmNote = keyNote(s.llm, llmReason, '抽取 / 评价 / 总评依赖它')
+    + (llmFast === 'inherited' ? ' · 快通道回落主模型'
+       : (llmFast && llmFast !== 'ok' ? ' · 快通道 ' + llmFast : ''));
+
+  var amapCell = keyCell(s.amap_key, cfg.amap_key, probing);
+  var amapNote = keyNote(s.amap_key, (probe.reasons || {})['amap_key'] || '',
+                         '只显示状态，不回传任何值');
+
   var cells = [
     { k: '求解器', v: s.solver || '—', n: '硬约束的唯一出口' },
     { k: '通勤数据源', v: fb ? '直线估算（降级）' : '高德真实驾车',
-      n: fb ? '未配置 AMAP_KEY，走几何估算' : '调用高德距离接口', cls: fb ? 'is-na' : 'is-ok' },
-    { k: 'LLM', v: s.llm === 'configured' ? '已配置' : '未配置',
-      n: '抽取 / 评价 / 总评依赖它', cls: s.llm === 'configured' ? 'is-ok' : 'is-na' },
-    { k: '高德 Key', v: s.amap_key === 'configured' ? '已配置' : '未配置',
-      n: '只显示状态，不回传值', cls: s.amap_key === 'configured' ? 'is-ok' : 'is-na' },
+      n: fb ? (s.amap_key === 'invalid' ? '高德 Key 已配置但被拒绝，通勤已降级'
+                                        : '未配置高德 Key，走几何估算')
+            : '调用高德距离接口', cls: fb ? 'is-na' : 'is-ok' },
+    { k: 'LLM', v: llmCell[0], n: llmNote, cls: llmCell[1] },
+    { k: '高德 Key', v: amapCell[0], n: amapNote, cls: amapCell[1] },
     { k: '预置数据', v: (sp.total == null ? '—' : sp.total) + ' 个景点',
       n: (s.cities == null ? '—' : s.cities) + ' 个城市 · 坐标来自高德抓取' },
     { k: '内存任务队列',
