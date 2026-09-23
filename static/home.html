@@ -18,20 +18,45 @@
   纪律：单文件、零构建、零 CDN、无外部 JS（与 static/index.html 一致）。
 -->
 <style>
-  /* ===== 设计令牌（modern-minimal 方向；accent 用于 hero 色带与主 CTA） ===== */
+  /* ===== 设计令牌 =====
+     与规划器 static/index.html **逐条同值**。这一点曾经反复出问题：
+     首页的令牌集一度比规划器少，于是用到 --accent-line / --fill / --muted-3 时
+     静默失效（浏览器把整条声明当无效值丢掉，不报任何错），
+     只能靠 tools/check_frontend.py 的未定义变量守卫抓出来。
+     所以：**新增令牌时两页一起加**。 */
   :root{
     --bg:      oklch(99% 0.002 240);
     --surface: oklch(100% 0 0);
     --fg:      oklch(18% 0.012 250);
-    --muted:   oklch(54% 0.012 250);
+    --muted:   oklch(54% 0.012 250);      /* 说明性正文 */
+    --muted-2: oklch(44% 0.014 250);      /* 需要读的次级文字 */
+    --muted-3: oklch(68% 0.016 255);      /* 标签 / 元信息 / 占位 */
     --border:  oklch(92% 0.005 250);
     --fill:    oklch(97% 0.004 250);      /* 浅填充（hover 底色等） */
-    --accent:  oklch(58% 0.18 255);
+    --fill-2:  oklch(94.5% 0.006 250);    /* 其上的 hover 态 */
+
+    --accent:      oklch(58% 0.18 255);
     --accent-deep: oklch(52% 0.19 255);   /* hover / 按下时加深 */
-    --accent-ink: oklch(99% 0.01 255);
+    --accent-ink:  oklch(99% 0.01 255);
     --accent-soft: oklch(96% 0.02 255);
     --accent-line: oklch(88% 0.05 255);   /* 主色浅线：hover 边框、聚焦态 */
-    --ok:      oklch(62% 0.16 150);
+
+    /* 语义色保留原十六进制 —— 色相本身承载语义（红=危险 / 绿=成功 / 橙=注意），
+       与规划器同值同理由（把它们 oklch 化会让 --warn 从红橙偏成黄橙，实测过） */
+    --ok:        #12b76a;
+    --ok-ink:    #2b6e34;
+    --ok-soft:   #eef6ee;
+    --ok-line:   #cde8cf;
+    --warn:      #e8590c;
+    --warn-soft: #fff4e6;
+    --bad:       #e03131;
+    --bad-ink:   #b42318;
+    --bad-soft:  #fef2f2;
+    --bad-line:  #fee4e2;
+    --stay:      #7048e8;
+    --note-soft: #fff8e6;
+    --note-line: #ffe58f;
+    --note-ink:  #ad6800;
 
     --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
                     "Microsoft YaHei", system-ui, sans-serif;
@@ -164,15 +189,6 @@
   .metric .n{ margin-top:4px; font-size:12.5px; color:var(--muted); line-height:1.5; }
   .metric.hl .v{ color:var(--accent); }
 
-  table.cmp{ width:100%; border-collapse:collapse; margin-top:34px; font-size:14.5px; }
-  table.cmp th,table.cmp td{ padding:13px 16px; text-align:left; border-bottom:1px solid var(--border); }
-  table.cmp thead th{ font-size:12.5px; font-weight:700; color:var(--muted);
-                      text-transform:uppercase; letter-spacing:.06em;
-                      border-bottom:1px solid oklch(88% 0.006 250); }
-  table.cmp td.n,table.cmp th.n{ text-align:right; font-variant-numeric:tabular-nums; }
-  table.cmp .win{ font-weight:750; color:var(--fg); }
-  table.cmp .lose{ color:var(--muted); }
-  table.cmp tr:last-child td{ border-bottom:none; }
   .table-note{ margin-top:14px; font-size:12.5px; color:var(--muted); }
 
   /* 工作流 */
@@ -223,17 +239,55 @@
     .hero-in{ padding:52px 0 48px; }
     .grid-3,.metrics,.flow{ grid-template-columns:1fr; }
     .hero-cta .btn{ flex:1 1 100%; }
-    table.cmp{ font-size:13.5px; }
-    table.cmp th,table.cmp td{ padding:11px 10px; }
+      }
+  /* ===== 接口清单 / 服务状态 =====
+     为什么不做成跳外链：原先 footer 的「接口文档」指向 /docs（FastAPI 自带 Swagger UI，
+     它的样式与脚本从 CDN 加载，违反本站「零 CDN」纪律，网络受限时就是一片空白）；
+     「服务状态」指向 /health（137 字节裸 JSON，撑不起一个区块）。两块数据现在都来自
+     `GET /meta` —— 服务端在运行时遍历真实路由表生成，所以永远不会与代码漂移。 */
+  .apitable { display:flex; flex-direction:column; margin-top:36px;
+              border:1px solid var(--border); border-radius:var(--r); overflow:hidden; }
+  .apirow { display:grid; grid-template-columns:78px minmax(0,0.9fr) minmax(0,1.6fr);
+            gap:14px; align-items:baseline; padding:11px 18px;
+            background:var(--surface); border-bottom:1px solid var(--border); }
+  .apirow:last-child { border-bottom:none; }
+  .apirow:hover { background:var(--fill); }
+  .apirow code { font-family:var(--font-body); font-size:13.5px; font-weight:650;
+                 letter-spacing:-.01em; }
+  .apirow .desc { font-size:13px; color:var(--muted); line-height:1.55; }
+  .m-badge { justify-self:start; font-size:10.5px; font-weight:800; letter-spacing:.05em;
+             padding:2px 8px; border-radius:5px; text-transform:uppercase; }
+  .m-get    { background:var(--accent-soft); color:var(--accent); }
+  .m-post   { background:var(--ok-soft); color:var(--ok-ink); }
+  .m-delete { background:var(--bad-soft); color:var(--bad-ink); }
+  .api-loading { padding:18px; font-size:13px; color:var(--muted-3); }
+
+  .statgrid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+              gap:16px; margin-top:36px; }
+  .stat { background:var(--surface); border:1px solid var(--border);
+          border-radius:var(--r); padding:16px 18px; }
+  .stat .k { font-size:12.5px; color:var(--muted-3); }
+  .stat .v { font-size:19px; font-weight:750; letter-spacing:-.02em; margin-top:7px;
+             font-variant-numeric:tabular-nums; }
+  .stat .n { font-size:12px; color:var(--muted-3); margin-top:5px; line-height:1.5; }
+  .stat.is-ok .v { color:var(--ok-ink); }
+  .stat.is-na .v { color:var(--warn); }
+  @media (max-width:900px){
+    .statgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
+  @media (max-width:560px){
+    .statgrid { grid-template-columns:1fr; }
+    .apirow { grid-template-columns:70px minmax(0,1fr); }
+    .apirow .desc { grid-column:2; }
+  }
+
   /* ==================================================================
      动效与微交互
      与规划器 static/index.html 共用同一批令牌、同一套规律（时长 / 缓动同源）。
      ================================================================== */
 
   /* 可交互元素的过渡：集中声明 */
-  a, button, .btn, .nav-links a, .tile, .step, .limits div,
-  table.cmp tbody tr {
+  a, button, .btn, .nav-links a, .tile, .step, .limits div {
     transition: background-color var(--t-fast) var(--e),
                 border-color var(--t-fast) var(--e),
                 color var(--t-fast) var(--e),
@@ -252,8 +306,7 @@
   /* ---- 层次感：hover 浮起（与规划器 .dayblock 同一规律：抬 2px + 阴影升一级） ---- */
   .tile:hover{ transform:translateY(-2px); box-shadow:var(--sh-2);
                border-color:var(--accent-line); }
-  /* 表格整行高亮：横向读数时不容易串行 */
-  table.cmp tbody tr:hover{ background:var(--accent-soft); }
+  /* 表格整行高亮原本给 table.cmp 用，表格已被图表替代（见 #results 区） */
   /* 步骤块：hover 时编号上方那条短线亮起 */
   .step::before{ transition:background-color var(--t) var(--e); }
   .step:hover::before{ background:var(--accent); }
@@ -280,12 +333,56 @@
   html.js-reveal .metrics .reveal:nth-child(n+2){ transition-delay:.07s; }
   html.js-reveal .metrics .reveal:nth-child(n+3){ transition-delay:.14s; }
 
+  /* ---- 跨页面跳转的视图过渡 ----
+     首页与规划器是两个真实文档（不是 SPA 路由），所以用 View Transitions
+     （Chrome 126+ 的跨文档支持，靠下面这行 @view-transition 启用）。
+     不支持的浏览器就是普通跳转，没有任何副作用 —— 纯渐进增强。 */
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root) { animation: vtOut .18s cubic-bezier(.22,.61,.36,1) both; }
+  ::view-transition-new(root) { animation: vtIn .26s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes vtOut { to { opacity:0; transform:translateY(-6px) } }
+  @keyframes vtIn  { from { opacity:0; transform:translateY(10px) } }
+
   @media (prefers-reduced-motion:reduce){
     html{ scroll-behavior:auto; }
     *,*::before,*::after{ animation-duration:.001ms !important;
                           transition-duration:.001ms !important; }
+    ::view-transition-old(root), ::view-transition-new(root) { animation:none !important; }
     html.js-reveal :where(.reveal, .reveal.in){ opacity:1; transform:none; }
   }
+
+
+  /* ===== 实验数据图表 =====
+     纯内联 SVG + CSS，零 JS、零外部资源（片段见会话目录 charts_fragment.html）。
+     数值逐条取自 docs/experiments.md，未取整、未改写。 */
+  .atp-chart {
+    display: block;
+    box-sizing: border-box;
+    margin: 0 0 20px;
+    background: #ffffff;
+    border: 1px solid #e2e5e8;
+    border-radius: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    color: #0e1217;
+    overflow: hidden;
+  }
+  .atp-chart svg { display: block; width: 100%; height: auto; }
+  .atp-chart svg text { font-family: inherit; font-variant-numeric: tabular-nums; }
+  .atp-chart figcaption {
+    margin: 0;
+    padding: 10px 20px 15px;
+    font-size: 12px;
+    line-height: 1.65;
+    color: #6a6f76;
+    border-top: 1px solid #f3f5f8;
+  }
+
+  /* 网格：第一张（三方对比）信息量最大，占整行；其余两列 */
+  .charts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:20px; margin-top:40px; }
+  .charts > .chart:first-child { grid-column:1 / -1; }
+  .charts .atp-chart { margin:0; }
+  @media (max-width:900px){ .charts { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -447,27 +544,327 @@
         </div>
       </div>
 
-      <table class="cmp reveal" data-od-id="cmp-table">
-        <caption class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">三种排期方案对照</caption>
-        <thead>
-          <tr>
-            <th>指标（50 组场景）</th>
-            <th class="n">朴素装填</th>
-            <th class="n">LLM 直接排期</th>
-            <th class="n">本项目求解器</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>每计划时间冲突数</td><td class="n lose mono">0.38</td><td class="n lose mono">0.02</td><td class="n win mono">0</td></tr>
-          <tr><td>无冲突率</td><td class="n lose mono">62%</td><td class="n lose mono">98%</td><td class="n win mono">100%</td></tr>
-          <tr><td>预算违规次数</td><td class="n lose mono">12</td><td class="n lose mono">8</td><td class="n win mono">0</td></tr>
-          <tr><td>通勤时间占比</td><td class="n lose mono">23.5%</td><td class="n lose mono">13.1%</td><td class="n win mono">13.1%</td></tr>
-          <tr><td>行程质量分</td><td class="n lose mono">0.857</td><td class="n win mono">0.921</td><td class="n lose mono">0.915</td></tr>
-        </tbody>
-      </table>
+            <div class="charts reveal">
+<figure class="chart atp-chart">
+  <svg viewBox="0 0 680 510" role="img" aria-labelledby="atp-f1-title">
+    <title id="atp-f1-title">三方排期方案对比：本项目求解器在硬约束上完胜，行程质量分与 LLM 直接排期几乎持平</title>
+
+    <text x="24" y="28" font-size="15" font-weight="600" fill="#0e1217">三方排期方案对比</text>
+    <text x="24" y="49" font-size="11.5" fill="#6a6f76">50 组程序生成场景 · 随机种子 42 · LLM 直接排期基线 = deepseek-chat</text>
+
+    <!-- 图例顺序必须与每组柱子的顺序一致（朴素 → 求解器 → LLM），
+         否则读者按位置对应会读反。柱子里深蓝=求解器、浅蓝=LLM。 -->
+    <g aria-hidden="true">
+      <rect x="24" y="62" width="11" height="11" rx="2" fill="#bcc3cb"/>
+      <rect x="132" y="62" width="11" height="11" rx="2" fill="#1779e1"/>
+      <rect x="240" y="62" width="11" height="11" rx="2" fill="#7fb0ea"/>
+    </g>
+    <text x="41" y="72" font-size="11.5" fill="#0e1217">朴素装填基线</text>
+    <text x="149" y="72" font-size="11.5" fill="#0e1217">本项目求解器</text>
+    <text x="257" y="72" font-size="11.5" fill="#0e1217">LLM 直接排期</text>
+
+    <!-- 硬约束组 -->
+    <g>
+      <text x="24" y="106" font-size="12" fill="#0e1217">每计划时间冲突数</text>
+      <line x1="24" y1="248" x2="224" y2="248" stroke="#e2e5e8" stroke-width="1" aria-hidden="true"/>
+      <rect x="48" y="136" width="40" height="112" rx="3" fill="#bcc3cb"/>
+      <text x="68" y="126" font-size="12" font-weight="600" fill="#d33a3c" text-anchor="middle">0.38</text>
+      <rect x="104" y="246" width="40" height="2" rx="1" fill="#1779e1"/>
+      <text x="124" y="240" font-size="12" font-weight="600" fill="#20a04e" text-anchor="middle">0</text>
+      <rect x="160" y="242" width="40" height="6" rx="3" fill="#7fb0ea"/>
+      <text x="180" y="232" font-size="12" font-weight="600" fill="#d33a3c" text-anchor="middle">0.02</text>
+    </g>
+    <g>
+      <text x="240" y="106" font-size="12" fill="#0e1217">无冲突率</text>
+      <line x1="240" y1="248" x2="440" y2="248" stroke="#e2e5e8" stroke-width="1" aria-hidden="true"/>
+      <rect x="264" y="178.6" width="40" height="69.4" rx="3" fill="#bcc3cb"/>
+      <text x="284" y="168.6" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">62%</text>
+      <rect x="320" y="136" width="40" height="112" rx="3" fill="#1779e1"/>
+      <text x="340" y="126" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">100%</text>
+      <rect x="376" y="138.2" width="40" height="109.8" rx="3" fill="#7fb0ea"/>
+      <text x="396" y="128.2" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">98%</text>
+    </g>
+    <g>
+      <text x="456" y="106" font-size="12" fill="#0e1217">预算违规次数</text>
+      <line x1="456" y1="248" x2="656" y2="248" stroke="#e2e5e8" stroke-width="1" aria-hidden="true"/>
+      <rect x="480" y="136" width="40" height="112" rx="3" fill="#bcc3cb"/>
+      <text x="500" y="126" font-size="12" font-weight="600" fill="#d33a3c" text-anchor="middle">12</text>
+      <rect x="536" y="246" width="40" height="2" rx="1" fill="#1779e1"/>
+      <text x="556" y="240" font-size="12" font-weight="600" fill="#20a04e" text-anchor="middle">0</text>
+      <rect x="592" y="173.3" width="40" height="74.7" rx="3" fill="#7fb0ea"/>
+      <text x="612" y="163.3" font-size="12" font-weight="600" fill="#d33a3c" text-anchor="middle">8</text>
+    </g>
+
+    <!-- 行程质量组 -->
+    <g>
+      <text x="24" y="316" font-size="12" fill="#0e1217">通勤时间占比</text>
+      <line x1="24" y1="456" x2="332" y2="456" stroke="#e2e5e8" stroke-width="1" aria-hidden="true"/>
+      <rect x="64" y="344" width="60" height="112" rx="3" fill="#bcc3cb"/>
+      <text x="94" y="334" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">23.5%</text>
+      <rect x="148" y="393.6" width="60" height="62.4" rx="3" fill="#1779e1"/>
+      <text x="178" y="383.6" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">13.1%</text>
+      <rect x="232" y="393.6" width="60" height="62.4" rx="3" fill="#7fb0ea"/>
+      <text x="262" y="383.6" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">13.1%</text>
+    </g>
+    <g>
+      <text x="348" y="316" font-size="12" fill="#0e1217">行程质量分</text>
+      <line x1="348" y1="456" x2="656" y2="456" stroke="#e2e5e8" stroke-width="1" aria-hidden="true"/>
+      <rect x="388" y="351.8" width="60" height="104.2" rx="3" fill="#bcc3cb"/>
+      <text x="418" y="341.8" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">0.857</text>
+      <rect x="472" y="344.7" width="60" height="111.3" rx="3" fill="#1779e1"/>
+      <text x="502" y="334.7" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">0.915</text>
+      <rect x="556" y="344" width="60" height="112" rx="3" fill="#7fb0ea"/>
+      <text x="586" y="334" font-size="12" font-weight="600" fill="#0e1217" text-anchor="middle">0.921</text>
+    </g>
+
+    <text x="24" y="492" font-size="11" fill="#9299a2">数据来源：docs/experiments.md 实验一（排期方案三方对比）</text>
+  </svg>
+  <figcaption>要告诉读者的事：求解器把硬约束全部清零（0 冲突 / 0 预算违规 / 100% 无冲突率），但行程质量分只从 0.857 提到 0.915——与 LLM 直接排期的 0.921 几乎持平。差距不在「会不会排」，而在「敢不敢保证不越界」。</figcaption>
+</figure>
+<figure class="chart atp-chart">
+  <svg viewBox="0 0 680 470" role="img" aria-labelledby="atp-f2-title">
+    <title id="atp-f2-title">多起点随机重启改造前后对比：收益与合规大幅改善，代价是单次耗时从约 1 毫秒升到均值 501 毫秒</title>
+
+    <text x="24" y="28" font-size="15" font-weight="600" fill="#0e1217">多起点随机重启：改造前后对比</text>
+    <text x="24" y="49" font-size="11.5" fill="#6a6f76">50 场景 / seed=42 / 与同一批 CP-SAT 最优值比较</text>
+
+    <g aria-hidden="true">
+      <rect x="24" y="62" width="11" height="11" rx="2" fill="#bcc3cb"/>
+      <rect x="170" y="62" width="11" height="11" rx="2" fill="#1779e1"/>
+      <rect x="380" y="62" width="11" height="11" rx="2" fill="#e1791b"/>
+    </g>
+    <text x="41" y="72" font-size="11.5" fill="#0e1217">改造前（纯贪心）</text>
+    <text x="187" y="72" font-size="11.5" fill="#0e1217">改造后（多起点随机重启）</text>
+    <text x="397" y="72" font-size="11.5" fill="#0e1217">耗时上升</text>
+    <text x="656" y="72" font-size="11" fill="#9299a2" text-anchor="end">↓ 越低越好 · ↑ 越高越好</text>
+
+    <!-- gap 均值 -->
+    <g>
+      <text x="24" y="114" font-size="11.5" fill="#9299a2">↓</text>
+      <text x="38" y="114" font-size="12" fill="#0e1217">gap 均值</text>
+      <rect x="182" y="98" width="378" height="13" rx="3" fill="#bcc3cb"/>
+      <rect x="182" y="115" width="4" height="13" rx="2" fill="#1779e1"/>
+      <text x="568" y="108.5" font-size="11.5" fill="#6a6f76">7.53%</text>
+      <text x="194" y="125.5" font-size="11.5" font-weight="600" fill="#0e1217">−0.03%</text>
+    </g>
+    <!-- gap 中位数 -->
+    <g>
+      <text x="24" y="162" font-size="11.5" fill="#9299a2">↓</text>
+      <text x="38" y="162" font-size="12" fill="#0e1217">gap 中位数</text>
+      <rect x="182" y="146" width="378" height="13" rx="3" fill="#bcc3cb"/>
+      <rect x="182" y="163" width="4" height="13" rx="2" fill="#1779e1"/>
+      <text x="568" y="156.5" font-size="11.5" fill="#6a6f76">5.89%</text>
+      <text x="194" y="173.5" font-size="11.5" font-weight="600" fill="#0e1217">0.00%</text>
+    </g>
+    <!-- gap 最大 -->
+    <g>
+      <text x="24" y="210" font-size="11.5" fill="#9299a2">↓</text>
+      <text x="38" y="210" font-size="12" fill="#0e1217">gap 最大</text>
+      <rect x="182" y="194" width="378" height="13" rx="3" fill="#bcc3cb"/>
+      <rect x="182" y="211" width="4" height="13" rx="2" fill="#1779e1"/>
+      <text x="568" y="204.5" font-size="11.5" fill="#6a6f76">24.34%</text>
+      <text x="194" y="221.5" font-size="11.5" font-weight="600" fill="#0e1217">0.03%</text>
+    </g>
+    <!-- gap ≤3% 占比 -->
+    <g>
+      <text x="24" y="258" font-size="11.5" fill="#9299a2">↑</text>
+      <text x="38" y="258" font-size="12" fill="#0e1217">gap ≤3% 场景占比</text>
+      <rect x="182" y="242" width="173.9" height="13" rx="3" fill="#bcc3cb"/>
+      <rect x="182" y="259" width="378" height="13" rx="3" fill="#1779e1"/>
+      <text x="363.9" y="252.5" font-size="11.5" fill="#6a6f76">46.0%</text>
+      <text x="568" y="269.5" font-size="11.5" font-weight="600" fill="#0e1217">100%</text>
+    </g>
+    <!-- 平均收益 -->
+    <g>
+      <text x="24" y="306" font-size="11.5" fill="#9299a2">↑</text>
+      <text x="38" y="306" font-size="12" fill="#0e1217">平均收益</text>
+      <rect x="182" y="290" width="349.4" height="13" rx="3" fill="#bcc3cb"/>
+      <rect x="182" y="307" width="378" height="13" rx="3" fill="#1779e1"/>
+      <text x="539.4" y="300.5" font-size="11.5" fill="#6a6f76">73.5</text>
+      <text x="568" y="317.5" font-size="11.5" font-weight="600" fill="#0e1217">79.5</text>
+    </g>
+    <!-- 平均通勤 -->
+    <g>
+      <text x="24" y="354" font-size="11.5" fill="#9299a2">↓</text>
+      <text x="38" y="354" font-size="12" fill="#0e1217">平均通勤（分钟）</text>
+      <rect x="182" y="338" width="378" height="13" rx="3" fill="#bcc3cb"/>
+      <rect x="182" y="355" width="321.5" height="13" rx="3" fill="#1779e1"/>
+      <text x="568" y="348.5" font-size="11.5" fill="#6a6f76">150.1</text>
+      <text x="511.5" y="365.5" font-size="11.5" font-weight="600" fill="#0e1217">127.7</text>
+    </g>
+    <!-- 单次耗时 -->
+    <g>
+      <text x="24" y="402" font-size="11.5" fill="#9299a2">↓</text>
+      <text x="38" y="402" font-size="12" fill="#0e1217">单次耗时</text>
+      <rect x="182" y="386" width="4" height="13" rx="2" fill="#bcc3cb"/>
+      <rect x="182" y="403" width="378" height="13" rx="3" fill="#e1791b"/>
+      <text x="194" y="396.5" font-size="11.5" fill="#6a6f76">~1 ms</text>
+      <text x="568" y="413.5" font-size="11.5" font-weight="600" fill="#e1791b">501 ms</text>
+    </g>
+
+    <text x="24" y="452" font-size="11" fill="#9299a2">数据来源：docs/experiments.md 实验四改进三（多起点随机重启，已落地）</text>
+  </svg>
+  <figcaption>要告诉读者的事：改造后 gap 均值 −0.03%、中位 0.00%、≤3% 的场景占比从 46.0% 拉到 100%，平均收益 73.5 升到 79.5、通勤 150.1 分钟降到 127.7 分钟。但同一张图上必须看到代价——单次耗时从 ~1 ms 涨到均值 501 ms。文件同时注明 501 ms「仍是交互量级」。</figcaption>
+</figure>
+<figure class="chart atp-chart">
+  <svg viewBox="0 0 680 368" role="img" aria-labelledby="atp-f3-title">
+    <title id="atp-f3-title">稳健排程：少排 1 个景点，按时概率从 3.3% 提升到 95.3%</title>
+
+    <text x="24" y="30" font-size="16" font-weight="600" fill="#0e1217">稳健排程：1 个景点换 92 个百分点</text>
+    <text x="24" y="52" font-size="11.5" fill="#6a6f76">西安 2 天 / 时间窗 9:00–15:30 / 要求 70% 稳妥</text>
+
+    <line x1="340" y1="88" x2="340" y2="272" stroke="#e2e5e8" stroke-width="1" aria-hidden="true"/>
+
+    <!-- 左：不要求稳妥 -->
+    <text x="178" y="106" font-size="13" fill="#6a6f76" text-anchor="middle">不要求稳妥</text>
+    <text x="178" y="178" font-size="52" font-weight="700" fill="#d33a3c" text-anchor="middle">3.3%</text>
+    <text x="178" y="202" font-size="12" fill="#9299a2" text-anchor="middle">按时概率</text>
+    <text x="178" y="240" font-size="16" font-weight="600" fill="#0e1217" text-anchor="middle">7 个景点</text>
+    <text x="178" y="262" font-size="11" fill="#9299a2" text-anchor="middle">缓冲 — · 轮数 —</text>
+
+    <!-- 中：差值标签 -->
+    <g>
+      <rect x="302" y="152" width="76" height="22" rx="11" fill="#e9f3ff" stroke="#c2daf9" stroke-width="1"/>
+      <text x="340" y="167" font-size="11.5" font-weight="600" fill="#1779e1" text-anchor="middle">−1 个景点</text>
+    </g>
+
+    <!-- 右：要求 70% 稳妥 -->
+    <text x="502" y="106" font-size="13" fill="#6a6f76" text-anchor="middle">要求 70% 稳妥</text>
+    <text x="502" y="178" font-size="52" font-weight="700" fill="#20a04e" text-anchor="middle">95.3%</text>
+    <text x="502" y="202" font-size="12" fill="#9299a2" text-anchor="middle">按时概率</text>
+    <text x="502" y="240" font-size="16" font-weight="600" fill="#0e1217" text-anchor="middle">6 个景点</text>
+    <text x="502" y="262" font-size="11" fill="#9299a2" text-anchor="middle">缓冲 90 分钟 · 轮数 2</text>
+
+    <!-- 说明条 -->
+    <g>
+      <rect x="24" y="290" width="632" height="40" rx="10" fill="#e9f3ff"/>
+      <text x="340" y="315" font-size="13" font-weight="600" fill="#0e1217" text-anchor="middle">少排 1 个景点，换来 92 个百分点的确定性（3.3% → 95.3%）</text>
+    </g>
+    <text x="24" y="354" font-size="11" fill="#9299a2">数据来源：docs/experiments.md 实验八（N3b 稳健排程）</text>
+  </svg>
+  <figcaption>要告诉读者的事：同一份行程，把「纸面可行」改成「留出缓冲」，只少排 1 个景点（7 → 6），按时概率就从 3.3% 跳到 95.3%。用 1 个景点换 92 个百分点确定性，这笔交易划算到不需要坐标轴。</figcaption>
+</figure>
+<figure class="chart atp-chart">
+  <svg viewBox="0 0 680 410" role="img" aria-labelledby="atp-f4-title">
+    <title id="atp-f4-title">稳健性模拟的噪声参数敏感性：按时概率在 8.9% 到 62.4% 之间跨 53.5 个百分点</title>
+
+    <text x="24" y="28" font-size="15" font-weight="600" fill="#0e1217">稳健性模拟：噪声参数敏感性</text>
+    <text x="24" y="49" font-size="11.5" fill="#6a6f76">同一份紧张行程（西安 2 天 6 景点 / 时间窗 9:00–15:30）· 每组 800 次抽样</text>
+
+    <!-- 悲观 -->
+    <g>
+      <text x="24" y="103" font-size="12" fill="#0e1217">悲观</text>
+      <text x="24" y="119" font-size="11" fill="#9299a2">(0.5~2.0, σ=0.40)</text>
+      <rect x="200" y="96" width="420" height="20" rx="4" fill="#f3f5f8" aria-hidden="true"/>
+      <rect x="200" y="96" width="57.5" height="20" rx="4" fill="#1779e1"/>
+      <text x="265.5" y="110" font-size="12" font-weight="600" fill="#0e1217">8.9%</text>
+    </g>
+    <!-- 仅停留波动 -->
+    <g>
+      <text x="24" y="149" font-size="12" fill="#0e1217">仅停留波动</text>
+      <text x="24" y="165" font-size="11" fill="#9299a2">(σ=0)</text>
+      <rect x="200" y="142" width="420" height="20" rx="4" fill="#f3f5f8" aria-hidden="true"/>
+      <rect x="200" y="142" width="78.2" height="20" rx="4" fill="#1779e1"/>
+      <text x="286.2" y="156" font-size="12" font-weight="600" fill="#0e1217">12.1%</text>
+    </g>
+    <!-- 默认 -->
+    <g>
+      <text x="24" y="195" font-size="12" font-weight="600" fill="#0e1217">默认</text>
+      <text x="24" y="211" font-size="11" fill="#9299a2">(0.6~1.6, σ=0.25)</text>
+      <rect x="200" y="188" width="420" height="20" rx="4" fill="#f3f5f8" aria-hidden="true"/>
+      <rect x="200" y="188" width="137" height="20" rx="4" fill="#1779e1"/>
+      <text x="345" y="202" font-size="12" font-weight="600" fill="#0e1217">21.2%</text>
+    </g>
+    <!-- 仅通勤波动 -->
+    <g>
+      <text x="24" y="241" font-size="12" fill="#0e1217">仅通勤波动</text>
+      <text x="24" y="257" font-size="11" fill="#9299a2">(停留=1)</text>
+      <rect x="200" y="234" width="420" height="20" rx="4" fill="#f3f5f8" aria-hidden="true"/>
+      <rect x="200" y="234" width="294" height="20" rx="4" fill="#1779e1"/>
+      <text x="502" y="248" font-size="12" font-weight="600" fill="#0e1217">45.5%</text>
+    </g>
+    <!-- 乐观 -->
+    <g>
+      <text x="24" y="287" font-size="12" fill="#0e1217">乐观</text>
+      <text x="24" y="303" font-size="11" fill="#9299a2">(0.8~1.2, σ=0.15)</text>
+      <rect x="200" y="280" width="420" height="20" rx="4" fill="#f3f5f8" aria-hidden="true"/>
+      <rect x="200" y="280" width="403.2" height="20" rx="4" fill="#1779e1"/>
+      <text x="611.2" y="294" font-size="12" font-weight="600" fill="#0e1217">62.4%</text>
+    </g>
+
+    <!-- 跨度标注 -->
+    <text x="434.4" y="338" font-size="12" font-weight="600" fill="#e1791b" text-anchor="middle">跨度 53.5 个百分点（8.9% ~ 62.4%）</text>
+    <g>
+      <line x1="257.5" y1="352" x2="611.2" y2="352" stroke="#e1791b" stroke-width="1.5"/>
+      <path d="M 257.5 352 l 9 -5 v 10 z" fill="#e1791b"/>
+      <path d="M 611.2 352 l -9 -5 v 10 z" fill="#e1791b"/>
+    </g>
+
+    <text x="24" y="392" font-size="11" fill="#9299a2">数据来源：docs/experiments.md 实验七（N3 稳健性模拟）</text>
+  </svg>
+  <figcaption>要告诉读者的事：同一份行程、同一套模型，只换噪声参数假设，「按时概率」就从 8.9% 一路漂到 62.4%——跨度 53.5 个百分点。所以线上文案写的是「稳健性估计 + 波动假设说明」，而不是一个孤零零的百分比；真正稳的是风险点排序（西安城墙在全部 5 组参数下都进 Top3）。</figcaption>
+</figure>
+<figure class="chart atp-chart">
+  <svg viewBox="0 0 680 498" role="img" aria-labelledby="atp-f5-title">
+    <title id="atp-f5-title">模型选型对比：免费模型在三类任务上分别比主模型慢 6.4 倍、3.3 倍、2.9 倍</title>
+
+    <text x="24" y="28" font-size="15" font-weight="600" fill="#0e1217">模型选型：主模型 vs 免费模型</text>
+    <text x="24" y="49" font-size="11.5" fill="#6a6f76">每任务重复 5 次取均值 · 抽取输入为 101 字西安三日游攻略</text>
+
+    <g aria-hidden="true">
+      <rect x="24" y="64" width="11" height="11" rx="2" fill="#1779e1"/>
+      <rect x="180" y="64" width="11" height="11" rx="2" fill="#e1791b"/>
+    </g>
+    <text x="41" y="74" font-size="11.5" fill="#0e1217">主模型 deepseek-chat</text>
+    <text x="197" y="74" font-size="11.5" fill="#0e1217">免费模型 glm-4-flash-250414</text>
+
+    <!-- 攻略抽取 -->
+    <g>
+      <rect x="48" y="327.4" width="64" height="28.6" rx="3" fill="#1779e1"/>
+      <rect x="144" y="171.8" width="64" height="184.2" rx="3" fill="#e1791b"/>
+      <text x="80" y="319.4" font-size="12.5" font-weight="600" fill="#0e1217" text-anchor="middle">1.88s</text>
+      <text x="176" y="163.8" font-size="12.5" font-weight="600" fill="#e1791b" text-anchor="middle">12.12s</text>
+    </g>
+    <!-- 意图解析 -->
+    <g>
+      <rect x="260" y="344.1" width="64" height="11.9" rx="3" fill="#1779e1"/>
+      <rect x="356" y="317.1" width="64" height="38.9" rx="3" fill="#e1791b"/>
+      <text x="292" y="336.1" font-size="12.5" font-weight="600" fill="#0e1217" text-anchor="middle">0.78s</text>
+      <text x="388" y="309.1" font-size="12.5" font-weight="600" fill="#e1791b" text-anchor="middle">2.56s</text>
+    </g>
+    <!-- 评价生成 -->
+    <g>
+      <rect x="472" y="325.9" width="64" height="30.1" rx="3" fill="#1779e1"/>
+      <rect x="568" y="268.8" width="64" height="87.2" rx="3" fill="#e1791b"/>
+      <text x="504" y="317.9" font-size="12.5" font-weight="600" fill="#0e1217" text-anchor="middle">1.98s</text>
+      <text x="600" y="260.8" font-size="12.5" font-weight="600" fill="#e1791b" text-anchor="middle">5.74s</text>
+    </g>
+
+    <!-- 分组标签 -->
+    <text x="128" y="382" font-size="13" font-weight="600" fill="#0e1217" text-anchor="middle">攻略抽取</text>
+    <text x="340" y="382" font-size="13" font-weight="600" fill="#0e1217" text-anchor="middle">意图解析</text>
+    <text x="552" y="382" font-size="13" font-weight="600" fill="#0e1217" text-anchor="middle">评价生成</text>
+
+    <text x="128" y="400" font-size="11" fill="#9299a2" text-anchor="middle">长输出 · 用户等待</text>
+    <text x="340" y="400" font-size="11" fill="#9299a2" text-anchor="middle">短输出 · 用户等待</text>
+    <text x="552" y="400" font-size="11" fill="#9299a2" text-anchor="middle">长输出 · 后台预取</text>
+
+    <text x="128" y="422" font-size="12" font-weight="600" fill="#e1791b" text-anchor="middle">慢 6.4 倍</text>
+    <text x="340" y="422" font-size="12" font-weight="600" fill="#e1791b" text-anchor="middle">慢 3.3 倍</text>
+    <text x="552" y="422" font-size="12" font-weight="600" fill="#e1791b" text-anchor="middle">慢 2.9 倍</text>
+
+    <text x="340" y="454" font-size="11.5" fill="#6a6f76" text-anchor="middle">工程决策：攻略抽取、意图解析走主模型；评价生成走免费模型（后台预取）</text>
+    <text x="24" y="478" font-size="11" fill="#9299a2">数据来源：docs/experiments.md 实验三（模型选型，每任务重复 5 次取均值）</text>
+  </svg>
+  <figcaption>要告诉读者的事：免费模型不是「白拿」——三类任务分别慢 6.4 倍、3.3 倍、2.9 倍，在用户等待的路径上不可接受。所以本项目不整体替换模型，而是按任务特性路由：只有后台预取的「评价生成」交给免费模型，做到交互路径不降速、生成任务零成本。</figcaption>
+</figure>
+      </div>
       <p class="table-note">
-        质量分一列 LLM 略高——但那一列不能只看分数：它同时违规 8 次。
-        「质量高一点、但不保证走得通」对行程规划没有意义，这正是本项目把硬约束交给算法的原因。
+        上方数值逐条取自仓库实验报告 <code>docs/experiments.md</code>，每张图都标了对应的实验与口径；
+        实验固定随机种子、脚本与失败案例均已提交，可复现。
+        <br>一处需要说明：依赖 <code>simulation.py</code> 的两组（实验七 / 八）记录于 2026-09-20，
+        其后该模块修正了「无住宿锚点时末段通勤被重复计入」的口径 —— 这组数值应视为**待复测**，而不是现状。
+        把它标出来而不是藏起来，是这份首页一贯的做法。
       </p>
     </div>
   </section>
@@ -522,12 +919,46 @@
 
 </main>
 
+  <!-- 接口文档：清单由服务端在运行时遍历真实路由表生成（GET /meta），不维护第二份手写清单 -->
+  <section id="api">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="sec-kicker">接口文档</span>
+        <h2 style="margin-top:14px">接口清单是算出来的，不是写出来的</h2>
+        <p>下表由服务端在<b>运行时遍历真实路由表</b>生成。手写的第二份接口文档迟早与代码漂移，
+           这里从机制上避免 —— 也正是这份首页在修的东西。</p>
+      </div>
+      <div class="apitable reveal" id="apiTable">
+        <div class="api-loading">滚动到此处才加载，不拖累首屏…</div>
+      </div>
+      <p class="table-note" id="apiNote"></p>
+    </div>
+  </section>
+
+  <!-- 服务状态：把 /health 那 137 字节的裸 JSON 摊开成人能读的样子 -->
+  <section id="status" style="background:var(--surface); border-top:1px solid var(--border);">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="sec-kicker">服务状态</span>
+        <h2 style="margin-top:14px">现在跑着的这一套，是什么状态</h2>
+        <p>同一个 <code>/health</code> 在给机器读之外，也该让人一眼看懂：<b>哪些能力现在是真的可用，哪些是降级</b>。</p>
+      </div>
+      <div class="statgrid reveal" id="statusGrid"></div>
+      <p class="table-note">
+        数据来自 <code>GET /meta</code>（与 <code>/health</code> 同源，不是另算一份）。打开页面时实时读取，刷新即最新。
+        密钥一律只显示「已配置 / 未配置」，不回传任何值。
+      </p>
+    </div>
+  </section>
+
 <footer>
   <div class="wrap foot-in">
     <span>路书 · AI 行程规划</span>
     <a href="/app" data-od-id="foot-app">规划器</a>
-    <a href="/docs" data-od-id="foot-api">接口文档</a>
-    <a href="/health" data-od-id="foot-health">服务状态</a>
+    <a href="#api" data-od-id="foot-api">接口文档</a>
+    <a href="#status" data-od-id="foot-health">服务状态</a>
+    <a href="/docs" data-od-id="foot-swagger"
+       title="FastAPI 自带的 Swagger UI（样式与脚本从 CDN 加载，离线时不可用）">Swagger</a>
     <span class="foot-sp"></span>
     <span>演示数据来自高德开放平台公开接口，仅用于技术演示</span>
   </div>
@@ -553,6 +984,99 @@
   }, { rootMargin: '0px 0px -6% 0px', threshold: 0.06 });
   var nodes = document.querySelectorAll('.reveal');
   for (var j = 0; j < nodes.length; j++) io.observe(nodes[j]);
+})();
+
+/* ---- 接口清单 / 服务状态 ----
+   唯一数据源是 GET /meta（服务端运行时遍历路由表生成）。前端不做任何加工，
+   后端给什么就渲染什么 —— 否则「首页一份、后端一份」又会变成新的漂移源。
+   注意：所有外部字符串都走 esc()，这里的 summary 来自 docstring、属于代码内容。 */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+var API_M_CLASS = { GET: 'm-get', POST: 'm-post', DELETE: 'm-delete' };
+
+function renderApi(d) {
+  var table = document.getElementById('apiTable');
+  var note = document.getElementById('apiNote');
+  if (!table) return;
+  table.innerHTML = (d.endpoints || []).map(function (e) {
+    var m = (e.methods && e.methods[0]) || 'GET';
+    return '<div class="apirow">'
+      + '<span class="m-badge ' + (API_M_CLASS[m] || 'm-get') + '">'
+      + esc((e.methods || []).join(' / ')) + '</span>'
+      + '<code>' + esc(e.path) + '</code>'
+      + '<span class="desc">' + esc(e.summary) + '</span>'
+      + '</div>';
+  }).join('');
+  var skip = d.skipped || [];
+  // 被跳过的路由也要说清楚，否则读者会以为接口少算了几个
+  if (note && skip.length) {
+    note.innerHTML = '另有 ' + skip.length + ' 条路由未列入上表：'
+      + skip.map(function (x) { return '<code>' + esc(x.path) + '</code>'; }).join('、')
+      + '。它们或由框架自带、或不是 HTTP 接口（WebSocket / 静态挂载），一并说明而非静默略过。';
+  }
+}
+
+function renderStatus(s) {
+  var grid = document.getElementById('statusGrid');
+  if (!grid) return;
+  var fb = /fallback/.test(s.amap || '');
+  var t = s.tasks || {}, sp = s.spots || {};
+  var cells = [
+    { k: '求解器', v: s.solver || '—', n: '硬约束的唯一出口' },
+    { k: '通勤数据源', v: fb ? '直线估算（降级）' : '高德真实驾车',
+      n: fb ? '未配置 AMAP_KEY，走几何估算' : '调用高德距离接口', cls: fb ? 'is-na' : 'is-ok' },
+    { k: 'LLM', v: s.llm === 'configured' ? '已配置' : '未配置',
+      n: '抽取 / 评价 / 总评依赖它', cls: s.llm === 'configured' ? 'is-ok' : 'is-na' },
+    { k: '高德 Key', v: s.amap_key === 'configured' ? '已配置' : '未配置',
+      n: '只显示状态，不回传值', cls: s.amap_key === 'configured' ? 'is-ok' : 'is-na' },
+    { k: '预置数据', v: (sp.total == null ? '—' : sp.total) + ' 个景点',
+      n: (s.cities == null ? '—' : s.cities) + ' 个城市 · 坐标来自高德抓取' },
+    { k: '内存任务队列',
+      v: (t.in_memory == null ? '—' : t.in_memory) + ' / ' + (t.max_tasks == null ? '—' : t.max_tasks),
+      n: '已淘汰 ' + (t.evicted_total == null ? 0 : t.evicted_total)
+         + ' 个 · TTL ' + Math.round((t.ttl_s || 0) / 3600) + ' 小时' },
+    { k: 'Python 运行时', v: s.python || '—', n: '服务进程实际版本' },
+    { k: 'API 版本', v: s.version || '—', n: '取自 FastAPI app' }
+  ];
+  grid.innerHTML = cells.map(function (c) {
+    return '<div class="stat ' + (c.cls || '') + '">'
+      + '<div class="k">' + esc(c.k) + '</div>'
+      + '<div class="v">' + esc(c.v) + '</div>'
+      + '<div class="n">' + esc(c.n) + '</div></div>';
+  }).join('');
+}
+
+function loadMeta() {
+  var table = document.getElementById('apiTable');
+  fetch('/meta').then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function (d) {
+    renderApi(d);
+    renderStatus(d.status || {});
+  }).catch(function (err) {
+    if (table) {
+      table.innerHTML = '<div class="api-loading">接口清单取不到（' + esc(err.message)
+        + '）—— 它由服务端在运行时生成、不是静态文件，服务没起来时自然取不到。</div>';
+    }
+  });
+}
+
+// 这两块在最底部：进入视口附近才取，不让首屏多一次请求
+(function () {
+  var anchor = document.getElementById('apiTable');
+  if (!anchor) return;
+  if (!('IntersectionObserver' in window)) { loadMeta(); return; }
+  var ob = new IntersectionObserver(function (entries) {
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].isIntersecting) { ob.disconnect(); loadMeta(); return; }
+    }
+  }, { rootMargin: '300px 0px' });
+  ob.observe(anchor);
 })();
 </script>
 

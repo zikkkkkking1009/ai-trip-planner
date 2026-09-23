@@ -86,6 +86,11 @@
   .site-nav .brand { font-weight:800; font-size:16px; display:flex; align-items:center; gap:9px;
                      letter-spacing:.2px; text-decoration:none; color:inherit; }
   .site-nav .brand:hover { opacity:.82; }   /* 可点：返回首页（首页与规划器已分开） */
+  /* 返回首页：与品牌并列的独立入口，比「品牌恰好可点」更容易被发现 */
+  .site-nav .navback { display:flex; align-items:center; justify-content:center; flex:none;
+                       width:30px; height:30px; border-radius:9px; color:var(--muted-3); }
+  .site-nav .navback svg { width:16px; height:16px; }
+  .site-nav .navback:hover { background:var(--fill); color:var(--fg); }
   .site-nav .brand i { width:22px; height:22px; border-radius:7px; display:inline-block;
                        background:linear-gradient(135deg,var(--accent),var(--accent)); }
   .site-nav .links { display:flex; gap:2px; margin-left:14px; }
@@ -549,6 +554,15 @@
     .site-nav .navtag { font-size:12px; padding:6px 10px; }
   }
 
+  /* ---- 12.5 跨页面跳转的视图过渡 ----
+     与首页同一套（两边都要声明，双向跳转才有动画）。
+     Chrome 126+ 的跨文档 View Transitions；不支持的浏览器就是普通跳转。 */
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root) { animation: vtOut .18s cubic-bezier(.22,.61,.36,1) both; }
+  ::view-transition-new(root) { animation: vtIn .26s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes vtOut { to { opacity:0; transform:translateY(-6px) } }
+  @keyframes vtIn  { from { opacity:0; transform:translateY(10px) } }
+
   /* ---- 13. 尊重系统的「减弱动效」偏好 ---- */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -565,6 +579,12 @@
 
   <!-- ========= 顶部导航（网站形态，替代原底部 App tabbar）========= -->
   <nav class="site-nav">
+    <!-- 显式的返回入口：品牌链接虽然也能点，但「能回去」这件事值得说出来 -->
+    <a class="navback" href="/" title="返回首页" aria-label="返回首页">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M9.5 3.5 5 8l4.5 4.5"/></svg>
+    </a>
     <a class="brand" href="/" title="返回首页"><i></i>路书 · AI 行程规划</a>
     <span class="links">
       <a id="navPlan" class="on" onclick="switchPage('plan')">规划</a>
