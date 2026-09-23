@@ -153,13 +153,28 @@ def extract(text: str, city: str = "") -> dict:
 # ---------- 异步任务化（v0.5） ----------
 
 @app.get("/")
-def index():
-    """演示页：浏览器里看实时进度推送与逐日行程。"""
-    index_html = STATIC_DIR / "index.html"
-    if index_html.exists():
+def home():
+    """首页（Landing）：项目介绍与入口——与规划器分开，见 `static/home.html`。"""
+    return _serve_html("home.html")
+
+
+@app.get("/app")
+def planner_page():
+    """规划器本体：表单 / 进度 / 逐日行程 / 地图 / 我的（`static/index.html`）。"""
+    return _serve_html("index.html")
+
+
+def _serve_html(filename: str):
+    """直接把 static/ 下的单文件页面返回。
+
+    这个项目的前端是「单文件、零构建、零 CDN」，所以不需要模板引擎——
+    读文件原样返回即可，也便于把首页与规划器做成两个独立入口。
+    """
+    f = STATIC_DIR / filename
+    if f.exists():
         from fastapi.responses import HTMLResponse
-        return HTMLResponse(index_html.read_text(encoding="utf-8"))
-    raise HTTPException(404, "static/index.html 不存在")
+        return HTMLResponse(f.read_text(encoding="utf-8"))
+    raise HTTPException(404, f"static/{filename} 不存在")
 
 
 @app.get("/demo/spots")

@@ -7,205 +7,281 @@
 <link rel="stylesheet" href="/static/vendor/leaflet.css">
 <script src="/static/vendor/leaflet.js"></script>
 <style>
-  :root { --acc:#1677ff; --acc2:#4096ff; --fg:#1d2939; --dim:#98a2b3; --line:#e8ecf2; }
-  * { box-sizing:border-box; margin:0; padding:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  body { background:#f7f9fc; color:var(--fg); -webkit-font-smoothing:antialiased; }
+  :root {
+    /* ===== 设计令牌：与首页 static/home.html **共用同一套** =====
+       改这里 = 同时改两页观感。规划器信息密度高，故比首页多一档 --muted-3
+       （11~12px 的标签 / 元信息）。--acc / --dim / --line 是历史变量名，
+       保留为别名，存量规则一行都不用改。 */
+    --bg:       oklch(99% 0.002 240);
+    --surface:  oklch(100% 0 0);
+    --fg:       oklch(18% 0.012 250);
+    --muted:    oklch(54% 0.012 250);   /* 说明性正文 */
+    --muted-2:  oklch(44% 0.014 250);   /* 需要读的次级文字 */
+    --muted-3:  oklch(68% 0.016 255);   /* 标签 / 元信息 / 占位 */
+    --border:   oklch(92% 0.005 250);
+    --fill:     oklch(97% 0.004 250);   /* 输入底、次级面 */
+    --fill-2:   oklch(94.5% 0.006 250); /* 其上的 hover 态 */
+
+    --accent:      oklch(58% 0.18 255);
+    --accent-deep: oklch(52% 0.19 255);   /* hover / 按下时的加深态 */
+    --accent-ink:  oklch(99% 0.01 255);
+    --accent-soft: oklch(96% 0.02 255);
+    --accent-line: oklch(88% 0.05 255);
+
+    /* 语义色保留原十六进制：色相本身承载语义（红=危险 / 绿=成功 / 橙=注意）。
+       实测把它们也 oklch 化，--warn 会从 #e8590c（红橙）偏成 #e1791b（黄橙），
+       为了「统一色空间」而改动语义色不划算。 */
+    --ok:        #12b76a;
+    --ok-ink:    #2b6e34;
+    --ok-soft:   #eef6ee;
+    --ok-line:   #cde8cf;
+    --warn:      #e8590c;
+    --warn-soft: #fff4e6;
+    --bad:       #e03131;
+    --bad-ink:   #b42318;
+    --bad-soft:  #fef2f2;
+    --bad-line:  #fee4e2;
+    --stay:      #7048e8;   /* 住宿标记（地图与条目里和景点区分开） */
+    --note-soft: #fff8e6;   /* 提示黄：与 warn 橙分开，避免把「注意」和「花钱」混为一色 */
+    --note-line: #ffe58f;
+    --note-ink:  #ad6800;
+
+    /* 别名（存量规则沿用） */
+    --acc:  var(--accent);
+    --dim:  var(--muted-3);
+    --line: var(--border);
+
+    /* 字体：与首页同一套分层（display 用于标题，负字距是这套风格的标志） */
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
+                    "Microsoft YaHei", system-ui, sans-serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+                    "Microsoft YaHei", system-ui, sans-serif;
+
+    /* 层次：三级阴影。只在表达「浮起」处用，层级越高越重 */
+    --sh-1: 0 1px 2px oklch(28% 0.03 255 / .05);
+    --sh-2: 0 6px 20px oklch(28% 0.03 255 / .07);
+    --sh-3: 0 18px 48px oklch(28% 0.03 255 / .18);
+
+    /* 缓动与时长：统一，避免各处 ease 乱飞 */
+    --e:      cubic-bezier(.22,.61,.36,1);
+    --e-out:  cubic-bezier(.16,1,.3,1);
+    --t-fast: .14s;
+    --t:      .22s;
+    --t-slow: .38s;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; font-family:var(--font-body); }
+  body { background:var(--bg); color:var(--fg); -webkit-font-smoothing:antialiased; }
+  /* 标题用 display 字重与负字距 —— 与首页一致，是这套风格的识别特征 */
+  h1,h2,h3 { font-family:var(--font-display); letter-spacing:-.022em; }
   /* 站点容器：桌面宽屏（原来是 460px 手机壳 + 页内滚动，App 观感太强） */
   #phone { width:100%; min-height:100vh; display:flex; flex-direction:column; background:transparent; }
   .page { display:none; flex:1; }
   .page.active { display:block; }
-  /* 顶部导航：固定 + 毛玻璃 */
+  /* 顶部导航：固定 + 毛玻璃（与首页 .nav 同一配方） */
   .site-nav { position:sticky; top:0; z-index:500; display:flex; align-items:center; gap:10px;
               padding:13px max(24px, calc((100vw - 1180px) / 2));
-              background:rgba(255,255,255,.82); backdrop-filter:blur(14px);
-              border-bottom:1px solid rgba(16,24,40,.06); }
+              background:color-mix(in oklab, var(--bg) 78%, transparent);
+              backdrop-filter:saturate(180%) blur(14px);
+              border-bottom:1px solid transparent; }
   .site-nav .brand { font-weight:800; font-size:16px; display:flex; align-items:center; gap:9px;
-                     letter-spacing:.2px; }
+                     letter-spacing:.2px; text-decoration:none; color:inherit; }
+  .site-nav .brand:hover { opacity:.82; }   /* 可点：返回首页（首页与规划器已分开） */
   .site-nav .brand i { width:22px; height:22px; border-radius:7px; display:inline-block;
-                       background:linear-gradient(135deg,#4096ff,#1677ff); }
+                       background:linear-gradient(135deg,var(--accent),var(--accent)); }
   .site-nav .links { display:flex; gap:2px; margin-left:14px; }
-  .site-nav .links a { font-size:13.5px; color:#475467; padding:7px 13px; border-radius:9px;
+  .site-nav .links a { font-size:13.5px; color:var(--muted-2); padding:7px 13px; border-radius:9px;
                        cursor:pointer; user-select:none; }
-  .site-nav .links a:hover { background:#f2f5fa; }
-  .site-nav .links a.on { color:var(--acc); background:#eef4ff; font-weight:600; }
+  .site-nav .links a:hover { background:var(--fill-2); }
+  .site-nav .links a.on { color:var(--acc); background:var(--accent-soft); font-weight:600; }
   .site-nav .spacer { flex:1; }
-  .site-nav .navtag { font-size:12.5px; color:#475467; background:#f2f4f8;
-                      padding:6px 13px; border-radius:999px; white-space:nowrap; }
+  .site-nav .navtag { font-size:12.5px; color:var(--muted-2); background:var(--fill);
+                      padding:6px 13px; border-radius:999px; var(--surface)-space:nowrap; }
   /* 右上角城市：可点击切换（原来只是一块死文本） */
   .site-nav .navcity { cursor:pointer; user-select:none; display:inline-flex; align-items:center; }
-  .site-nav .navcity:hover { background:#e7eaf0; color:#1f2937; }
-  .site-nav .navcity::after { content:'▾'; font-size:10px; color:#98a2b3; margin-left:4px; }
+  .site-nav .navcity:hover { background:var(--fill-2); color:var(--fg); }
+  .site-nav .navcity::after { content:'▾'; font-size:10px; color:var(--muted-3); margin-left:4px; }
   .city-menu { display:none; position:fixed; top:54px; right:24px; z-index:600;
-               background:#fff; border:1px solid #eef1f6; border-radius:12px; padding:6px;
-               box-shadow:0 14px 34px rgba(16,24,40,.15); max-height:60vh; overflow-y:auto;
+               background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:6px;
+               box-shadow: var(--sh-3); max-height:60vh; overflow-y:auto;
                min-width:132px; }
   .city-menu.open { display:block; }
-  .city-item { padding:7px 12px; border-radius:8px; font-size:13px; color:#475467;
-               cursor:pointer; white-space:nowrap; }
-  .city-item:hover { background:#f2f5fa; }
-  .city-item.on { color:var(--acc); background:#eef4ff; font-weight:600; }
-  /* Hero：大标题区（替代原来那个"App 渐变头"） */
-  .hero { padding:64px 24px 40px; text-align:center;
-          background:radial-gradient(1100px 300px at 50% -80px, #e8f1ff 0%, rgba(247,249,252,0) 72%); }
-  .hero h1 { font-size:clamp(26px, 3.6vw, 42px); font-weight:800; letter-spacing:-.6px; line-height:1.18; }
-  .hero .meta { color:#667085; font-size:15px; margin-top:14px; }
+  .city-item { padding:7px 12px; border-radius:8px; font-size:13px; color:var(--muted-2);
+               cursor:pointer; var(--surface)-space:nowrap; }
+  .city-item:hover { background:var(--fill-2); }
+  .city-item.on { color:var(--acc); background:var(--accent-soft); font-weight:600; }
+  /* Hero：accent 色带 —— 与首页 .hero 同一做法，保证从首页点进来观感连贯。
+     比首页薄：规划器的重点在下方表单，色带只作视觉锚点，不喧宾夺主。 */
+  .page > header.hero { padding:54px 24px 46px; text-align:center;
+                        background:var(--accent); color:var(--accent-ink); }
+  .hero h1 { font-size:clamp(26px, 3.4vw, 40px); font-weight:800; line-height:1.16;
+             color:var(--accent-ink); }
+  .hero .meta { font-size:15px; margin-top:14px;
+                color:color-mix(in oklab, var(--accent-ink) 84%, var(--accent)); }
   .hero .chips { margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-  .hero .chip { background:#fff; border:1px solid #e6ebf3; color:#475467; padding:6px 14px;
-                border-radius:999px; font-size:12.5px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  .hero .chip { padding:6px 14px; border-radius:999px; font-size:12.5px; box-shadow:none;
+                background:color-mix(in oklab, var(--accent-ink) 16%, transparent);
+                border:1px solid color-mix(in oklab, var(--accent-ink) 30%, transparent);
+                color:var(--accent-ink); }
+  /* 「我的」页头复用同一条色带，只是更薄（它没有 chips，重点是下面的列表）——
+     两页共用同一个 hero 类，切换时才不会一个有色带一个没有。 */
+  #pageUser > header.hero { padding:40px 24px 36px; }
+  #pageUser > header.hero h1 { font-size:clamp(24px, 3vw, 34px); }
   /* 主体：左表单（吸顶）+ 右结果 */
   .layout { display:grid; grid-template-columns:372px minmax(0, 1fr); gap:20px;
-            max-width:1180px; margin:0 auto 56px; padding:0 24px; align-items:start; }
+            max-width:1180px; margin:30px auto 56px; padding:0 24px; align-items:start; }
   @media (max-width:1024px) { .layout { grid-template-columns:1fr; gap:16px; } }
   .stage { min-width:0; }
   .page > header { padding:34px 24px 22px; }
-  .sheet { background:#fff; border-radius:16px; padding:18px; border:1px solid #eef1f6;
-           box-shadow:0 8px 28px rgba(16,24,40,.06);
+  .sheet { background:var(--surface); border-radius:16px; padding:18px; border:1px solid var(--border);
+           box-shadow: var(--sh-2);
            position:sticky; top:84px; }              /* 顶栏下吸顶，滚动时表单一直在 */
   @media (max-width:1024px) { .sheet { position:static; } }
   .field { display:flex; flex-direction:column; gap:4px; }
-  .field label { font-size:11px; color:#8a94a6; }
+  .field label { font-size:11px; color:var(--muted-3); }
   .datefield { margin-bottom:10px; cursor:pointer; }
   .datebox { display:flex; justify-content:space-between; align-items:center;
-             border:1px solid var(--line); background:#f8fafc; border-radius:9px; padding:10px 12px; }
+             border:1px solid var(--line); background:var(--fill); border-radius:9px; padding:10px 12px; }
   .datebox b { font-size:15px; color:var(--fg); font-variant-numeric:tabular-nums; }
   .datebox .nights { color:var(--acc); font-size:12px; font-weight:700; }
   .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
-  input { border:1px solid var(--line); background:#f8fafc; border-radius:9px;
+  input { border:1px solid var(--line); background:var(--fill); border-radius:9px;
           padding:9px 10px; width:100%; color:var(--fg); font-size:14px; }
-  input:focus { outline:none; border-color:var(--acc); background:#fff; }
-  .go { margin-top:10px; width:100%; background:linear-gradient(90deg,#4096ff,#1677ff); color:#fff;
+  input:focus { outline:none; border-color:var(--acc); background:var(--surface); }
+  .go { margin-top:10px; width:100%; background:var(--accent); color:var(--surface);
         border:none; border-radius:10px; padding:11px; font-size:15px; font-weight:700;
         cursor:pointer; letter-spacing:2px; }
   .go:disabled { opacity:.5; }
   /* 规划进度条（按钮下方） */
   .go-progress { display:none; margin-top:10px; }
   .go-progress.on { display:block; }
-  .gp-bar { height:6px; background:#eef1f6; border-radius:999px; overflow:hidden; }
+  .gp-bar { height:6px; background:var(--border); border-radius:999px; overflow:hidden; }
   .gp-fill { height:100%; width:0; border-radius:999px;
-             background:linear-gradient(90deg,#4096ff,#1677ff);
+             background:var(--accent);
              transition:width .4s ease; }
-  .gp-fill.bad { background:linear-gradient(90deg,#f97066,#d92d20); }
+  .gp-fill.bad { background:linear-gradient(90deg,var(--bad),var(--bad)); }
   .gp-text { display:flex; justify-content:space-between; gap:8px;
-             font-size:11.5px; color:#98a2b3; margin-top:6px; }
-  .gp-text span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+             font-size:11.5px; color:var(--muted-3); margin-top:6px; }
+  .gp-text span:first-child { overflow:hidden; text-overflow:ellipsis; var(--surface)-space:nowrap; }
   /* 分段控件 + Day tabs：吸顶 */
-  .seg { display:flex; background:#fff; border-radius:10px; margin:8px 14px; padding:3px;
-         box-shadow:0 1px 6px rgba(22,119,255,.08); position:sticky; top:0; z-index:420; }
+  .seg { display:flex; background:var(--surface); border-radius:10px; margin:8px 14px; padding:3px;
+         box-shadow: var(--sh-1); position:sticky; top:0; z-index:420; }
   .seg .s { flex:1; text-align:center; padding:8px 0; font-size:13.5px; color:var(--dim);
             border-radius:8px; cursor:pointer; }
-  .seg .s.active { background:#e8f1ff; color:var(--acc); font-weight:700; }
+  .seg .s.active { background:var(--accent-soft); color:var(--acc); font-weight:700; }
   /* 分享长图：动作型按钮，不参与"切换视图"的均分 */
   .seg .s-share { flex:0 0 auto; padding-left:14px; padding-right:14px;
                   color:var(--acc); font-weight:600; }
-  .seg .s-share:hover { background:#eef4ff; }
-  .daytabs { display:flex; gap:4px; padding:0 12px; background:#fff; overflow-x:auto;
+  .seg .s-share:hover { background:var(--accent-soft); }
+  .daytabs { display:flex; gap:4px; padding:0 12px; background:var(--surface); overflow-x:auto;
              scrollbar-width:none; position:sticky; top:44px; z-index:410;
              border-bottom:1px solid var(--line); }
   .daytabs::-webkit-scrollbar { display:none; }
   .daytabs .tab { padding:11px 12px; font-size:14px; color:var(--dim); cursor:pointer;
-                  white-space:nowrap; border-bottom:2.5px solid transparent; }
+                  var(--surface)-space:nowrap; border-bottom:2.5px solid transparent; }
   .daytabs .tab.active { color:var(--fg); font-weight:800; border-bottom-color:var(--acc); }
   /* 行程卡片 */
   #view { padding:8px 16px 24px; }
-  .dayblock { background:#fff; border-radius:14px; padding:14px; margin-bottom:14px;
-              box-shadow:0 2px 10px rgba(22,119,255,.06); }
+  .dayblock { background:var(--surface); border-radius:14px; padding:14px; margin-bottom:14px;
+              box-shadow: var(--sh-1); }
   .dayhead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
   .daytitle { font-size:17px; font-weight:800; }
   .daysub { color:var(--dim); font-size:11.5px; }
-  .entry { display:flex; gap:11px; padding:9px 0; border-top:1px dashed #eef1f5; }
+  .entry { display:flex; gap:11px; padding:9px 0; border-top:1px dashed var(--border); }
   .entry:first-of-type { border-top:none; }
   .entry .bar { width:4px; border-radius:2px; flex-shrink:0; }
   .entry .body { flex:1; min-width:0; }
   .entry .toprow { display:flex; align-items:center; gap:6px; }
-  .entry .tag { color:#2f9e44; font-size:10.5px; }
+  .entry .tag { color:var(--ok); font-size:10.5px; }
   /* 景点缩略图：位于「景点」标签与景点名之间（原来是 56px 大图放在条目最左，但从没显示过） */
   .entry .thumb { width:24px; height:24px; border-radius:6px; object-fit:cover;
-                  flex-shrink:0; background:#eef1f5; display:block; }
+                  flex-shrink:0; background:var(--border); display:block; }
   .entry .thumb.lazy { opacity:0; }   /* 还没取到图时占位（保持行高一致，避免跳动） */
   .entry .name { font-size:15.5px; font-weight:700; cursor:pointer; }
   .entry .name:active { color:var(--acc); }
-  .entry .ticket { color:#e8590c; font-size:11.5px; }
-  .entry .time { display:inline-block; background:#f0f4fa; border-radius:8px;
+  .entry .ticket { color:var(--warn); font-size:11.5px; }
+  .entry .time { display:inline-block; background:var(--fill); border-radius:8px;
                  padding:5px 11px; margin:6px 0 4px; font-size:13.5px; font-weight:700;
                  font-variant-numeric:tabular-nums; }
-  .entry .desc { color:#667085; font-size:12.5px; line-height:1.65; }
+  .entry .desc { color:var(--muted-2); font-size:12.5px; line-height:1.65; }
   .entry .intro { color:var(--dim); font-size:11.5px; margin-top:2px; }
   .fav { align-self:center; background:none; border:none; font-size:20px; cursor:pointer; flex-shrink:0; padding:4px; }
-  .unplanned { background:#fff4f4; color:#c0392b; font-size:12px; padding:7px 12px;
+  .unplanned { background:var(--bad-soft); color:var(--bad-ink); font-size:12px; padding:7px 12px;
                border-radius:9px; margin-bottom:8px; }
-  .changes { background:#eef6ee; border:1px solid #cde8cf; color:#2b6e34;
+  .changes { background:var(--ok-soft); border:1px solid var(--ok-line); color:var(--ok-ink);
              font-size:12.5px; border-radius:10px; padding:8px 12px; margin-bottom:10px; }
   /* 地图 */
   #mapView { padding:8px 14px 24px; position:relative; }
   #map { height:56vh; min-height:360px; width:100%; border-radius:14px; }
-  .legend { position:absolute; top:20px; right:24px; z-index:500; background:#fff;
-            border-radius:10px; padding:8px 12px; font-size:12px; box-shadow:0 2px 10px rgba(0,0,0,.18); }
+  .legend { position:absolute; top:20px; right:24px; z-index:500; background:var(--surface);
+            border-radius:10px; padding:8px 12px; font-size:12px; box-shadow: var(--sh-2); }
   .legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; }
   .legend div { margin:3px 0; cursor:pointer; }
   .legend div.off { opacity:.35; }
   .maptip { color:var(--dim); font-size:11.5px; text-align:center; margin-top:8px; }
   .empty-hint { position:absolute; top:44%; left:50%; transform:translate(-50%,-50%);
-                z-index:500; background:#fff; border-radius:12px; padding:14px 20px;
-                font-size:13px; color:#667085; text-align:center; line-height:1.9;
-                box-shadow:0 4px 16px rgba(22,119,255,.15); }
+                z-index:500; background:var(--surface); border-radius:12px; padding:14px 20px;
+                font-size:13px; color:var(--muted-2); text-align:center; line-height:1.9;
+                box-shadow: var(--sh-2); }
   /* 日志 + 对话框 */
   details { margin:0 14px 8px; }
   details.adv { margin:10px 0 0; }
-  details.adv summary { color:#8a94a6; font-size:12px; background:#f8fafc;
+  details.adv summary { color:var(--muted-3); font-size:12px; background:var(--fill);
     border:1px solid var(--line); border-radius:9px; padding:8px 12px; list-style:none; }
   details.adv summary::-webkit-details-marker { display:none; }
-  details.adv[open] summary { border-radius:9px 9px 0 0; background:#fff; }
+  details.adv[open] summary { border-radius:9px 9px 0 0; background:var(--surface); }
   summary { color:var(--dim); font-size:12px; cursor:pointer; }
-  #log { max-height:150px; overflow-y:auto; font-size:12px; line-height:1.9; color:#555;
-         background:#fff; border-radius:8px; padding:8px 12px; }
+  #log { max-height:150px; overflow-y:auto; font-size:12px; line-height:1.9; color:var(--muted-2);
+         background:var(--surface); border-radius:8px; padding:8px 12px; }
   #log .st { color:var(--acc); }
-  .chatbar { display:flex; gap:8px; padding:10px 14px; background:#f2f4f8;
+  .chatbar { display:flex; gap:8px; padding:10px 14px; background:var(--fill);
              position:sticky; bottom:0; z-index:430; }
-  .chatbar input { flex:1; box-shadow:0 2px 10px rgba(22,119,255,.08); }
-  .chatbar button { background:var(--acc); color:#fff; border:none; border-radius:9px;
+  .chatbar input { flex:1; box-shadow: var(--sh-1); }
+  .chatbar button { background:var(--acc); color:var(--surface); border:none; border-radius:9px;
                     padding:8px 16px; cursor:pointer; font-size:13px; font-weight:600; }
   .chatbar button:disabled { opacity:.5; }
 
   /* AI 总评卡片（位于稳健性模拟上方） */
   #reviewBox { display:none; }
   #reviewBox.on { display:block; }
-  .rv-card { background:linear-gradient(135deg,#f7fbff,#eef5ff); border:1px solid #dbe9ff;
+  .rv-card { background:var(--accent-soft); border:1px solid var(--accent-line);
              border-radius:14px; padding:15px 16px; margin-bottom:12px;
-             box-shadow:0 4px 16px rgba(22,119,255,.07); }
-  .rv-card.rv-loading { color:#98a2b3; font-size:13px; line-height:1.7; }
-  .rv-head { display:flex; align-items:center; gap:6px; font-size:11.5px; color:#7c93b5;
+             box-shadow: var(--sh-1); }
+  .rv-card.rv-loading { color:var(--muted-3); font-size:13px; line-height:1.7; }
+  .rv-head { display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted-3);
              margin-bottom:10px; }
   .rv-top { display:flex; align-items:flex-start; gap:14px; }
-  .rv-score { font-size:32px; font-weight:800; letter-spacing:-1.5px; color:#1677ff;
+  .rv-score { font-size:32px; font-weight:800; letter-spacing:-1.5px; color:var(--accent);
               line-height:1; flex-shrink:0; }
-  .rv-score small { font-size:13px; font-weight:600; color:#98a2b3; margin-left:1px; }
-  .rv-summary { font-size:13.5px; line-height:1.75; color:#1d2939; flex:1; min-width:0; }
-  .rv-money { margin-top:11px; padding-top:10px; border-top:1px dashed #d8e6ff;
-              font-size:12.5px; color:#475467; display:flex; flex-wrap:wrap; gap:4px 14px; }
-  .rv-money b { color:#e8590c; font-weight:700; }
-  .rv-money span { color:#98a2b3; }
+  .rv-score small { font-size:13px; font-weight:600; color:var(--muted-3); margin-left:1px; }
+  .rv-summary { font-size:13.5px; line-height:1.75; color:var(--fg); flex:1; min-width:0; }
+  .rv-money { margin-top:11px; padding-top:10px; border-top:1px dashed var(--accent-line);
+              font-size:12.5px; color:var(--muted-2); display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .rv-money b { color:var(--warn); font-weight:700; }
+  .rv-money span { color:var(--muted-3); }
   .rv-list { margin-top:11px; display:flex; flex-direction:column; gap:6px; }
-  .rv-item { font-size:12.5px; line-height:1.65; color:#475467; display:flex; gap:7px; }
+  .rv-item { font-size:12.5px; line-height:1.65; color:var(--muted-2); display:flex; gap:7px; }
   .rv-item b { flex-shrink:0; }
 
   /* N3 稳健性卡片 */
   #robustBox { display:none; }
-  .rb-card { background:#fff; border:1px solid #eef1f6; border-radius:14px; padding:14px 16px;
-             box-shadow:0 4px 16px rgba(16,24,40,.05); margin-bottom:12px }
-  .rb-card.rb-good { border-left:4px solid #12b76a }
-  .rb-card.rb-warn { border-left:4px solid #f79009 }
-  .rb-card.rb-bad  { border-left:4px solid #f04438 }
-  .rb-head { font-size:11.5px; color:#98a2b3; margin-bottom:6px }
+  .rb-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px;
+             box-shadow: var(--sh-1); margin-bottom:12px }
+  /* 三态：整卡浅色描边 + 左侧重色条。
+     原来只给 border-left —— 在白底圆角卡上会显得那条线是「飘着的」，与其他边不协调。 */
+  .rb-card.rb-good { border:1px solid var(--ok-line); border-left:4px solid var(--ok) }
+  .rb-card.rb-warn { border:1px solid var(--note-line); border-left:4px solid var(--warn) }
+  .rb-card.rb-bad  { border:1px solid var(--bad-line); border-left:4px solid var(--bad) }
+  .rb-head { font-size:11.5px; color:var(--muted-3); margin-bottom:6px }
   .rb-prob { font-size:26px; font-weight:800; letter-spacing:-.5px }
-  .rb-prob span { font-size:13px; font-weight:500; color:#667085; margin-left:6px }
-  .rb-days { font-size:12.5px; color:#475467; margin-top:4px }
+  .rb-prob span { font-size:13px; font-weight:500; color:var(--muted-2); margin-left:6px }
+  .rb-days { font-size:12.5px; color:var(--muted-2); margin-top:4px }
   .rb-risks { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center }
   .rb-fix { font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer; font-weight:600;
-            background:#fff1f3; color:#b42318; border:1px solid #fecdca }
-  .rb-fix:hover { background:#fee4e2 }
-  .rb-ok { font-size:12.5px; color:#027a48 }
-  .rb-loading { color:#98a2b3; font-size:13px }
-  .rb-note { font-size:11px; color:#b4b2a9; margin-top:8px }
+            background:var(--bad-soft); color:var(--bad-ink); border:1px solid var(--bad-line) }
+  .rb-fix:hover { background:var(--bad-line) }
+  .rb-ok { font-size:12.5px; color:var(--ok-ink) }
+  .rb-loading { color:var(--muted-3); font-size:13px }
+  .rb-note { font-size:11px; color:var(--muted-3); margin-top:8px }
 
   /* ===== 小舟：petdex「deepseek酱」原版 sprite =====
      资源 static/vendor/pet/deepseek.webp：1536×1872，8 列 × 9 行，帧 192×208。
@@ -237,7 +313,7 @@
     to   { background-position:calc(-96px * var(--steps, 6)) var(--y, 0); }
   }
   #pet .pet-badge { position:absolute; top:-2px; right:-2px; width:14px; height:14px; border-radius:50%;
-                    background:#e8590c; border:2px solid #fff; display:none }
+                    background:var(--warn); border:2px solid var(--surface); display:none }
   #pet.has-news .pet-badge { display:block; animation:petPop .5s ease }
   @keyframes petPop { 0% { transform:scale(.2) } 70% { transform:scale(1.25) } 100% { transform:scale(1) } }
   #pet:active .pet-sprite { transform:scale(.94); }
@@ -248,97 +324,215 @@
 
   #petPanel { position:fixed; right:16px; bottom:92px; z-index:899;
               width:min(342px, calc(100vw - 32px)); max-height:min(470px, 62vh);
-              background:#fff; border-radius:16px; border:1px solid #eef0f4;
-              box-shadow:0 14px 44px rgba(16,24,40,.20);
+              background:var(--surface); border-radius:16px; border:1px solid var(--border);
+              box-shadow: var(--sh-3);
               display:none; flex-direction:column; overflow:hidden; }
   #petPanel.open { display:flex }
   #petPanel .pp-head { display:flex; align-items:center; gap:8px; padding:10px 14px;
-                       background:#f7f8fb; border-bottom:1px solid #eef0f4; }
+                       background:var(--fill); border-bottom:1px solid var(--border); }
   #petPanel .pp-title { font-size:13px; font-weight:600; flex:1 }
-  #petPanel .pp-state { font-size:11.5px; color:#98a2b3 }
-  #petPanel .pp-x { border:none; background:none; font-size:15px; color:#98a2b3;
+  #petPanel .pp-state { font-size:11.5px; color:var(--muted-3) }
+  #petPanel .pp-x { border:none; background:none; font-size:15px; color:var(--muted-3);
                     cursor:pointer; padding:2px 6px; border-radius:6px }
-  #petPanel .pp-x:hover { background:#eceff4; color:#475467 }
+  #petPanel .pp-x:hover { background:var(--fill); color:var(--muted-2) }
   #ppMsgs { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:9px }
   .pp-msg { max-width:84%; padding:8px 12px; border-radius:12px; font-size:13px;
-            line-height:1.55; word-break:break-word; white-space:pre-wrap }
-  .pp-msg.user { align-self:flex-end; background:var(--acc); color:#fff; border-bottom-right-radius:4px }
-  .pp-msg.bot { align-self:flex-start; background:#f2f4f8; color:#1f2937; border-bottom-left-radius:4px }
-  .pp-msg.err { background:#fef2f2; color:#b42318; border:1px solid #fee4e2 }
-  .pp-msg .pp-changes { display:block; margin-top:5px; font-size:12px; color:#475467 }
+            line-height:1.55; word-break:break-word; var(--surface)-space:pre-wrap }
+  .pp-msg.user { align-self:flex-end; background:var(--acc); color:var(--surface); border-bottom-right-radius:4px }
+  .pp-msg.bot { align-self:flex-start; background:var(--fill); color:var(--fg); border-bottom-left-radius:4px }
+  .pp-msg.err { background:var(--bad-soft); color:var(--bad-ink); border:1px solid var(--bad-line) }
+  .pp-msg .pp-changes { display:block; margin-top:5px; font-size:12px; color:var(--muted-2) }
   .pp-typing span { display:inline-block; width:5px; height:5px; margin-right:3px; border-radius:50%;
-                    background:#98a2b3; animation:ppDot 1.2s infinite }
+                    background:var(--muted-3); animation:ppDot 1.2s infinite }
   .pp-typing span:nth-child(2) { animation-delay:.16s } .pp-typing span:nth-child(3) { animation-delay:.32s }
   @keyframes ppDot { 0%,60%,100% { opacity:.25; transform:translateY(0) } 30% { opacity:1; transform:translateY(-3px) } }
   #ppHints { display:flex; gap:6px; flex-wrap:wrap; padding:0 12px 8px }
-  .pp-hint { font-size:11.5px; padding:4px 10px; border-radius:999px; background:#eef4ff;
-             color:#1d4ed8; border:1px solid #dbe6ff; cursor:pointer }
-  .pp-hint:hover { background:#dbe6ff }
+  .pp-hint { font-size:11.5px; padding:4px 10px; border-radius:999px; background:var(--accent-soft);
+             color:var(--accent); border:1px solid var(--accent-line); cursor:pointer }
+  .pp-hint:hover { background:var(--accent-line) }
   #ppMem { display:none; max-height:150px; overflow-y:auto; padding:10px 12px;
-           border-bottom:1px solid #eef0f4; background:#fbfcfe; font-size:12.5px }
+           border-bottom:1px solid var(--border); background:var(--bg); font-size:12.5px }
   .mem-head { display:flex; justify-content:space-between; align-items:center;
-              color:#98a2b3; font-size:11.5px; margin-bottom:6px }
+              color:var(--muted-3); font-size:11.5px; margin-bottom:6px }
   .mem-head button, .mem-item button { border:none; background:none; cursor:pointer; font-size:11.5px }
   .mem-head button { color:var(--acc) }
   .mem-item { display:flex; justify-content:space-between; align-items:center;
-              gap:8px; padding:4px 0; color:#475467 }
-  .mem-item button { color:#b42318 }
-  .mem-empty { color:#b4b2a9; line-height:1.6 }
-  #ppInputRow { display:flex; gap:8px; padding:10px 12px; border-top:1px solid #eef0f4 }
+              gap:8px; padding:4px 0; color:var(--muted-2) }
+  .mem-item button { color:var(--bad-ink) }
+  .mem-empty { color:var(--muted-3); line-height:1.6 }
+  #ppInputRow { display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--border) }
   #ppInputRow input { flex:1 }
   /* A2 偏好选择 */
   .pref-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px }
   .pref { font-size:12.5px; padding:6px 12px; border-radius:999px; cursor:pointer;
-          background:#f2f4f8; color:#475467; border:1px solid #e7eaf0; user-select:none }
-  .pref:hover { background:#e7eaf0 }
-  .pref.on { background:#eef4ff; color:var(--acc); border-color:#b9d0ff; font-weight:600 }
-  .pref-hint { font-size:11.5px; color:#98a2b3; margin-top:6px; line-height:1.5 }
+          background:var(--fill); color:var(--muted-2); border:1px solid var(--fill-2); user-select:none }
+  .pref:hover { background:var(--fill-2) }
+  .pref.on { background:var(--accent-soft); color:var(--acc); border-color:var(--accent-line); font-weight:600 }
+  .pref-hint { font-size:11.5px; color:var(--muted-3); margin-top:6px; line-height:1.5 }
   .hotel-quick span { font-size:11.5px; padding:4px 10px; border-radius:999px;
-                      background:#f2f4f8; color:#475467; cursor:pointer; border:1px solid #e7eaf0 }
-  .hotel-quick span:hover { background:#e7eaf0; color:#1f2937 }
-  .hotel-quick b { font-weight:600; color:#98a2b3; font-size:11px; margin-right:2px }
+                      background:var(--fill); color:var(--muted-2); cursor:pointer; border:1px solid var(--fill-2) }
+  .hotel-quick span:hover { background:var(--fill-2); color:var(--fg) }
+  .hotel-quick b { font-weight:600; color:var(--muted-3); font-size:11px; margin-right:2px }
   /* ===== 我的 ===== */
-  .usection { background:#fff; border-radius:14px; margin:14px; padding:16px;
-              box-shadow:0 2px 10px rgba(22,119,255,.06); }
+  /* 分区卡：与顶部导航同一套居中配方 —— 宽屏自动居中到 1180，
+     窄屏保证至少 24px 边距（原来 margin:14px 会在宽屏拉满整个视口，
+     而单纯改成 margin:auto 又会让卡片在窄屏贴边）。 */
+  .usection { background:var(--surface); border-radius:14px; padding:16px;
+              margin:20px max(24px, calc((100vw - 1180px) / 2));
+              border:1px solid var(--border); box-shadow:var(--sh-1); }
   .usection h2 { font-size:15px; font-weight:800; margin-bottom:12px; }
-  .ucard { display:flex; gap:12px; padding:10px 0; border-top:1px dashed #eef1f5;
+  .ucard { display:flex; gap:12px; padding:10px 0; border-top:1px dashed var(--border);
            cursor:pointer; align-items:center; }
   .ucard:first-of-type { border-top:none; }
   .ucard .info { flex:1; min-width:0; }
   .ucard .t { font-size:15px; font-weight:700; }
   .ucard .s { color:var(--dim); font-size:12px; margin-top:3px; }
-  .ucard .del { background:none; border:none; color:#e03131; font-size:16px; cursor:pointer; padding:6px; }
+  .ucard .del { background:none; border:none; color:var(--bad); font-size:16px; cursor:pointer; padding:6px; }
   .uempty { color:var(--dim); font-size:13px; text-align:center; padding:18px 0; }
   /* 加载动画 */
-  .spin { width:18px; height:18px; border:2px solid #dbe6f6; border-top-color:var(--acc);
+  .spin { width:18px; height:18px; border:2px solid var(--accent-line); border-top-color:var(--acc);
           border-radius:50%; animation:sp .8s linear infinite; display:inline-block; flex-shrink:0 }
   @keyframes sp { to { transform:rotate(360deg) } }
   /* ===== 日历弹层 ===== */
   .cal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:950;
                  display:flex; align-items:flex-end; justify-content:center; }
-  .cal-sheet { width:100%; max-width:460px; background:#fff; border-radius:18px 18px 0 0;
+  .cal-sheet { width:100%; max-width:460px; background:var(--surface); border-radius:18px 18px 0 0;
                max-height:86vh; display:flex; flex-direction:column; }
   .cal-head { padding:14px 16px 8px; display:flex; justify-content:space-between; align-items:center; }
   .cal-head b { font-size:16px; }
   .cal-week { display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
               color:var(--dim); font-size:12px; padding:6px 8px; border-bottom:1px solid var(--line); }
-  .cal-week span:first-child, .cal-week span:last-child { color:#e8590c; }
+  .cal-week span:first-child, .cal-week span:last-child { color:var(--warn); }
   .cal-months { overflow-y:auto; flex:1; padding:0 8px 8px; }
   .cal-title { font-size:15px; font-weight:800; padding:14px 10px 6px; }
   .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); }
   .cal-cell { height:48px; display:flex; align-items:center; justify-content:center; }
   .cal-cell .d { width:36px; height:36px; display:flex; align-items:center; justify-content:center;
                  border-radius:9px; font-size:14.5px; font-variant-numeric:tabular-nums; }
-  .cal-cell.dis .d { color:#ccd3dc; pointer-events:none; }
+  .cal-cell.dis .d { color:var(--muted-3); pointer-events:none; }
   .cal-cell .d.today { box-shadow:inset 0 0 0 1px var(--acc); color:var(--acc); }
-  .cal-cell .d.start, .cal-cell .d.end { background:var(--acc); color:#fff; font-weight:700; }
-  .cal-cell .d.inrange { background:#e8f1ff; color:var(--acc); border-radius:0; }
+  .cal-cell .d.start, .cal-cell .d.end { background:var(--acc); color:var(--surface); font-weight:700; }
+  .cal-cell .d.inrange { background:var(--accent-soft); color:var(--acc); border-radius:0; }
   .cal-cell .d.start.inrange { border-radius:9px 0 0 9px; }
   .cal-cell .d.end.inrange { border-radius:0 9px 9px 0; }
   .cal-foot { padding:10px 14px 14px; border-top:1px solid var(--line); }
-  .cal-foot button { width:100%; background:var(--acc); color:#fff; border:none; border-radius:10px;
+  .cal-foot button { width:100%; background:var(--acc); color:var(--surface); border:none; border-radius:10px;
                      padding:12px; font-size:15px; font-weight:700; cursor:pointer; }
   .cal-foot button:disabled { opacity:.4; }
+
+  /* ==================================================================
+     动效与微交互
+     
+     三条原则：
+     ① 只响应用户**主动操作**（hover / focus / 点击 / 切页 / 开弹层），
+        不给「数据重渲染」加动画 —— render() 每次切天、换城市都会重建 DOM，
+        列表项若带入场动画就会一路闪，观感很廉价。
+     ② 时长与缓动一律取自 --t-* / --e-*，不另起一套。
+     ③ 只过渡 opacity / transform / box-shadow（不触发重排），
+        不动 width / height。
+     ================================================================== */
+
+  /* ---- 1. 可交互元素的过渡：集中声明，避免散落各处 ---- */
+  /* 注意：凡在下面第 4 节里写了 hover 效果的元素，都必须出现在这份清单里 ——
+     漏掉的话 hover 会「瞬变」而不是平滑过渡（.dayblock / .entry 就这样漏过一次，
+     是靠截图脚本读 computedStyle 比对 hover 前后才发现的）。 */
+  a, button, summary, input, label, .chip, .pref, .seg .s, .daytabs .tab,
+  .city-item, .navtag, .navcity, .entry, .entry .name, .entry .thumb,
+  .ucard, .dayblock, .tile, .metric, .pp-hint, .pp-x, .rb-fix,
+  .hotel-quick span, .cal-cell .d, .legend div, .fav, .mem-item button,
+  .mem-head button, .datebox {
+    transition: background-color var(--t-fast) var(--e),
+                border-color var(--t-fast) var(--e),
+                color var(--t-fast) var(--e),
+                box-shadow var(--t) var(--e),
+                transform var(--t-fast) var(--e),
+                opacity var(--t-fast) var(--e);
+  }
+
+  /* ---- 2. 键盘焦点环：只在键盘操作时出现（鼠标点击不显示，避免脏） ---- */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+  input:focus-visible { outline: none; }   /* 输入框自己已有 focus 态，别叠成双线 */
+
+  /* ---- 3. 按下反馈：与首页 .btn:active 同一规律（下沉 1px） ---- */
+  button:not(:disabled):active, .pref:active, .chip:active, .seg .s:active,
+  .daytabs .tab:active, .pp-hint:active, .hotel-quick span:active,
+  .cal-cell .d:active, .legend div:active {
+    transform: translateY(1px);
+  }
+
+  /* ---- 4. 层次感：hover 时浮起一级（阴影与位移都来自令牌） ---- */
+  /* 行程卡：抬 2px + 阴影升一级，让「这张卡是当前焦点」不必用文字说明 */
+  .dayblock { box-shadow: var(--sh-1); }
+  .dayblock:hover { box-shadow: var(--sh-2); transform: translateY(-2px); }
+  /* 列表条目：整行浅底（不做位移，避免行与行互相挤压） */
+  .entry { margin: 0 -6px; padding-left: 6px; padding-right: 6px; border-radius: 10px; }
+  .entry:hover { background: var(--fill); }
+  .ucard { margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 12px; }
+  .ucard:hover { background: var(--fill); }
+  /* 输入控件：hover 也要有回应，不能只有 focus 才变 */
+  input:hover:not(:focus) { border-color: var(--accent-line); background: var(--surface); }
+  /* 主按钮：hover 加深、按下再沉 1px */
+  .go:hover:not(:disabled) { background: var(--accent-deep); }
+  .chatbar button:hover:not(:disabled),
+  .cal-foot button:hover:not(:disabled) { background: var(--accent-deep); }
+  .seg .s-share:hover { background: var(--accent-soft); }
+
+  /* ---- 5. 页面切换：淡入 + 上移 8px（switchPage 切 class 时重播） ---- */
+  @keyframes odPageIn { from { opacity:0; transform: translateY(8px) } to { opacity:1; transform:none } }
+  @keyframes odFadeIn { from { opacity:0 } to { opacity:1 } }
+  @keyframes odSheetUp { from { opacity:0; transform: translateY(26px) } to { opacity:1; transform:none } }
+  @keyframes odPopIn { from { opacity:0; transform: translateY(-6px) scale(.98) } to { opacity:1; transform:none } }
+
+  .page.active { animation: odPageIn var(--t-slow) var(--e-out) both; }
+
+  /* ---- 6. 弹层：遮罩淡入 + 面板上滑（日历 / 酒店 / 行程详情共用 .cal-overlay） ---- */
+  .cal-overlay { animation: odFadeIn var(--t) var(--e) both; }
+  .cal-sheet { animation: odSheetUp var(--t-slow) var(--e-out) both; }
+  #spotModal { animation: odFadeIn var(--t) var(--e) both; }
+
+  /* ---- 7. 浮层：城市下拉 / 桌宠面板 ---- */
+  .city-menu.open { animation: odPopIn var(--t) var(--e-out) both; }
+  #petPanel.open { animation: odSheetUp var(--t-slow) var(--e-out) both; }
+
+  /* ---- 8. 结果卡片：新结果插入时淡入 ---- */
+  .rv-card, .rb-card, .changes, .unplanned { animation: odFadeIn var(--t-slow) var(--e) both; }
+
+  /* ---- 9. 进度条：缓动与时长并入令牌（原来是 .4s ease） ---- */
+  .gp-fill { transition: width var(--t-slow) var(--e-out),
+                         background-color var(--t) var(--e); }
+
+  /* ---- 10. 折叠面板 ---- */
+  details.adv summary { transition: background-color var(--t-fast) var(--e),
+                                    border-color var(--t-fast) var(--e); }
+
+  /* ---- 11. 桌宠：hover 轻微抬起（原只有 :active 缩放） ---- */
+  #pet { transition: transform var(--t) var(--e); }
+  #pet:hover { transform: translateY(-3px); }
+  #pet:active { transform: none; }
+
+  /* ---- 12. 窄屏导航：收紧间距 + 只留 logo ----
+     原来在 375px 下「路书 · AI 行程规划」和「规划 / 我的」都会折行，两行文字撑高顶栏。 */
+  @media (max-width:560px) {
+    .site-nav { padding-left:16px; padding-right:16px; gap:6px; }
+    .site-nav .brand { font-size:0; }          /* 隐去品牌文字，只留方块 logo */
+    .site-nav .links { margin-left:6px; }
+    .site-nav .links a { font-size:13px; padding:7px 10px; }
+    .site-nav .navtag { font-size:12px; padding:6px 10px; }
+  }
+
+  /* ---- 13. 尊重系统的「减弱动效」偏好 ---- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -346,7 +540,7 @@
 
   <!-- ========= 顶部导航（网站形态，替代原底部 App tabbar）========= -->
   <nav class="site-nav">
-    <span class="brand"><i></i>路书 · AI 行程规划</span>
+    <a class="brand" href="/" title="返回首页"><i></i>路书 · AI 行程规划</a>
     <span class="links">
       <a id="navPlan" class="on" onclick="switchPage('plan')">规划</a>
       <a id="navUser" onclick="switchPage('user')">我的</a>
@@ -439,10 +633,10 @@
       <details class="adv" id="guideBox">
         <summary>📋 粘贴攻略自动识别景点（需配置 LLM Key）</summary>
         <textarea id="guideText" rows="4" placeholder="粘贴一段攻略，例如：第一天去了宽窄巷子，中午在锦里吃小吃，下午去大熊猫基地…"
-          style="width:100%;margin-top:8px;padding:8px;border-radius:10px;border:1px solid #e5e7eb;
+          style="width:100%;margin-top:8px;padding:8px;border-radius:10px;border:1px solid var(--border);
                  font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
         <button id="extractBtn" style="margin-top:8px">识 别 攻 略</button>
-        <div id="extractMsg" style="font-size:12px;color:#98a2b3;margin-top:6px;line-height:1.5"></div>
+        <div id="extractMsg" style="font-size:12px;color:var(--muted-3);margin-top:6px;line-height:1.5"></div>
       </details>
     </div>
 
@@ -505,7 +699,7 @@
 
   <!-- ========= 页面二：我的 ========= -->
   <div class="page" id="pageUser">
-    <header style="padding-bottom:24px">
+    <header class="hero">
       <h1>我的</h1>
       <div class="meta">历史规划与收藏的景点</div>
     </header>
@@ -515,14 +709,14 @@
           border:none;color:var(--acc);font-size:13px;cursor:pointer;font-weight:600">管理</button></h2>
       <div id="plansList"><div class="uempty">加载中…</div></div>
       <div id="planBtns" style="display:none;margin-top:10px;display:none;gap:8px">
-        <button id="selAllBtn" onclick="toggleSelectAll()" style="flex:1;background:#f4f6fa;
-          color:#1d2939;border:none;border-radius:10px;padding:10px;cursor:pointer;
+        <button id="selAllBtn" onclick="toggleSelectAll()" style="flex:1;background:var(--fill);
+          color:var(--fg);border:none;border-radius:10px;padding:10px;cursor:pointer;
           font-size:13.5px;font-weight:600">全选</button>
-        <button id="delSelBtn" onclick="deleteSelectedPlans()" style="flex:1.4;background:#fff;
-          color:#e03131;border:1px solid #e03131;border-radius:10px;padding:10px;cursor:pointer;
+        <button id="delSelBtn" onclick="deleteSelectedPlans()" style="flex:1.4;background:var(--surface);
+          color:var(--bad);border:1px solid var(--bad);border-radius:10px;padding:10px;cursor:pointer;
           font-size:13.5px;font-weight:600">删除所选</button>
-        <button id="clearAllBtn" onclick="deleteAllPlans()" style="flex:1;background:#e03131;
-          color:#fff;border:none;border-radius:10px;padding:10px;cursor:pointer;
+        <button id="clearAllBtn" onclick="deleteAllPlans()" style="flex:1;background:var(--bad);
+          color:var(--surface);border:none;border-radius:10px;padding:10px;cursor:pointer;
           font-size:13.5px;font-weight:600">清空全部</button>
       </div>
     </div>
@@ -692,7 +886,7 @@ function openCalendar() {
   ov.className = 'cal-overlay'; ov.id = 'calModal';
   ov.innerHTML = `<div class="cal-sheet">
     <div class="cal-head"><b>选择行程日期</b>
-      <button onclick="this.closest('.cal-overlay').remove()" style="background:#f0f2f5;border:none;
+      <button onclick="this.closest('.cal-overlay').remove()" style="background:var(--fill);border:none;
         border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
     <div class="cal-week">${['日','一','二','三','四','五','六'].map(w=>`<span>${w}</span>`).join('')}</div>
     <div class="cal-months" id="calMonths"></div>
@@ -942,7 +1136,7 @@ function renderItin() {
   if (window.dateMismatch && plan) {
     const c = document.createElement('div');
     c.className = 'changes';
-    c.style.background = '#fff8e6'; c.style.borderColor = '#ffe58f'; c.style.color = '#ad6800';
+    c.style.background = 'var(--note-soft)'; c.style.borderColor = 'var(--note-line)'; c.style.color = 'var(--note-ink)';
     c.textContent = `⚠️ 行程日期已改为 ${dayCount()} 天，与当前行程（${plan.days.length} 天）不一致——点「开始规划」按新日期重新生成`;
     v.appendChild(c);
   }
@@ -953,8 +1147,8 @@ function renderItin() {
     const blk = document.createElement('div'); blk.className='dayblock';
     blk.innerHTML = `<div class="dayhead"><div class="daytitle">${dateOf(dayIdx)}</div>
       <div class="daysub">门票 ¥${d.cost} · 通勤 ${d.commute_min} 分钟</div></div>`
-      + (plan.hotel ? (() => { const hn = plan.hotel.name.replace(/'/g,"\\'"); return `<div class="entry"><div class="bar" style="background:#7048e8"></div>
-          <div class="body"><div><span class="tag" style="color:#7048e8">住宿</span>
+      + (plan.hotel ? (() => { const hn = plan.hotel.name.replace(/'/g,"\\'"); return `<div class="entry"><div class="bar" style="background:var(--stay)"></div>
+          <div class="body"><div><span class="tag" style="color:var(--stay)">住宿</span>
           <span class="name" style="cursor:pointer" data-act="detail" data-name="${esc(plan.hotel.name)}">🏨 ${esc(plan.hotel.name)}</span></div>
           <div class="desc">点击查看详情 · 每天从这里出发、傍晚回到这里</div></div></div>`; })() : '')
       + d.spots.map(v => {
@@ -1060,13 +1254,13 @@ function openLightbox(idx) {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1000;display:flex;align-items:center;justify-content:center';
   ov.innerHTML = `<img id="lbImg" style="max-width:94vw;max-height:80vh;border-radius:8px">
     <button onclick="document.getElementById('lightbox').remove()" style="position:absolute;top:16px;right:16px;
-      background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:50%;width:36px;height:36px;
+      background:rgba(255,255,255,.15);color:var(--surface);border:none;border-radius:50%;width:36px;height:36px;
       cursor:pointer;font-size:16px">✕</button>
-    <button id="lbPrev" style="position:absolute;left:10px;background:rgba(255,255,255,.12);color:#fff;
+    <button id="lbPrev" style="position:absolute;left:10px;background:rgba(255,255,255,.12);color:var(--surface);
       border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:18px">‹</button>
-    <button id="lbNext" style="position:absolute;right:10px;background:rgba(255,255,255,.12);color:#fff;
+    <button id="lbNext" style="position:absolute;right:10px;background:rgba(255,255,255,.12);color:var(--surface);
       border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:18px">›</button>
-    <div id="lbCount" style="position:absolute;bottom:24px;color:#fff;font-size:13px"></div>`;
+    <div id="lbCount" style="position:absolute;bottom:24px;color:var(--surface);font-size:13px"></div>`;
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
   document.body.appendChild(ov);
   const paint = () => {
@@ -1087,31 +1281,31 @@ function openSpotDetail(name) {
   const fav = favSet.has(name) ? '⭐ 取消收藏' : '⭐ 收藏';
   const overlay = document.createElement('div');
   overlay.id = 'spotModal';
-  overlay.innerHTML = `<div style="width:100%;max-width:460px;height:92vh;background:#fff;
+  overlay.innerHTML = `<div style="width:100%;max-width:460px;height:92vh;background:var(--surface);
     border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:14px 16px 4px;display:flex;justify-content:space-between;gap:10px">
       <b style="font-size:18px;line-height:1.4">${name}</b>
-      <button onclick="this.closest('#spotModal').remove()" style="background:#f0f2f5;border:none;
+      <button onclick="this.closest('#spotModal').remove()" style="background:var(--fill);border:none;
         border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:15px;flex-shrink:0">✕</button></div>
     <div id="spotChips" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 16px 10px">
-      <span style="background:#fff4e6;color:#e8590c;font-size:11px;padding:3px 9px;border-radius:8px">${esc(base.intro) || '景点信息'}</span>
+      <span style="background:var(--warn-soft);color:var(--warn);font-size:11px;padding:3px 9px;border-radius:8px">${esc(base.intro) || '景点信息'}</span>
     </div>
     <div style="flex:1;overflow-y:auto;padding:0 16px 90px">
       <div id="spotPhotos" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:14px">
-        <div style="color:#98a2b3;font-size:12px">加载图片中…</div></div>
+        <div style="color:var(--muted-3);font-size:12px">加载图片中…</div></div>
       <h3 style="font-size:16px;margin-bottom:6px">地点介绍
-        <span style="color:#98a2b3;font-size:11px;font-weight:normal">AI 生成</span></h3>
-      <p id="spotIntroLong" style="color:#333;font-size:14px;line-height:1.9">${esc(base.desc) || '生成中…'}</p>
+        <span style="color:var(--muted-3);font-size:11px;font-weight:normal">AI 生成</span></h3>
+      <p id="spotIntroLong" style="color:var(--muted-2);font-size:14px;line-height:1.9">${esc(base.desc) || '生成中…'}</p>
       <h3 style="font-size:16px;margin:16px 0 10px;display:none" id="rvTitle">真实评价
-        <span style="color:#98a2b3;font-size:11px;font-weight:normal">AI 生成</span></h3>
+        <span style="color:var(--muted-3);font-size:11px;font-weight:normal">AI 生成</span></h3>
       <div id="spotReviews"></div>
       <div style="margin-top:16px;border-top:1px solid var(--line)">
-        <div id="spotRows" style="font-size:14px;color:#333"></div>
+        <div id="spotRows" style="font-size:14px;color:var(--muted-2)"></div>
       </div>
     </div>
-    <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);
+    <div style="position:absolute;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--line);
       padding:10px 16px 14px;display:flex;justify-content:center">
-      <button id="spotFavBtn" style="background:#e8f1ff;color:var(--acc);border:none;
+      <button id="spotFavBtn" style="background:var(--accent-soft);color:var(--acc);border:none;
         border-radius:22px;padding:11px 28px;cursor:pointer;font-weight:700;font-size:14px">${fav}</button>
     </div>
   </div>`;
@@ -1131,9 +1325,9 @@ function openSpotDetail(name) {
       window.__spotPhotos = urls;   // 灯箱数据源
       ph.innerHTML = urls.length
         ? urls.map((u, k) => `<img src="${esc(u)}" style="width:260px;height:170px;object-fit:cover;border-radius:12px;flex-shrink:0;cursor:zoom-in" loading="lazy" onclick="openLightbox(${k})" onerror="this.remove()">`).join('')
-        : '<div style="color:#98a2b3;font-size:12px">暂无图片</div>';
+        : '<div style="color:var(--muted-3);font-size:12px">暂无图片</div>';
       const chips = $('spotChips');
-      if (d.intro) chips.innerHTML = `<span style="background:#fff4e6;color:#e8590c;
+      if (d.intro) chips.innerHTML = `<span style="background:var(--warn-soft);color:var(--warn);
         font-size:11px;padding:3px 9px;border-radius:8px">${esc(d.intro)}</span>`;
       const long = (d.reviews && d.reviews.intro_long) || base.desc
         || `${name}是${currentCity}的热门去处，适合安排半天时间慢慢逛。建议避开节假日高峰，出行前确认开放时间。`;
@@ -1146,20 +1340,20 @@ function openSpotDetail(name) {
         const item = t => { const i = t.indexOf(':') > 0 ? t.indexOf(':') : t.indexOf('：');
           return i > 0 ? `<b>${esc(t.slice(0, i))}</b>：${esc(t.slice(i + 1).trim())}` : esc(t); };
         rc.innerHTML = (rv.good || []).length
-          ? `<div style="background:#eaf7ea;border-radius:14px;padding:12px 14px;margin-bottom:10px;
+          ? `<div style="background:var(--ok-soft);border-radius:14px;padding:12px 14px;margin-bottom:10px;
               border-top-left-radius:4px">
-              ${(rv.good || []).map(t => `<div style="font-size:13px;line-height:1.8;color:#2b5e34">${item(t)}</div>`).join('')}</div>`
+              ${(rv.good || []).map(t => `<div style="font-size:13px;line-height:1.8;color:var(--ok-ink)">${item(t)}</div>`).join('')}</div>`
           : '';
         rc.innerHTML += (rv.bad || []).length
-          ? `<div style="background:#fdeeee;border-radius:14px;padding:12px 14px;
+          ? `<div style="background:var(--bad-soft);border-radius:14px;padding:12px 14px;
               border-top-right-radius:4px">
-              ${(rv.bad || []).map(t => `<div style="font-size:13px;line-height:1.8;color:#8c4a4a">${item(t)}</div>`).join('')}</div>`
+              ${(rv.bad || []).map(t => `<div style="font-size:13px;line-height:1.8;color:var(--bad-ink)">${item(t)}</div>`).join('')}</div>`
           : '';
       };
       if (d.reviews) renderReviews(d.reviews);
       else {
         rt.style.display = 'block';
-        rc.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:#98a2b3;font-size:12.5px">
+        rc.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:var(--muted-3);font-size:12.5px">
           <span class="spin"></span>官方信息已加载，AI 评价正在生成…</div>`;
         fetch(`/poi/reviews?name=${encodeURIComponent(name)}&city=${encodeURIComponent(currentCity)}`)
           .then(r => r.ok ? r.json() : null)
@@ -1181,7 +1375,7 @@ function openSpotDetail(name) {
     .catch(() => {
       $('spotPhotos').innerHTML = base.image
         ? `<img src="${esc(base.image)}" style="width:100%;height:180px;object-fit:cover;border-radius:12px">`
-        : '<div style="color:#98a2b3;font-size:12px">暂无图片</div>';
+        : '<div style="color:var(--muted-3);font-size:12px">暂无图片</div>';
     });
 }
 
@@ -1211,8 +1405,8 @@ function renderPlans() {
     const sel = selectedPlans.has(p.task_id);
     const check = manageMode
       ? `<div style="width:20px;height:20px;border-radius:50%;flex-shrink:0;
-          border:2px solid ${sel ? 'var(--acc)' : '#ccd3dc'};background:${sel ? 'var(--acc)' : '#fff'};
-          color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center">✓</div>`
+          border:2px solid ${sel ? 'var(--acc)' : 'var(--muted-3)'};background:${sel ? 'var(--acc)' : 'var(--surface)'};
+          color:var(--surface);font-size:12px;display:flex;align-items:center;justify-content:center">✓</div>`
       : '';
     const act = manageMode
       ? ` data-act="plan-sel" data-plan="${esc(p.task_id)}"`
@@ -1220,7 +1414,7 @@ function renderPlans() {
     return `<div class="ucard"${act}>${check}
       <div class="info"><div class="t">${esc(p.city) || '行程'} · ${p.spots_planned || '?'} 个景点</div>
       <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + esc(p.hotel) : ''}</div></div>
-      <div style="color:#98a2b3">›</div></div>`;
+      <div style="color:var(--muted-3)">›</div></div>`;
   }).join('');
 }
 
@@ -1281,19 +1475,19 @@ function openPlanModal(taskId) {
     ov.className = 'cal-overlay'; ov.id = 'planModal';
     ov.innerHTML = `<div class="cal-sheet">
       <div class="cal-head"><b>${esc(r0.city) || '行程'}规划预览</b>
-        <button onclick="this.closest('.cal-overlay').remove()" style="background:#f0f2f5;border:none;
+        <button onclick="this.closest('.cal-overlay').remove()" style="background:var(--fill);border:none;
           border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
       <div style="padding:0 16px 10px;overflow-y:auto;flex:1">
-        <div style="color:#667085;font-size:13px">门票 ¥${r0.total_cost}
+        <div style="color:var(--muted-2);font-size:13px">门票 ¥${r0.total_cost}
           · ${r0.check_report.stats.spots_planned} 个景点
           ${r0.hotel ? ' · 🏨 ' + esc(r0.hotel.name) : ''}</div>
         ${daysHtml}
-        ${r0.unplanned && r0.unplanned.length ? `<div style="color:#98a2b3;font-size:12px;margin-top:8px">未安排：${r0.unplanned.map(u=>esc(u.name)).join('、')}</div>` : ''}
+        ${r0.unplanned && r0.unplanned.length ? `<div style="color:var(--muted-3);font-size:12px;margin-top:8px">未安排：${r0.unplanned.map(u=>esc(u.name)).join('、')}</div>` : ''}
       </div>
       <div class="cal-foot" style="display:flex;gap:8px">
-        <button style="flex:1;background:var(--acc);color:#fff;border:none;border-radius:10px;
+        <button style="flex:1;background:var(--acc);color:var(--surface);border:none;border-radius:10px;
           padding:12px;font-size:14px;font-weight:700;cursor:pointer" id="pmLoad">载入为当前行程</button>
-        <button style="flex:0 0 110px;background:#fff;color:#e03131;border:1px solid #e03131;
+        <button style="flex:0 0 110px;background:var(--surface);color:var(--bad);border:1px solid var(--bad);
           border-radius:10px;font-size:14px;cursor:pointer" id="pmDel">删除此规划</button>
       </div></div>`;
     ov.onclick = e => { if (e.target === ov) ov.remove(); };
@@ -1374,9 +1568,9 @@ function toggleHotelMap(i, lat, lon, name) {
   // 酒店：橙点 + 小标注「酒店」
   L.marker([lat, lon], {icon: L.divIcon({className: '', iconSize: [0, 0], html:
     `<div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%)">
-       <div style="width:14px;height:14px;border-radius:50%;background:#e8590c;border:2px solid #fff;
+       <div style="width:14px;height:14px;border-radius:50%;background:var(--warn);border:2px solid var(--surface);
          box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>
-       <div style="background:#e8590c;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;
+       <div style="background:var(--warn);color:var(--surface);font-size:10px;padding:1px 6px;border-radius:8px;
          white-space:nowrap;margin-top:2px;box-shadow:0 1px 3px rgba(0,0,0,.25)">酒店</div>
      </div>`})}).addTo(m).bindPopup(`🏨 ${name}`);
   // 当前行程景点一起标出，判断住宿顺不顺手
@@ -1427,14 +1621,14 @@ function openHotelPicker() {
   ov.className = 'cal-overlay'; ov.id = 'hotelModal';
   ov.innerHTML = `<div class="cal-sheet" style="height:78vh">
     <div class="cal-head"><b>选择住宿酒店</b>
-      <button onclick="closeHotelPicker()" style="background:#f0f2f5;border:none;
+      <button onclick="closeHotelPicker()" style="background:var(--fill);border:none;
         border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
     <div style="display:flex;gap:8px;padding:0 16px 6px">
       <input id="hotelQ" placeholder="酒店名 / 区域，如：未央区、钟楼">
-      <button id="hotelSearchBtn" style="background:var(--acc);color:#fff;border:none;
+      <button id="hotelSearchBtn" style="background:var(--acc);color:var(--surface);border:none;
         border-radius:9px;padding:8px 18px;cursor:pointer;font-weight:600">搜索</button></div>
     <div class="hotel-quick" id="hotelQuick"></div>
-    <div style="padding:0 16px 8px;font-size:11.5px;color:#98a2b3">
+    <div style="padding:0 16px 8px;font-size:11.5px;color:var(--muted-3)">
       点酒店名就地看位置（橙点=酒店，彩点=当前行程景点）· 输入停顿会自动搜索</div>
     <div id="hotelResults" style="overflow-y:auto;flex:1;padding:0 16px 12px">
       <div class="uempty">输入关键词搜索高德酒店</div></div>
@@ -1455,8 +1649,8 @@ function openHotelPicker() {
           const qn = h.name.replace(/'/g, "\\'");
           const img = h.image
             ? `<img src="${esc(h.image)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;flex-shrink:0" loading="lazy" onerror="this.style.display='none'">`
-            : `<div style="width:56px;height:56px;border-radius:9px;background:#eef1f5;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏨</div>`;
-          return `<div style="border-top:1px dashed #eef1f5;padding:10px 0">
+            : `<div style="width:56px;height:56px;border-radius:9px;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏨</div>`;
+          return `<div style="border-top:1px dashed var(--border);padding:10px 0">
             <div style="display:flex;gap:12px;align-items:center">
               ${img}
               <div class="info" style="flex:1;min-width:0" data-act="hotel-map" data-idx="${i}" data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" data-name="${esc(h.name)}">
@@ -1464,7 +1658,7 @@ function openHotelPicker() {
                   <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
                 <div class="s">${esc(h.intro)}</div></div>
               <button data-act="hotel-pick" data-name="${esc(h.name)}" data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" style="background:var(--acc);
-                color:#fff;border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
+                color:var(--surface);border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
                 font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>
             <div id="hmap-${i}" style="display:none;margin-top:8px;height:180px;border-radius:12px;overflow:hidden"></div>
           </div>`;
@@ -1529,8 +1723,8 @@ function showLoading(title, sub) {
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,.86);z-index:980;' +
     'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:0 40px;text-align:center';
   ov.innerHTML = `<div class="spin" style="width:34px;height:34px;border-width:3px"></div>
-    <div style="font-size:15px;font-weight:700;color:#1d2939">${title}</div>
-    <div id="loadSub" style="font-size:12.5px;color:#98a2b3;line-height:1.7">${sub || ''}</div>`;
+    <div style="font-size:15px;font-weight:700;color:var(--fg)">${title}</div>
+    <div id="loadSub" style="font-size:12.5px;color:var(--muted-3);line-height:1.7">${sub || ''}</div>`;
   document.body.appendChild(ov);
 }
 function updateLoading(text) {
@@ -1793,10 +1987,10 @@ function renderMap() {
       L.marker(h, {icon: L.divIcon({className:'', html:
         `<div style="font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">🏨</div>`,
         iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${esc(plan.hotel.name)}
-        <br><button data-act="detail" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:#e8f1ff;
-          color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
-        <button data-act="nav" data-lon="${esc(plan.hotel.lon)}" data-lat="${esc(plan.hotel.lat)}" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:#e8f1ff;
-          color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">🧭 导航</button>`).addTo(map);
+        <br><button data-act="detail" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:var(--accent-soft);
+          color:var(--accent);border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
+        <button data-act="nav" data-lon="${esc(plan.hotel.lon)}" data-lat="${esc(plan.hotel.lat)}" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:var(--accent-soft);
+          color:var(--accent);border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">🧭 导航</button>`).addTo(map);
       all.push(h);
     }
     if (latlngs.length < 1) return;
@@ -1808,7 +2002,7 @@ function renderMap() {
       const v = d.spots[plan.hotel ? k - 1 : k];
       if (!v) return;
       const qn = v.name.replace(/'/g, "\\'");
-      const btn = 'background:#e8f1ff;color:#1677ff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;margin:4px 4px 0 0';
+      const btn = 'background:var(--accent-soft);color:var(--accent);border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;margin:4px 4px 0 0';
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
         .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${esc(v.name)}<br>
           <button data-act="detail" data-name="${esc(v.name)}" style="${btn}">详情</button>
@@ -1818,7 +2012,7 @@ function renderMap() {
     });
     const mid = latlngs[Math.floor(latlngs.length/2)];
     const pill = L.divIcon({className:'', html:
-      `<div style="background:${color};color:#fff;font-size:12px;font-weight:700;
+      `<div style="background:${color};color:var(--surface);font-size:12px;font-weight:700;
         padding:3px 10px;border-radius:12px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)">
         ${dateOf(i).split(' ')[0]} ${d.spots.length>1 ? Math.round(haversineKm(d))+'km' : ''}</div>`,
       iconSize:null});
