@@ -23,6 +23,7 @@ import logging
 import os
 import sys
 import time
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
@@ -51,7 +52,26 @@ from models import PlanRequest, PlanResult
 from solver import Solver
 from weather import daily_weather
 
-app = FastAPI(title="AI 行程规划 API", version="1.0.0")
+# Key 可用性自检。selftest 顶层**只**依赖标准库（项目内 import 全部写在函数里），
+# 所以这里 import 它不会形成环 —— 把探测逻辑内联进 main 反而会破坏
+# 「/meta 只读内存快照」的纪律。
+import selftest
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """启动时探测一次各 Key 的真实可用性（结果缓存，见 selftest.PROBE_TTL_SEC）。
+
+    **只投递、不等待**：应用必须立刻可监听端口 —— /health 是 Docker healthcheck，
+    不能等一次网络超时之后才就绪。探测在后台线程里跑，跑完前 /meta 返回
+    `probe.state = "probing"`，前端据此显示「检测中」而不是谎称可用或不可用。
+    """
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, selftest.schedule_probe)
+    yield
+
+
+app = FastAPI(title="AI 行程规划 API", version="1.0.0", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -91,7 +111,15 @@ def _load_favorites() -> list[dict]:
 
 
 def _service_status() -> dict:
-    """服务状态的真实取数：/health 与 /meta 共用同一份，避免两处口径漂移。"""
+    """服务状态的真实取数：/health 与 /meta 共用同一份，避免两处口径漂移。
+
+    刻意的口径分工（不要"统一"它们）：
+      · /health 的 `amap` 表示「Key 是否存在」—— 它是 Docker healthcheck，
+        判的是"进程能不能服务"，探测失败（网络不通）不能让它变 unhealthy；
+      · /meta 的 `amap_key` / `llm` 表示「Key 探测后是否真的可用」——
+        那是给人看的状态，必须诚实。
+    两者共用 `CommuteMatrix().key` 判存在性，但可用性只由 selftest 探测给出。
+    """
     from tasks import MANAGER
     cm = CommuteMatrix()
     return {"status": "ok", "solver": "greedy+2opt",
@@ -234,11 +262,6 @@ def get_weather(city: str, start: str, end: str) -> dict:
     return daily_weather(normalize_city(city) or DEFAULT_CITY, d0, d1)
 
 
-def _key_state(name: str) -> str:
-    """Key 是否配置：只回状态、不回值 —— 这个响应会直接渲染到首页，绝不能泄明文。"""
-    return "configured" if (load_env_file().get(name) or os.environ.get(name)) else "missing"
-
-
 def _api_catalog() -> dict:
     """接口清单：从**运行时路由表**现算，不手写 —— 手写的第二份列表迟早与代码漂移。
 
@@ -272,14 +295,23 @@ def meta() -> dict:
     （137 字节裸 JSON，撑不起一个区块）。把真实路由表与真实配置状态汇总成一份数据，
     首页即可在**站内**渲染这两块，且数据永远与代码一致。
 
-    这里不发任何外部请求，只读内存与常量 —— 状态接口不该有超时/重试风险。
+    Key 的可用性由 selftest 在后台探测并缓存 —— 这里只读内存快照，**不发任何外部
+    请求**，所以状态接口依然没有超时/重试风险（这是当初的设计底线，不能破）。
     """
     status = _service_status()
     city_list = demo_cities()
+    probe = selftest.status()
     status.update({
-        # 只回状态不回 Key 值（见 _key_state）：响应会直接展示在页面上
-        "llm": _key_state("LLM_API_KEY"),
-        "amap_key": _key_state("AMAP_KEY"),
+        # 四态（missing / ok / invalid / unreachable；快通道另有 inherited）。
+        # 只回状态不回 Key 值 —— 响应会直接渲染到首页，test_meta 有测试锁死这一点
+        "llm": probe["llm"],
+        "llm_fast": probe["llm_fast"],
+        "amap_key": probe["amap_key"],
+        # 「配置了但还没探到」需要单独告诉前端：这时只能显示灰色「检测中」，
+        # 绝不能显示成绿色可用或橙色未配置 —— 两个都是谎
+        "configured": selftest.configured(),
+        "probe": {"state": probe["state"], "age_s": selftest.probe_age_s(),
+                  "stale": bool(probe["stale"]), "reasons": probe["reasons"]},
         "cities": len(CITY_CENTERS),
         "spots": {"total": sum(len(demo_spots(c)) for c in city_list),
                   "by_city": {c: len(demo_spots(c)) for c in city_list}},
