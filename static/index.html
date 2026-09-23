@@ -706,41 +706,6 @@
                         padding:8px 18px; cursor:pointer; font-weight:600; font-size:13px; }
   .quick-extract-btn:hover { background:var(--accent-line); }
 
-  /* ===== 左栏：对话流 + 参数 chip（替代原「表单 + 开始规划按钮」）=====
-     消息区在上（限高可滚）、参数 chip 与输入行贴底。原表单控件全部留在 DOM：
-     城市 / 偏好收进 chip 的展开面板，日期复用原日历浮层，「开始规划」隐藏后由
-     chatSend() 程序化触发 —— 真实规划链路一行没改。 */
-  .chat-msgs { max-height:36vh; min-height:190px; overflow-y:auto; padding:2px 2px 10px;
-               display:flex; flex-direction:column; gap:9px; }
-  .cmsg { max-width:88%; padding:9px 12px; border-radius:13px; font-size:13.5px;
-          line-height:1.65; white-space:pre-wrap; word-break:break-word; }
-  .cmsg.sys { align-self:flex-start; background:var(--surface); border:1px solid var(--border);
-              border-bottom-left-radius:4px; color:var(--muted-2); }
-  .cmsg.me  { align-self:flex-end; background:var(--accent-soft); color:var(--fg);
-              border:1px solid var(--accent-line); border-bottom-right-radius:4px; }
-  .param-chips { display:flex; flex-wrap:wrap; gap:6px; padding-top:9px;
-                 border-top:1px dashed var(--border); }
-  .pchip { display:inline-flex; align-items:center; gap:5px; padding:6px 11px;
-           border-radius:999px; border:1px solid var(--line); background:var(--fill);
-           font-size:12.5px; color:var(--muted-2); cursor:pointer; user-select:none; }
-  .pchip:hover { background:var(--fill-2); }
-  .pchip.on { background:var(--accent-soft); border-color:var(--accent-line);
-              color:var(--accent-deep); }
-  .pchip b { font-weight:700; color:var(--fg); }
-  .pchip i { font-style:normal; font-size:11.5px; color:var(--muted-3); }
-  .chip-panel { margin-top:8px; padding:10px 11px; border:1px solid var(--border);
-                border-radius:12px; background:var(--fill); }
-  .chat-input-row { display:flex; gap:8px; align-items:flex-end; margin-top:10px; }
-  .chat-input-row textarea { flex:1; min-width:0; box-sizing:border-box; padding:9px 11px;
-           border:1px solid var(--line); background:var(--fill); border-radius:11px;
-           font:inherit; font-size:13.5px; line-height:1.55; resize:vertical; color:var(--fg); }
-  .chat-input-row textarea:focus { outline:none; background:var(--surface);
-           border-color:var(--acc); }
-  .chat-send { flex:none; padding:9px 16px; border-radius:11px; border:none; cursor:pointer;
-               background:var(--accent); color:var(--accent-ink); font-size:13.5px;
-               font-weight:700; }
-  .chat-send:disabled { opacity:.5; cursor:default; }
-
   /* ===== 左栏表单重做：大卡片 + 大字号 + 大留白 =====
      参考圆周旅迹（pitravel.cn）的干净大气：整块拆成独立卡片、小字号大写字距的标签、
      目的地用 hero 级大输入、CTA 加大加投影。**行程日期整块保留原观感**（唯一不动）。 */
@@ -817,32 +782,29 @@
       <!-- 左栏：规划表单（滚动时吸顶） -->
       <div class="col-left">
       <div class="sheet">
-      <!-- 左栏 = 对话流 + 参数 chip。
-           为什么改：用户真正的输入是「一段攻略」或「一句话」，不是一堆表单字段。
-           表单退到 chip 后面按需展开（城市 / 偏好），日期仍走原日历浮层。
-           **规划链路一行没改**：#go 只是被隐藏，chatSend() 用程序化 click 触发它，
-           WS 进度条、refreshHints()、render() 全部照旧。 -->
+      <!-- 左栏重做（参考圆周旅迹的干净大气）：整块拆成独立大卡 + 大字号 + 大留白。
+           **行程日期整块保留原样**（唯一不动的字段），其余全部重做。 -->
 
-      <!-- ① 消息区：用户粘的攻略 + 系统回复（独立于桌宠的 #ppMsgs） -->
-      <div class="chat-msgs" id="chatMsgs"></div>
-
-      <!-- ② 参数 chip：点一下改一项 -->
-      <div class="param-chips">
-        <span class="pchip" id="chipCityBtn">📍<b id="chipCity">西安</b></span>
-        <span class="pchip" id="chipDateBtn">📅<b id="chipDate">--</b><i id="chipNights"></i></span>
-        <span class="pchip" id="chipPrefBtn">⚖️<b id="chipPref">均衡</b></span>
-        <span class="pchip" id="chipMoreBtn">⚙️<b>更多</b></span>
-      </div>
-
-      <!-- chip 展开面板：ID 不迁走，#cityInput/#cityOptions 与 #prefRow 原地保留，
-           onCityChange() / setPref() 照常工作，只是默认收起 -->
-      <div class="chip-panel" id="panelCity" style="display:none">
+      <!-- 目的地：hero 大卡（这一屏的主角） -->
+      <div class="pcard">
         <div class="plabel">去哪儿玩</div>
         <input id="cityInput" list="cityOptions" class="pcity" placeholder="输入或选择城市"
                onchange="onCityChange()">
         <datalist id="cityOptions"></datalist>
       </div>
-      <div class="chip-panel" id="panelPref" style="display:none">
+
+      <!-- 行程日期：保留原样 -->
+      <div class="pcard pcard-date">
+        <div class="field datefield" onclick="openCalendar()">
+          <label>行程日期</label>
+          <div class="datebox">
+            <b id="dateText">--</b><span class="nights" id="nightsText"></span><span>📅</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 偏好：从 12px 小胶囊换成 14px 大方块 chip（选中态实心） -->
+      <div class="pcard">
         <div class="plabel">这一趟更看重什么</div>
         <div class="pref-row" id="prefRow">
           <span class="pref on" data-pref="balanced">⚖️ 均衡</span>
@@ -854,8 +816,7 @@
       </div>
       <input type="hidden" id="startDate">
       <input type="hidden" id="endDate">
-      <!-- 方向 B：高级区（酒店 / 预算 / 稳妥度 / 出发返回时间）折叠，默认收起。
-           ⚙️ chip 只负责展开/收起它 —— 保持在常驻流里，需要时一步就能改。 -->
+      <!-- 方向 B：高级区（酒店 / 预算 / 稳妥度 / 出发返回时间）折叠，默认收起 -->
       <details class="adv" id="advBox">
         <summary>⚙️ 更多选项：酒店 · 预算 · 稳妥度 · 出发/返回时间</summary>
         <div class="field datefield" onclick="openHotelPicker()" style="margin-top:8px">
@@ -886,7 +847,9 @@
           </div>
         </details>
       </details>
-      <!-- 规划进度条：规划中唯一的可见反馈（按钮隐藏后更不能没有它） -->
+      <button class="go" id="go">开 始 规 划</button>
+      <!-- 规划进度条：原来进度只写进折叠的日志面板，主界面毫无反馈 → 看着像卡住。
+           放在按钮正下方（点完按钮视线就在这），显示当前阶段 + 百分比。 -->
       <div class="go-progress" id="goProg">
         <div class="gp-bar"><div class="gp-fill" id="gpFill"></div></div>
         <div class="gp-text">
@@ -894,38 +857,15 @@
           <span id="gpPct">0%</span>
         </div>
       </div>
-
-      <!-- 输入行：既能粘长文也能打字；Enter 发送，Shift+Enter 换行 -->
-      <div class="chat-input-row">
-        <textarea id="chatInput" rows="3"
-          placeholder="粘贴一段攻略，或直接说：成都 3 天，少走路…"></textarea>
-        <button class="chat-send" id="chatSend">发送</button>
-      </div>
-
-      <!-- 纯后台残留：ID 与行为全部保留，界面上看不见。
-           · #go 不再是按钮，但仍是规划入口 —— chatSend() 用程序化 click 触发它
-             （display:none 不影响 click()，WS 进度与 render() 全部照旧）
-           · #guideText / #extractBtn 是 /extract 的兜底入口（右栏空状态委托也用）
-           · 日期卡是 chip 的镜像数据源：refreshDateBox() 写它，syncParamChips() 读它 -->
-      <div id="legacyControls" style="display:none">
-        <div class="pcard pcard-date">
-          <div class="field datefield" onclick="openCalendar()">
-            <label>行程日期</label>
-            <div class="datebox">
-              <b id="dateText">--</b><span class="nights" id="nightsText"></span><span>📅</span>
-            </div>
-          </div>
-        </div>
-        <button class="go" id="go">开 始 规 划</button>
-        <details class="adv" id="guideBox">
-          <summary>📋 粘贴攻略自动识别景点（需配置 LLM Key）</summary>
-          <textarea id="guideText" rows="4" placeholder="粘贴一段攻略，例如：第一天去了宽窄巷子，中午在锦里吃小吃，下午去大熊猫基地…"
-            style="width:100%;margin-top:8px;padding:8px;border-radius:10px;border:1px solid var(--border);
-                   font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
-          <button id="extractBtn" style="margin-top:8px">识 别 攻 略</button>
-          <div id="extractMsg" style="font-size:12px;color:var(--muted-3);margin-top:6px;line-height:1.5"></div>
-        </details>
-      </div>
+      <!-- 攻略识别：批次 1 已提升为右栏常驻卡，这里保留折叠版（高级用户）兜底 -->
+      <details class="adv" id="guideBox">
+        <summary>📋 粘贴攻略自动识别景点（需配置 LLM Key）</summary>
+        <textarea id="guideText" rows="4" placeholder="粘贴一段攻略，例如：第一天去了宽窄巷子，中午在锦里吃小吃，下午去大熊猫基地…"
+          style="width:100%;margin-top:8px;padding:8px;border-radius:10px;border:1px solid var(--border);
+                 font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        <button id="extractBtn" style="margin-top:8px">识 别 攻 略</button>
+        <div id="extractMsg" style="font-size:12px;color:var(--muted-3);margin-top:6px;line-height:1.5"></div>
+      </details>
     </div>
 
     <details class="plog"><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
@@ -1077,7 +1017,6 @@ function pickCity(c) {
   currentCity = v;
   $('cityInput').value = v;
   syncNavCity();
-  syncParamChips();
   try { localStorage.setItem(CITY_KEY, v); } catch (e) {}
   // 旧行程属于别的城市：标记失效并提示，不静默沿用
   if (plan) { window.cityMismatch = true; }
@@ -1135,7 +1074,6 @@ fetch('/cities').then(r => r.json()).then(d => {
   const initial = (saved && demoCities.includes(saved)) ? saved : d.default;
   if (initial) { currentCity = initial; $('cityInput').value = initial; }
   syncNavCity();
-  syncParamChips();
   // 首次进入：桌宠先藏起来，让焦点给「空状态引导卡」。规划完成才挥手打招呼
   // （方向 A：规划后桌宠才出现 —— 桌宠不抢首次焦点）
   const petEl = $('pet'), navPetEl = $('navPetBtn');
@@ -1144,8 +1082,6 @@ fetch('/cities').then(r => r.json()).then(d => {
   return loadDemoSpots();
 });
 loadFavorites();  // 启动即同步收藏状态，星标不再滞后
-// 开场白：左栏没有按钮了，得用一句话说清"这里能干什么"——粘攻略或直接说话都行
-chatSay('sys', '把攻略粘进来，或直接说想去哪儿、几天、偏好 —— 我排成能走的行程。');
 
 window.onerror = (msg, src, line) => log('前端错误', `${msg} @line ${line}`);
 
@@ -1190,27 +1126,6 @@ function refreshDateBox() {
   const f = d => `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
   $('dateText').textContent = `${f(s)} ${WD[s.getDay()]} — ${f(e)} ${WD[e.getDay()]}`;
   $('nightsText').textContent = `共${dayCount()}天`;
-  // 日期卡已经藏进后台残留区，用户看到的是 📅 chip —— 写完这里必须同步过去，
-  // 否则改完日期 chip 还显示旧值（静默的不一致）。
-  syncParamChips();
-}
-
-// ---- 参数 chip：把后台控件里的当前值镜像到 chip 上 ----
-// 为什么是"镜像"而不是"搬家"：#dateText / #prefRow / #cityInput 这些 ID 被
-// refreshDateBox() / setPref() / pickCity() 等多个既有逻辑引用，迁走等于重写半个表单。
-// 让它们原地当数据源，chip 只读不写，改动成本与回归风险都最小。
-function syncParamChips() {
-  const city = $('chipCity'), dt = $('chipDate'), nt = $('chipNights'), pf = $('chipPref');
-  if (city) city.textContent = currentCity || '未设置';
-  if (dt) dt.textContent = (($('dateText') || {}).textContent || '--').trim();
-  if (nt) nt.textContent = (($('nightsText') || {}).textContent || '').trim();
-  if (pf) {
-    // 读当前高亮的 pref，而不是 currentPref 变量：本函数在脚本初始化早期就会被调用，
-    // 那时 currentPref（let，声明在后面）还在暂时性死区里，读它会抛 ReferenceError。
-    const on = document.querySelector('#prefRow .pref.on');
-    const label = on ? String(on.textContent || '').trim().split(/\s+/).pop() : '';
-    pf.textContent = label || '均衡';
-  }
 }
 
 // ---- 日历弹层（先选出发日，再选结束日，区间高亮）----
@@ -1369,100 +1284,6 @@ $('go').onclick = async () => {
   }
 };
 
-// ---- 左栏对话流：气泡 / 发送 / chip ----
-// 气泡渲染器**独立于桌宠**（桌宠写 #ppMsgs，这里写 #chatMsgs）：两者内容来源不同
-// （桌宠是行程微调对话，这里是"粘攻略 → 排行程"的入口），混在一起会互相顶掉滚动位置。
-function chatSay(role, text) {
-  const box = $('chatMsgs'); if (!box) return null;
-  const div = document.createElement('div');
-  div.className = 'cmsg ' + role;
-  // 攻略文本是用户粘贴的任意内容（可能含 <script>、HTML 标签）——一律 textContent，
-  // 这里没有一处 innerHTML，从根上断掉注入面。
-  div.textContent = String(text == null ? '' : text);
-  box.appendChild(div); box.scrollTop = box.scrollHeight;
-  return div;                 // 返回元素：识别中的气泡要原地更新，不重复刷屏
-}
-
-// 触发真实规划并等它结束：#go 已隐藏，但仍**是**唯一的规划入口。
-// 为什么用程序化 click 而不是复制它的逻辑：那条链路（禁用 → WS → refreshHints →
-// render → 恢复）是唯一经过验证的路径，复制一份就会出现两条会漂移的规划实现。
-function runPlan() {
-  const goBtn = $('go');
-  if (!goBtn || goBtn.disabled) return Promise.resolve();   // 已有规划在跑，不重复触发
-  goBtn.click();
-  return new Promise(resolve => {
-    const timer = setInterval(() => {
-      if (!goBtn.disabled) { clearInterval(timer); resolve(); }
-    }, 300);
-    // 兜底：万一 WS 既不完成也不报错（断网等），别把发送键永久锁死
-    setTimeout(() => { clearInterval(timer); resolve(); }, 180000);
-  });
-}
-
-async function chatSend() {
-  const ta = $('chatInput'), btn = $('chatSend');
-  const text = ((ta && ta.value) || '').trim();
-  if (btn) btn.disabled = true;
-  try {
-    if (!text) {
-      // 空输入 = "就按现在的参数排"：不再要求用户先找到按钮
-      chatSay('sys', `按当前参数规划：${currentCity} · ${(($('nightsText') || {}).textContent || '')}。稍等一下…`);
-      await runPlan();
-      chatSay('sys', plan && plan.days
-        ? `已生成 ${plan.days.length} 天行程，右侧查看。想改就直接说。`
-        : '规划没跑通，展开下面的「求解进度日志」看原因，或换个说法再试。');
-      return;
-    }
-
-    chatSay('me', text);                 // 用户气泡（textContent，见 chatSay）
-    if (ta) ta.value = '';
-    const thinking = chatSay('sys', '正在识别攻略里的景点…');
-
-    // 这里内联复用的是 extractBtn 同一条 /extract 链路（城市识别 + 低置信度过滤），
-    // 但没有走 `$('extractBtn').click()`：那是隐藏元素、且它自己会写 #extractMsg，
-    // 内联一份才能把结果直接变成气泡（并把失败吞掉继续规划，而不是停在报错上）。
-    let adopted = [], skipped = 0, total = 0;
-    try {
-      $('guideText').value = text;       // 同步给兜底入口，折叠版打开就能看到原文
-      const res = await fetch(
-        `/extract?text=${encodeURIComponent(text)}&city=${encodeURIComponent(currentCity)}`,
-        {method: 'POST'});
-      const payload = await res.json();
-      if (res.ok && payload && !payload.error && (payload.spots || []).length) {
-        if (payload.detected_city && payload.detected_city !== currentCity) {
-          currentCity = payload.detected_city;
-          $('cityInput').value = currentCity;
-          await loadDemoSpots();
-          log('城市', `攻略识别到城市：${currentCity}`);
-        }
-        adopted = (payload.spots || []).filter(s => !s.needs_review);
-        skipped = (payload.spots || []).length - adopted.length;
-        total = payload.count || (payload.spots || []).length;
-        spots = adopted;
-        log('抽取', `识别 ${total} 个，采纳 ${adopted.length} 个，跳过待确认 ${skipped} 个`);
-      }
-    } catch (e) {
-      log('抽取', '识别失败：' + e.message);   // 识别失败不该阻断规划
-    }
-
-    if (adopted.length) {
-      const names = adopted.slice(0, 6).map(s => s.name).join('、');
-      thinking.textContent = `识别到 ${adopted.length} 个景点：${names}`
-        + (adopted.length > 6 ? ' 等' : '')
-        + (skipped ? `（跳过 ${skipped} 个低置信度）` : '') + '。正在规划…';
-    } else {
-      thinking.textContent = '没识别出景点，我按当前参数直接排…';
-    }
-    syncParamChips();
-    await runPlan();
-    chatSay('sys', plan && plan.days
-      ? `已生成 ${plan.days.length} 天行程，右侧查看。城市、日期、偏好都能点上面的 chip 改。`
-      : '规划没跑通，展开下面的「求解进度日志」看原因，或换个说法再试。');
-  } finally {
-    if (btn) btn.disabled = false;       // 无论识别/规划成败，发送键都要还给用户
-  }
-}
-
 // ---- 规划进度条 ----
 // 把 WS 的阶段消息转成可见百分比。阶段区间按**真实耗时**分配：
 // 通勤矩阵最久（高德 API 限频，19 个景点要几百对查询），求解其实只要 0.5 秒左右。
@@ -1512,31 +1333,6 @@ function gpDone(ok, text) {
     $('gpFill').classList.remove('bad');
   }, ok ? 2500 : 7000);
 }
-
-// ---- 左栏交互接线：发送键 / Enter / chip 展开 ----
-$('chatSend').onclick = () => { chatSend(); };
-$('chatInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chatSend(); }  // Shift+Enter 换行
-});
-// chip → 展开面板（城市 / 偏好）。面板里就是原来的 #cityInput 与 #prefRow，
-// 不做任何值同步——它们本身就是数据源。
-function toggleChipPanel(btnId, panelId, focusId) {
-  const panel = $(panelId), btn = $(btnId);
-  if (!panel) return;
-  const open = panel.style.display !== 'none';
-  panel.style.display = open ? 'none' : 'block';
-  if (btn) btn.classList.toggle('on', !open);
-  if (!open && focusId && $(focusId)) $(focusId).focus();
-}
-$('chipCityBtn').onclick = () => toggleChipPanel('chipCityBtn', 'panelCity', 'cityInput');
-$('chipPrefBtn').onclick = () => toggleChipPanel('chipPrefBtn', 'panelPref', null);
-$('chipDateBtn').onclick = () => openCalendar();     // 日期照旧用原来的日历浮层
-$('chipMoreBtn').onclick = () => {                   // 更多 = 高级选项的展开/收起
-  const box = $('advBox'); if (!box) return;
-  box.open = !box.open;
-  $('chipMoreBtn').classList.toggle('on', box.open);
-  if (box.open) box.scrollIntoView({behavior: 'smooth', block: 'nearest'});
-};
 
 function log(stage, msg) {
   // 修 bug 1（批次 1）：原 `document.querySelector('details').open = true` 拿到的是
@@ -2423,7 +2219,6 @@ function setPref(p) {
   document.querySelectorAll('#prefRow .pref').forEach(
     el => el.classList.toggle('on', el.dataset.pref === p));
   $('prefHint').textContent = PREF_HINT[p] || '';
-  syncParamChips();          // 偏好卡收在 chip 面板里，chip 上的标签要跟着变
   // 已经排好行程时直接改偏好 → 让桌宠帮忙重排（走同一条对话链路）
   if (lastTaskId && plan) {
     petToggle(true);
