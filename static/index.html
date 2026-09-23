@@ -729,6 +729,12 @@
   .pcard-date .field > label { font-size:12px; font-weight:500; color:var(--accent-deep); }
   .pcard-date .datebox b { font-size:16px; font-weight:600; letter-spacing:-.01em;
                            font-variant-numeric:tabular-nums; }
+  /* 日期框图标：emoji（📅）发色且跨平台不一致，改线性 stroke 图标 ——
+     与导航返回箭头同一套画法（16 视窗 / currentColor / 圆头），克制的发丝感。 */
+  .datebox .dicon, .licon { display:inline-flex; align-items:center; color:var(--muted-3); }
+  .datebox .dicon svg, .licon svg { width:15px; height:15px; display:block; }
+  /* 地图标记里的图标要更大一点（原来 emoji 是 20px） */
+  .licon-lg svg { width:20px; height:20px; }
   /* 偏好 chip：发丝描边、选中态用次级信号（主色留给 CTA） */
   #prefRow .pref { font-size:13px; padding:7px 13px; border-radius:8px;
                    border:1px solid var(--line); background:var(--surface); font-weight:500; }
@@ -805,7 +811,11 @@
         <div class="field datefield" onclick="openCalendar()">
           <label>行程日期</label>
           <div class="datebox">
-            <b id="dateText">--</b><span class="nights" id="nightsText"></span><span>📅</span>
+            <b id="dateText">--</b><span class="nights" id="nightsText"></span>
+            <span class="dicon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+              stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="10" rx="2"/>
+              <path d="M2.5 6.5h11M5.5 2v2M10.5 2v2"/></svg></span>
           </div>
         </div>
       </div>
@@ -1122,6 +1132,14 @@ function gcj2wgs(lat, lon) {
   dLon = (dLon*180) / (6378245/sq*Math.cos(rad)*Math.PI);
   return [lat - dLat, lon - dLon];
 }
+// 酒店「线性图标」常量：与日期框的日历图标同一套画法（16 视窗 / currentColor / 圆头描边），
+// 用来替代 🏨 emoji —— emoji 发色且跨平台不一致，在 modern-minimal 里显得廉价。
+// HOTEL_SVG = 裸 svg（供地图标记等需要自定义尺寸处用）；HOTEL_ICON = 带 .licon 外壳（行内文本用）。
+const HOTEL_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"'
+  + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M2.5 11.5V6"/><path d="M2.5 9h11"/><path d="M13.5 11.5V9"/>'
+  + '<path d="M5 9V7h3.5v2"/></svg>';
+const HOTEL_ICON = '<span class="licon">' + HOTEL_SVG + '</span>';
 const fmt = h => { const hh=Math.floor(h), mm=Math.round((h-hh)*60);
   return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); };
 const dateOf = i => { const d = new Date($('startDate').value || Date.now());
@@ -1374,7 +1392,7 @@ function render() {
     `<span class="chip">🎫 总门票 ¥${plan.total_cost}</span>` +
     `<span class="chip">📍 已排 ${c.stats.spots_planned} 个</span>` +
     `<span class="chip">${commuteChip}</span>` +
-    (plan.hotel ? `<span class="chip">🏨 ${esc(plan.hotel.name)}</span>` : '') +
+    (plan.hotel ? `<span class="chip">${HOTEL_ICON} ${esc(plan.hotel.name)}</span>` : '') +
     `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
     `<span class="chip">🛰 API ${apiCalls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('hotelText').textContent = plan.hotel ? plan.hotel.name : '未设置（点此搜索选择）';
@@ -1487,7 +1505,7 @@ function renderOverview(plan) {
   if (!days.length) return '<div class="ov-empty">还没有行程</div>';
   const hotel = plan.hotel ? esc(plan.hotel.name) : '';
   const head = `<div class="dayhead"><div class="daytitle">行程总览</div>
-    <div class="daysub">${days.length} 天${hotel ? ' · 🏨 ' + hotel : ''} · 紧凑度条越长 = 当天越满</div></div>`;
+    <div class="daysub">${days.length} 天${hotel ? ' · ' + HOTEL_ICON + ' ' + hotel : ''} · 紧凑度条越长 = 当天越满</div></div>`;
   const cards = days.map((d, i) => {
     const tint = dayTint(i);
     const km = Math.round(haversineKm(d) * 10) / 10;
@@ -1547,7 +1565,7 @@ function renderDayTimeline(day, dayIdx) {
     return card + commute;
   }).join('');
   const head = `<div class="dayhead"><div class="daytitle">${esc(dateOf(dayIdx))}</div>
-      <div class="daysub">门票 ¥${esc(day.cost)} · 通勤 ${esc(day.commute_min)} 分钟${hotel ? ' · 🏨 ' + hotel : ''}</div></div>`;
+      <div class="daysub">门票 ¥${esc(day.cost)} · 通勤 ${esc(day.commute_min)} 分钟${hotel ? ' · ' + HOTEL_ICON + ' ' + hotel : ''}</div></div>`;
   return `<div class="daywrap">
       <div class="tl">${head}<div class="tl-track">${items}</div></div>
       <div class="daymap">
@@ -1617,7 +1635,7 @@ function initDayMap(day, dayIdx) {
       L.polyline(all, { color: tint, weight: 4, opacity: .85 }).addTo(dayMap);
     if (hotelLL) {
       L.marker(hotelLL, { icon: L.divIcon({ className: '', html:
-        `<div style="font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">🏨</div>`, iconSize: [22, 22] }) })
+        `<div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))"><span class="licon-lg">${HOTEL_SVG}</span></div>`, iconSize: [22, 22] }) })
         .bindPopup(`<b>住宿</b><br>${esc(plan.hotel.name)}`).addTo(dayMap);
     }
     entries.forEach(e => {
@@ -1877,7 +1895,7 @@ function renderPlans() {
       : ` data-act="plan" data-plan="${esc(p.task_id)}"`;
     return `<div class="ucard"${act}>${check}
       <div class="info"><div class="t">${esc(p.city) || '行程'} · ${p.spots_planned || '?'} 个景点</div>
-      <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + esc(p.hotel) : ''}</div></div>
+      <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · ' + HOTEL_ICON + ' ' + esc(p.hotel) : ''}</div></div>
       <div style="color:var(--muted-3)">›</div></div>`;
   }).join('');
 }
@@ -1944,7 +1962,7 @@ function openPlanModal(taskId) {
       <div style="padding:0 16px 10px;overflow-y:auto;flex:1">
         <div style="color:var(--muted-2);font-size:13px">门票 ¥${r0.total_cost}
           · ${r0.check_report.stats.spots_planned} 个景点
-          ${r0.hotel ? ' · 🏨 ' + esc(r0.hotel.name) : ''}</div>
+          ${r0.hotel ? ' · ' + HOTEL_ICON + ' ' + esc(r0.hotel.name) : ''}</div>
         ${daysHtml}
         ${r0.unplanned && r0.unplanned.length ? `<div style="color:var(--muted-3);font-size:12px;margin-top:8px">未安排：${r0.unplanned.map(u=>esc(u.name)).join('、')}</div>` : ''}
       </div>
@@ -2053,7 +2071,7 @@ function toggleHotelMap(i, lat, lon, name) {
          box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>
        <div style="background:var(--warn);color:var(--surface);font-size:10px;padding:1px 6px;border-radius:8px;
          white-space:nowrap;margin-top:2px;box-shadow:0 1px 3px rgba(0,0,0,.25)">酒店</div>
-     </div>`})}).addTo(m).bindPopup(`🏨 ${name}`);
+     </div>`})}).addTo(m).bindPopup(`${HOTEL_ICON} ${name}`);
   // 当前行程景点一起标出，判断住宿顺不顺手
   if (plan) plan.days.forEach((d, di) => d.spots.forEach(v => {
     const s = spots.find(s => s.name === v.name);
@@ -2130,7 +2148,7 @@ function openHotelPicker() {
           const qn = h.name.replace(/'/g, "\\'");
           const img = h.image
             ? `<img src="${esc(h.image)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;flex-shrink:0" loading="lazy" onerror="this.style.display='none'">`
-            : `<div style="width:56px;height:56px;border-radius:9px;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🏨</div>`;
+            : `<div style="width:56px;height:56px;border-radius:9px;background:var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span class="licon-lg">${HOTEL_SVG}</span></div>`;
           return `<div style="border-top:1px dashed var(--border);padding:10px 0">
             <div style="display:flex;gap:12px;align-items:center">
               ${img}
@@ -2524,7 +2542,7 @@ function renderMap() {
                             : gcj2wgs(plan.hotel.lat, plan.hotel.lon);
       latlngs = [h, ...latlngs, h];
       L.marker(h, {icon: L.divIcon({className:'', html:
-        `<div style="font-size:20px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))">🏨</div>`,
+        `<div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))"><span class="licon-lg">${HOTEL_SVG}</span></div>`,
         iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${esc(plan.hotel.name)}
         <br><button data-act="detail" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:var(--accent-soft);
           color:var(--accent);border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
