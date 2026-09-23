@@ -810,14 +810,14 @@
         </div>
       </div>
 
-      <!-- 偏好：从 12px 小胶囊换成 14px 大方块 chip（选中态实心） -->
+      <!-- 偏好：modern-minimal —— 去掉 emoji，纯文字 chip；选中态用次级信号（主色留给 CTA） -->
       <div class="pcard">
         <div class="plabel">这一趟更看重什么</div>
         <div class="pref-row" id="prefRow">
-          <span class="pref on" data-pref="balanced">⚖️ 均衡</span>
-          <span class="pref" data-pref="less_walk">🚶 少走路</span>
-          <span class="pref" data-pref="save_money">💰 省钱</span>
-          <span class="pref" data-pref="more_spots">🎒 多玩</span>
+          <span class="pref on" data-pref="balanced">均衡</span>
+          <span class="pref" data-pref="less_walk">少走路</span>
+          <span class="pref" data-pref="save_money">省钱</span>
+          <span class="pref" data-pref="more_spots">多玩</span>
         </div>
         <div class="pref-hint" id="prefHint">按景点价值排，通勤顺路即可</div>
       </div>
@@ -825,11 +825,11 @@
       <input type="hidden" id="endDate">
       <!-- 方向 B：高级区（酒店 / 预算 / 稳妥度 / 出发返回时间）折叠，默认收起 -->
       <details class="adv" id="advBox">
-        <summary>⚙️ 更多选项：酒店 · 预算 · 稳妥度 · 出发/返回时间</summary>
+        <summary>更多选项 · 酒店 / 预算 / 稳妥度 / 出发返回</summary>
         <div class="field datefield" onclick="openHotelPicker()" style="margin-top:8px">
-          <label>住宿酒店</label>
+          <label>酒店</label>
           <div class="datebox">
-            <b id="hotelText">未设置（点此搜索选择）</b><span>🏨</span>
+            <b id="hotelText">未设置（点此搜索选择）</b>
           </div>
         </div>
         <div class="grid3">
@@ -847,7 +847,7 @@
           <div class="pref-hint" id="robHint">按纸面时间排（可能偏紧）</div>
         </div>
         <details class="adv" style="margin-top:8px">
-          <summary>🕘 每天 9:00 出发 · 18:00 返回（点击调整）</summary>
+          <summary>每天 9:00 出发 · 18:00 返回（点击调整）</summary>
           <div class="grid3" style="margin-top:8px">
             <div class="field"><label>每天出发</label><input id="start" type="time" value="09:00"></div>
             <div class="field"><label>每天返回</label><input id="end" type="time" value="18:00"></div>
