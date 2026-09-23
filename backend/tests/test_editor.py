@@ -1,6 +1,7 @@
 """编辑器单元测试：apply_ops / pin_modify_day 纯函数，POI 搜索用桩函数注入。"""
-from editor import apply_ops, pin_modify_day
-from models import Spot
+from editor import apply_ops, pin_insert_best, pin_modify_day
+from models import Hotel, Spot
+from solver import commute_min
 
 
 def _base() -> list[Spot]:
@@ -90,3 +91,30 @@ def test_pin_remove():
     res = pin_modify_day(_base(), [], ["回民街"], None, 9.0, 18.0)
     names = [v.name for v in res["spots"]]
     assert names == ["钟楼", "西安城墙"]
+
+
+# ---- pin_insert_best：择优与返回的通勤口径（B4）----
+
+def test_pin_insert_best_commute_includes_hotel_roundtrip():
+    """回归 B4：返回的 commute_min 必须含酒店往返，与 solver 口径一致。
+
+    修前 commute_total 漏传 hotel，返回值只含景点间通勤、系统性地偏小——
+    写回 DayPlan.commute_min 后会与其它天（含酒店往返）不可比。
+    """
+    # 故意把酒店放到远离景点群的地方：酒店两段通勤才显著、不会退化成 0
+    hotel = Hotel(name="远郊酒店", lat=34.20, lon=108.80)
+    cafe = Spot(source_id=98, name="咖啡馆", lat=34.262, lon=108.941,
+                stay_min=60, score=9.9, ticket=0, open_h=8.0, close_h=22.0)
+    res = pin_insert_best(_base(), cafe, None, 8.0, 20.0, hotel=hotel)
+    assert res is not None
+
+    by_name = {s.name: s for s in _base() + [cafe]}
+    order = [by_name[v.name] for v in res["spots"]]
+    inter = sum(commute_min(order[i], order[i + 1])
+                for i in range(len(order) - 1))
+    with_hotel = commute_min(hotel, order[0]) + inter + commute_min(order[-1], hotel)
+
+    # 数值等于手算的「含酒店往返」总通勤
+    assert abs(res["commute_min"] - round(with_hotel, 1)) < 0.05
+    # 且严格大于不含酒店的值——修前该断言必然失败
+    assert res["commute_min"] > inter

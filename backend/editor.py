@@ -404,7 +404,8 @@ def pin_insert_best(day_spots: list[Spot],
             if ev is None:
                 continue
             s, tl, req = ev
-            comm = s.commute_total(req)
+            # 必须传 hotel：择优要按「含酒店往返」的口径比较，否则会选到次优插入位置
+            comm = s.commute_total(req, hotel)
             if best is None or comm < best[0]:
                 best = (comm, seq, tl, stay)
         if best is not None:
@@ -413,26 +414,20 @@ def pin_insert_best(day_spots: list[Spot],
     if best is None:
         return None
 
-    _, seq, tl, stay = best
+    comm, seq, tl, stay = best
     vspots = [VisitedSpot(name=sp.name, arrive_h=round(a, 2),
                           depart_h=round(d, 2), ticket=sp.ticket,
                           desc=sp.desc)
               for sp, a, d in tl]
     return {
         "spots": vspots,
-        "commute_min": round(sum(
-            (commute_fn(seq[i], seq[i + 1]) if commute_fn
-             else _overall_est(seq[i], seq[i + 1]))
-            for i in range(len(seq) - 1)), 1),
+        # 与 solver.py 同口径：含「酒店→首景点」与「末景点→酒店」两段，
+        # 否则写回 DayPlan.commute_min 后与其它天不可比。
+        "commute_min": round(comm, 1),
         "cost": round(sum(sp.ticket for sp in seq), 1),
         "active_min": round(sum(sp.stay_min for sp in seq), 0),
         "stay_min": stay,
     }
-
-
-def _overall_est(a: Spot, b: Spot) -> float:
-    from solver import commute_min
-    return commute_min(a, b)
 
 
 def generate_reviews(name: str, intro: str = "") -> dict | None:
