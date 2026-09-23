@@ -10,7 +10,8 @@
 检查内容：
 1. `<script>` 提取后交给 `node --check` 做语法门（缺 node 时跳过并提示）
 2. 禁止在函数内声明与全局工具函数重名的局部变量（遮蔽）
-3. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
+3. 禁止 `src="${...}"` 属性里直接插未转义的外部图片 URL（错误级）
+4. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
 """
 from __future__ import annotations
 
@@ -102,6 +103,27 @@ def check_hardcoded_coords(html: str) -> list[str]:
     return errors
 
 
+def check_unescaped_src(js: str) -> list[str]:
+    """错误级：`src="${...}"` 里的动态值必须走 esc()。
+
+    图片 URL 来自高德 photos / 媒体缓存文件等外部内容，属不可信输入：URL 里
+    只要有一个双引号就能越出属性、注入 `onerror=` 之类的事件处理器。文本插值
+    早就统一走了 esc()，唯独这几处属性曾漏掉。规则只覆盖 src，避免噪音。
+    """
+    errors: list[str] = []
+    for m in re.finditer(r'src="\$\{([^}]*)\}"', js):
+        expr = m.group(1)
+        if "esc(" in expr:
+            continue
+        line = js[:m.start()].count("\n") + 1
+        errors.append(
+            f"第 {line} 行：`src=\"${{{expr.strip()[:40]}}}\"` 未走 esc()——"
+            f"外部图片 URL 含双引号即可越出属性注入事件处理器，请改用 esc(...)")
+    if not errors:
+        print("  ✓ src 插值均已转义")
+    return errors
+
+
 def check_unescaped(js: str) -> list[str]:
     """提示级：innerHTML 模板里直接插外部字段的位置。"""
     warns: list[str] = []
@@ -121,7 +143,8 @@ def main() -> int:
     html = HTML.read_text(encoding="utf-8")
     js = extract_scripts(html)
     print(f"检查 {HTML.relative_to(ROOT)}（脚本 {len(js.splitlines())} 行）")
-    errors = check_syntax(js) + check_shadowing(js) + check_hardcoded_coords(html)
+    errors = (check_syntax(js) + check_shadowing(js)
+              + check_hardcoded_coords(html) + check_unescaped_src(js))
     warns = check_unescaped(js)
     if warns:
         print(f"  ⚠ 未转义的外部字段 {len(warns)} 处（提示，不阻塞）：")
