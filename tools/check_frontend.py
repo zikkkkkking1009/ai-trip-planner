@@ -10,7 +10,7 @@
 检查内容：
 1. `<script>` 提取后交给 `node --check` 做语法门（缺 node 时跳过并提示）
 2. 禁止在函数内声明与全局工具函数重名的局部变量（遮蔽）
-3. 禁止 `src="${...}"` 属性里直接插未转义的外部图片 URL（错误级）
+3. 禁止 `src="${...}"` 与 `data-*="${...}"` 属性里插未转义的外部值（错误级）
 4. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
 """
 from __future__ import annotations
@@ -103,24 +103,31 @@ def check_hardcoded_coords(html: str) -> list[str]:
     return errors
 
 
-def check_unescaped_src(js: str) -> list[str]:
-    """错误级：`src="${...}"` 里的动态值必须走 esc()。
+def check_unescaped_attrs(js: str) -> list[str]:
+    """错误级：HTML **属性**里的动态值必须走 esc()。
 
-    图片 URL 来自高德 photos / 媒体缓存文件等外部内容，属不可信输入：URL 里
-    只要有一个双引号就能越出属性、注入 `onerror=` 之类的事件处理器。文本插值
-    早就统一走了 esc()，唯独这几处属性曾漏掉。规则只覆盖 src，避免噪音。
+    为什么值得单独一条：文本插值早就统一加了 `esc()`，属性里却漏过——图片 URL 来自
+    高德 photos / 媒体缓存，`data-*` 里的坐标与 task_id 来自接口返回，都属不可信输入。
+    属性里只要有一个双引号就能越出引号、注入 `onerror=` 之类的事件处理器。
+
+    规则（刻意收窄，避免噪音）：
+    - `src="${...}"`：一律要求 esc()
+    - `data-*="${...}"`：只对**含属性访问**（有 `.`，即外部取值）的表达式要求 esc()；
+      纯内部表达式如 `data-day="${i+1}"`、`data-idx="${i}"` 是循环下标，跳过
     """
     errors: list[str] = []
-    for m in re.finditer(r'src="\$\{([^}]*)\}"', js):
-        expr = m.group(1)
+    for m in re.finditer(r'(src|data-[a-z-]+)="\$\{([^}]*)\}"', js):
+        attr, expr = m.group(1), m.group(2)
         if "esc(" in expr:
             continue
+        if attr != "src" and "." not in expr:
+            continue          # data-* 里的内部表达式（循环下标等），不涉及外部输入
         line = js[:m.start()].count("\n") + 1
         errors.append(
-            f"第 {line} 行：`src=\"${{{expr.strip()[:40]}}}\"` 未走 esc()——"
-            f"外部图片 URL 含双引号即可越出属性注入事件处理器，请改用 esc(...)")
+            f"第 {line} 行：`{attr}=\"${{{expr.strip()[:40]}}}\"` 未走 esc()——"
+            f"外部值含双引号即可越出属性注入事件处理器，请改用 esc(...)")
     if not errors:
-        print("  ✓ src 插值均已转义")
+        print("  ✓ 属性插值（src / data-*）均已转义")
     return errors
 
 
@@ -144,7 +151,7 @@ def main() -> int:
     js = extract_scripts(html)
     print(f"检查 {HTML.relative_to(ROOT)}（脚本 {len(js.splitlines())} 行）")
     errors = (check_syntax(js) + check_shadowing(js)
-              + check_hardcoded_coords(html) + check_unescaped_src(js))
+              + check_hardcoded_coords(html) + check_unescaped_attrs(js))
     warns = check_unescaped(js)
     if warns:
         print(f"  ⚠ 未转义的外部字段 {len(warns)} 处（提示，不阻塞）：")

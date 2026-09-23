@@ -1170,7 +1170,7 @@ function openSpotDetail(name) {
       const rows = [];
       const qn = name.replace(/'/g, "\\'");
       const navLink = (d.lon && d.lat)
-        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" data-act="nav" data-lon="${d.lon}" data-lat="${d.lat}" data-name="${esc(name)}">🧭 导航</a>` : '';
+        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" data-act="nav" data-lon="${esc(d.lon)}" data-lat="${esc(d.lat)}" data-name="${esc(name)}">🧭 导航</a>` : '';
       // opentime 来自高德接口，与下一行 address 一样要过 esc()
       // （2026-09-23 修：同一函数里 address 转义了、opentime 漏了）
       if (d.opentime) rows.push(['🕘', '营业时间', esc(d.opentime)]);
@@ -1215,8 +1215,8 @@ function renderPlans() {
           color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center">✓</div>`
       : '';
     const act = manageMode
-      ? ` data-act="plan-sel" data-plan="${p.task_id}"`
-      : ` data-act="plan" data-plan="${p.task_id}"`;
+      ? ` data-act="plan-sel" data-plan="${esc(p.task_id)}"`
+      : ` data-act="plan" data-plan="${esc(p.task_id)}"`;
     return `<div class="ucard"${act}>${check}
       <div class="info"><div class="t">${esc(p.city) || '行程'} · ${p.spots_planned || '?'} 个景点</div>
       <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · 🏨 ' + esc(p.hotel) : ''}</div></div>
@@ -1459,11 +1459,11 @@ function openHotelPicker() {
           return `<div style="border-top:1px dashed #eef1f5;padding:10px 0">
             <div style="display:flex;gap:12px;align-items:center">
               ${img}
-              <div class="info" style="flex:1;min-width:0" data-act="hotel-map" data-idx="${i}" data-lat="${h.lat}" data-lon="${h.lon}" data-name="${esc(h.name)}">
+              <div class="info" style="flex:1;min-width:0" data-act="hotel-map" data-idx="${i}" data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" data-name="${esc(h.name)}">
                 <div class="t" style="cursor:pointer">${esc(h.name)}
                   <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
                 <div class="s">${esc(h.intro)}</div></div>
-              <button data-act="hotel-pick" data-name="${esc(h.name)}" data-lat="${h.lat}" data-lon="${h.lon}" style="background:var(--acc);
+              <button data-act="hotel-pick" data-name="${esc(h.name)}" data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" style="background:var(--acc);
                 color:#fff;border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
                 font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>
             <div id="hmap-${i}" style="display:none;margin-top:8px;height:180px;border-radius:12px;overflow:hidden"></div>
@@ -1795,7 +1795,7 @@ function renderMap() {
         iconSize:[22,22]})}).bindPopup(`<b>住宿</b><br>${esc(plan.hotel.name)}
         <br><button data-act="detail" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:#e8f1ff;
           color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
-        <button data-act="nav" data-lon="${plan.hotel.lon}" data-lat="${plan.hotel.lat}" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:#e8f1ff;
+        <button data-act="nav" data-lon="${esc(plan.hotel.lon)}" data-lat="${esc(plan.hotel.lat)}" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:#e8f1ff;
           color:#1677ff;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">🧭 导航</button>`).addTo(map);
       all.push(h);
     }
