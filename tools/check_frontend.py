@@ -13,7 +13,9 @@
 3. 禁止 `src="${...}"` 与 `data-*="${...}"` 属性里插未转义的外部值（错误级）
 4. 禁止 CSS 自定义属性引用自己（`--ok: var(--ok)`，浏览器静默丢弃）
 5. 禁止 CSS 引用未定义的变量（`var(--x)` 而 `--x` 不存在，整条声明静默失效）
-6. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
+6. 禁止文档被复制/截断（`<html>`/`<body>` 单例 + 结构标签开闭配平）
+7. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
+8. 报告可见正文里残留的 Markdown 加粗标记（提示级）
 """
 from __future__ import annotations
 
@@ -200,6 +202,71 @@ def check_unescaped(js: str) -> list[str]:
     return warns
 
 
+# 结构性标签：这些标签的数量必须配平，且 <body>/<head>/<html> 只能有一个
+PAIRED_TAGS = ("section", "figure", "details", "footer", "svg")
+
+# 注释里的标签不算数：CSS 注释里会写「折叠用原生 <details>」，JS 注释里会写
+# 「给 <html> 加 js-reveal」—— 曾经因此让守卫误报（第一版就是这么翻车的）。
+COMMENT_RE = re.compile(r"<!--.*?-->|/\*.*?\*/", re.S)
+
+
+def check_document_integrity(html: str) -> list[str]:
+    """错误级：文档必须是**单份且标签配平**的。
+
+    为什么值得单独一条：2026-09-23 做首页改版收尾时，一个批量重排脚本里
+    `parts[-1]` 已经包含在最后一组里、却又被 append 了一次，于是「图 5 之后的
+    整段文档」被原样复制了第二遍（11737 字符）。
+
+    这类损坏**特别能藏**：
+      · 浏览器照常渲染 —— 重复内容只是多出一截普通 DOM，不报错、不空白
+      · JS 语法门照常通过 —— 两个 `<script>` 块各自都是合法代码
+      · 只看 `<figure>` 开标签也正常（数量仍是 5）
+    只有 `</figure>`(6)、`</section>`(14)、`</html>`(2) 这类**收尾**标记会露馅。
+    所以按「开闭配平 + 文档级单例」两个维度守，且统计前先剥掉注释。
+    """
+    code = COMMENT_RE.sub("", html)
+    errors: list[str] = []
+
+    # 单例标签：用词边界，否则 `<head` 会匹配到 `<header`
+    for tag in ("html", "body", "head"):
+        n_open = len(re.findall(rf"<{tag}[\s>]", code))
+        n_close = len(re.findall(rf"</{tag}[\s>]", code))
+        if n_open != 1 or n_close != 1:
+            errors.append(f"`<{tag}>` 应各出现 1 次，实际开 {n_open} / 闭 {n_close} "
+                          f"—— 文档被复制或截断过")
+
+    for tag in PAIRED_TAGS:
+        o = len(re.findall(rf"<{tag}[\s>]", code))
+        c = len(re.findall(rf"</{tag}[\s>]", code))
+        if o != c:
+            errors.append(f"`<{tag}>` 开闭不配平：{o} 个开标签 / {c} 个闭标签 "
+                          f"—— 批量改结构时很可能复制或漏掉了整段内容")
+    if not errors:
+        print("  ✓ 文档结构完整（单份、标签配平）")
+    return errors
+
+
+def check_markdown_leak(html: str) -> list[str]:
+    """提示级：可见正文里残留 Markdown 标记（`**加粗**`）会原样渲染成星号。
+
+    为什么值得提：首页正文是先在 Markdown 里写的，转成 HTML 时很容易漏掉一两处。
+    `**待复测**` 就曾这样挂在页面上 —— 浏览器不报错，视觉上只是多两个星号，
+    靠截图才发现。规则只扫**标签之间的可见文字**，所以 JS 的幂运算符（`a ** 2`）
+    与注释里的强调写法都不会误报。
+    """
+    visible = html
+    for pat in (r"<script>.*?</script>", r"<style>.*?</style>", r"<!--.*?-->"):
+        visible = re.sub(pat, "", visible, flags=re.S)
+    # 只取标签之间的文本
+    texts = re.findall(r">([^<>]+)<", visible)
+    warns = []
+    for t in texts:
+        for m in re.finditer(r"\*\*([^*\n]{1,30})\*\*", t):
+            warns.append(f"可见正文里残留 Markdown 加粗标记 `**{m.group(1)}**`，"
+                         f"会原样显示成星号，请改成 <strong>…</strong>")
+    return warns
+
+
 def main() -> int:
     all_errors: list[str] = []
     for rel in PAGES:
@@ -212,10 +279,11 @@ def main() -> int:
         print(f"检查 {rel}（脚本 {len(js.splitlines())} 行）")
         errs = (check_syntax(js) + check_shadowing(js)
                 + check_hardcoded_coords(html) + check_unescaped_attrs(js)
-                + check_css_self_ref(html) + check_undefined_css_vars(html))
-        warns = check_unescaped(js)
+                + check_css_self_ref(html) + check_undefined_css_vars(html)
+                + check_document_integrity(html))
+        warns = check_unescaped(js) + check_markdown_leak(html)
         if warns:
-            print(f"  ⚠ 未转义的外部字段 {len(warns)} 处（提示，不阻塞）：")
+            print(f"  ⚠ 提示 {len(warns)} 处（不阻塞）：")
             for w in warns[:8]:
                 print(f"     - {w}")
         all_errors += [f"{rel}: {e}" for e in errs]
