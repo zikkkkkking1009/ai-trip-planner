@@ -598,7 +598,8 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
     **city 必须传**：缓存 key 是「城市|景点名」，抓取也依赖正确城市（高德搜索带 citylimit）。
     """
     import editor
-    from media_cache import get_entry, media_key, save_media
+    from media_cache import (get_entry, media_key, save_media,
+                             suspected_wrong_city)
 
     media = _shared_media()
     # 多个协程并发写同一份 JSON：原子写只保证不写坏文件，不保证不丢更新，
@@ -622,6 +623,12 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
                     (entry.get("address", "") or ""))
                 entry["reviews"] = rv
                 entry["reviews_ai"] = rv is not None
+            # 写入前校验载荷真的属于该城市（高德 citylimit 不严格，可能抓回别城市的数据）
+            wrong = suspected_wrong_city(city, entry)
+            if wrong:
+                log.warning("媒体预取：高德返回的是「%s」的数据，与请求城市 %s 不符，"
+                            "不写入缓存 name=%s", wrong, city, name)
+                return
             async with _media_write_lock:
                 media[ck] = entry
                 save_media(media)

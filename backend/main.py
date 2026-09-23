@@ -41,7 +41,8 @@ from cities import DEFAULT_CITY, city_center, normalize_city
 from constraint_check import check_plan
 from demo_data import demo_cities, demo_spots
 from extractor import extract_guide
-from media_cache import get_entry, load_media, media_key, save_media
+from media_cache import (get_entry, load_media, media_key, save_media,
+                         suspected_wrong_city)
 from models import PlanRequest, PlanResult
 from solver import Solver
 
@@ -253,6 +254,13 @@ def poi_detail(name: str, city: str = "") -> dict:
         m = fetch(name, city)
         if not (m.get("image") or m.get("address")):
             raise HTTPException(404, f"未找到「{name}」在 {city} 的高德信息")
+        # 写入前校验载荷真的属于该城市：高德 citylimit 不严格，抓回来的可能是别的城市的
+        # 同名/近似 POI，一旦写进缓存就被永久固化（历史实例：四川博物院 存了西安的数据）
+        wrong = suspected_wrong_city(city, m)
+        if wrong:
+            log.warning("高德返回的是「%s」的数据，与请求城市 %s 不符，拒绝写入缓存 "
+                        "name=%s address=%s", wrong, city, name, m.get("address", ""))
+            raise HTTPException(404, f"「{name}」在 {city} 未找到（高德返回了 {wrong} 的结果）")
         media[media_key(city, name)] = m
         save_media(media)
     out = {k: m.get(k, "") for k in

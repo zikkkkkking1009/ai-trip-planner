@@ -79,16 +79,27 @@ def fetch(name: str, city: str = DEFAULT_CITY) -> dict:
 
 if __name__ == "__main__":
     from demo_data import DEMO_SPOTS
-    from media_cache import load_media, media_key, save_media
+    from media_cache import (load_media, media_key, save_media,
+                             suspected_wrong_city)
 
     # 先读后写：保留已有条目（酒店搜索缓存、用户抓过的临时条目），只更新/新增景点
     media = load_media()
     before = len(media)
+    skipped = []
     for city, spots in DEMO_SPOTS.items():
         for s in spots:
             print(f"抓取 {city}·{s.name} ...")
+            entry = fetch(s.name, city)
+            # 写入前校验载荷真的属于该城市：高德 citylimit 不严格，可能抓回别城市的结果
+            wrong = suspected_wrong_city(city, entry)
+            if wrong:
+                print(f"  [skip] 返回的是「{wrong}」的数据，与 {city} 不符，不写入")
+                skipped.append(f"{city}·{s.name} → {wrong}")
+                continue
             # key 带城市：不同城市存在同名景点，裸名会串味
-            media[media_key(city, s.name)] = fetch(s.name, city)
+            media[media_key(city, s.name)] = entry
     save_media(media)
     ok = sum(1 for v in media.values() if v.get("image"))
     print(f"完成：{ok}/{len(media)} 条有图片（原有 {before} 条已保留）→ spot_media.json")
+    if skipped:
+        print(f"⚠️ 因城市不符跳过 {len(skipped)} 条：{skipped}")
