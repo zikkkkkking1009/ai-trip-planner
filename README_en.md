@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-238%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-260%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -147,7 +147,7 @@ cp backend/.env.example backend/.env
 
 ## Engineering practices
 
-- **Tests and CI**: **238 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather), GitHub Actions green
+- **Tests and CI**: **260 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather), GitHub Actions green
 - **Five CI gates**: unit tests + **frontend static check** (syntax gate + variable-shadowing guard + hardcoded-coordinate guard) + **backend five-dimension robustness audit** + **jsdom runtime smoke test** (14 DOM assertions) + a keyless solver demo
 - **Caching and throttling**: three-tier commute cache (repeat solves issue **zero** API calls); AMap throttled at 0.35 s
 - **Fast/slow endpoint split**: the details endpoint returns only millisecond-level AMap data; AI reviews arrive via a second async request, so the first paint never waits
@@ -184,7 +184,7 @@ backend/
   reliability.py          Unified timeouts and retries (shared by LLM and AMap)
   weather.py              Trip weather (open-meteo, keyless; admits "unavailable" rather than inventing data)
   logging_setup.py        Logging config and request-id context
-  tests/                  238 unit tests
+  tests/                  260 unit tests
 static/index.html         Roadbook frontend (single file, zero build, zero CDN)
 tools/                    Check and verification scripts (five-dimension audit / frontend static check / multi-city end-to-end)
 data/plans/               Plan snapshots (soft-delete flag)
