@@ -81,7 +81,13 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   class FakeWS {
     constructor() {
       setTimeout(() => this.onmessage && this.onmessage({ data: JSON.stringify({
-        status: 'completed', progress: [{ stage: '构造', msg: '冒烟：已完成' }],
+        status: 'completed',
+        progress: [
+          { stage: '构造', msg: '冒烟：已完成' },
+          // 2026-09-23 加：后端会把 LLM 原始输出写进「调试」阶段推给前端，
+          // 所以进度日志的 stage/msg 必须当不可信输入处理。这里塞一个注入载荷验证转义。
+          { stage: '调试', msg: '模型原始输出: <img id="xss-probe" src=x onerror="window.__pwned=1">' },
+        ],
         result: fakePlan(),
       }) }), 20);
     }
@@ -146,6 +152,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const nameEl = d.querySelector('#spotModal [data-act]') || d.querySelector('#spotModal b');
   const injected = d.querySelectorAll('#spotModal 标签').length;
   check('转义：外部名字中的尖括号未被解析为标签', injected === 0);
+
+  // 5) 进度日志转义：后端推来的 stage/msg（含 LLM 原始输出）不得被解析成 DOM
+  //    2026-09-23 修：log() 曾把 stage/msg 直接插进 innerHTML。
+  const logEl = d.getElementById('log');
+  check('转义：进度日志里的注入载荷未变成元素',
+        d.querySelectorAll('#log #xss-probe').length === 0
+        && d.querySelectorAll('#log img').length === 0);
+  check('转义：进度日志把载荷当纯文本保留',
+        (logEl?.textContent || '').includes('xss-probe'));
 
   if (errors.length) {
     console.log('\n运行时错误：');

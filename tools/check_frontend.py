@@ -81,6 +81,27 @@ def check_shadowing(js: str) -> list[str]:
     return errors
 
 
+# 坐标字面量：与后端 check_backend_health.py 的 HARDCODED_COORD_HINTS 同口径。
+# 前端曾经在 renderMap 里写死 [34.26, 108.94]（西安），而上一行注释还写着
+# "原先写死西安坐标，是多城市泛化漏掉的一处"——注释改了、代码没改，所以必须机器守住。
+HARDCODED_COORD_RE = re.compile(r"\b(34\.2\d*|34\.3\d*|108\.9\d*|104\.0\d*|116\.4\d*)\b")
+
+
+def check_hardcoded_coords(html: str) -> list[str]:
+    """禁止前端出现城市坐标字面量：地图初始视野等一律从 /cities 拿。"""
+    errors: list[str] = []
+    for i, line in enumerate(html.splitlines(), 1):
+        code = line.split("//")[0]        # 去掉行注释
+        m = HARDCODED_COORD_RE.search(code)
+        if m:
+            errors.append(
+                f"第 {i} 行：坐标字面量 {m.group(1)} —— 请用 cityCenters / "
+                f"/cities 返回的坐标，不要写死（多城市泛化的静默错误源）")
+    if not errors:
+        print("  ✓ 无硬编码坐标")
+    return errors
+
+
 def check_unescaped(js: str) -> list[str]:
     """提示级：innerHTML 模板里直接插外部字段的位置。"""
     warns: list[str] = []
@@ -97,9 +118,10 @@ def main() -> int:
     if not HTML.exists():
         print(f"找不到 {HTML}")
         return 1
-    js = extract_scripts(HTML.read_text(encoding="utf-8"))
+    html = HTML.read_text(encoding="utf-8")
+    js = extract_scripts(html)
     print(f"检查 {HTML.relative_to(ROOT)}（脚本 {len(js.splitlines())} 行）")
-    errors = check_syntax(js) + check_shadowing(js)
+    errors = check_syntax(js) + check_shadowing(js) + check_hardcoded_coords(html)
     warns = check_unescaped(js)
     if warns:
         print(f"  ⚠ 未转义的外部字段 {len(warns)} 处（提示，不阻塞）：")

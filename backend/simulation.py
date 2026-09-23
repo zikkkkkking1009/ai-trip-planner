@@ -148,8 +148,13 @@ def simulate(plan_days, spot_by_name: dict, req, commute_fn,
             if noise.respect_open_hour and open_h > 0 and t < open_h:
                 t = open_h                      # 早到要等开门
             t += stay_min * st[i] / 60.0
-        if legs:
-            t += legs[-1] * cm[-1] / 60.0       # 回酒店
+        # 回酒店这一段**只在有住宿锚点时才存在**。
+        # ⚠️ 2026-09-23 修：原写法是无条件的 `if legs:`，而 legs 在 hotel=None 时
+        # 形如 [0, s1→s2, …, s_{n-1}→sn]（首段 0 表示没有出发点、末段就是最后两景点间），
+        # 循环里已经加过 legs[-1]，这里再加一遍 ⇒ 末段通勤被算两次、返回时刻虚高一整段。
+        # 后果：无酒店（演示默认路径）的按时概率被系统性低估，N3b 稳健排程据此过度内缩时间窗。
+        if hotel is not None and legs:
+            t += legs[-1] * cm[-1] / 60.0
         return t
 
     # ---- 1) 基线模拟 ----

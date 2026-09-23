@@ -18,7 +18,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from cities import DEFAULT_CITY
+from cities import DEFAULT_CITY, city_center
 from commute import CommuteMatrix
 from constraint_check import check_plan
 from models import DayPlan, PlanRequest
@@ -305,7 +305,11 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
                 # 搜不到再退回周边搜索
                 cands = editor.text_search(query, city)
                 if not cands:
-                    cands = editor.poi_search(query, 34.26, 108.94, radius=10000)
+                    # 周边搜索的锚点取**当前城市**中心，不能写死某个城市的坐标
+                    c = city_center(city) or city_center(DEFAULT_CITY)
+                    if c is None:
+                        return []
+                    cands = editor.poi_search(query, c[0], c[1], radius=10000)
                 return cands
             cands = await asyncio.to_thread(work_hotel)
             poi = next((c for c in cands
@@ -341,7 +345,8 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
                 if anchor is None:
                     anchor = (sum(p[0] for p in day_anchors.values()) / len(day_anchors),
                               sum(p[1] for p in day_anchors.values()) / len(day_anchors)) \
-                             if day_anchors else (34.26, 108.94)
+                             if day_anchors else (city_center(city)
+                                                  or city_center(DEFAULT_CITY))
                 def work_search():
                     return search_provider(query, *anchor)
                 cands = await asyncio.to_thread(work_search)
@@ -417,7 +422,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
         def work_apply():
             return editor.apply_ops(base_spots, all_ops,
                                     poi_search_fn=search_provider,
-                                    day_anchors=day_anchors)
+                                    day_anchors=day_anchors, city=city)
         new_spots, changes = await asyncio.to_thread(work_apply)
         # 重複去重：LLM 重复输出同一操作会导致同名景点被加多次
         seen_names, uniq = set(), []
@@ -568,6 +573,23 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
 
 _prefetching: set[str] = set()
 
+# 「读-改-写」串行化所需的锁与共享字典**必须是模块级**。
+# ⚠️ 2026-09-23 修：原先 `write_lock = asyncio.Lock()` 写在函数体内，而 run_plan_task
+# 会**并发调用本函数两次**（规划开始时、规划完成后），两次调用各持各的锁、
+# 各自 load_media() 一份字典 ⇒ 后写的整份覆盖先写的，静默丢条目。
+# 只把锁提到模块级也还不够——字典也必须共享，否则仍是「各写各的快照」。
+_media_write_lock = asyncio.Lock()
+_media_shared: dict | None = None
+
+
+def _shared_media() -> dict:
+    """进程内共享的一份媒体缓存（懒加载），保证并发写入的是同一个字典。"""
+    global _media_shared
+    if _media_shared is None:
+        from media_cache import load_media
+        _media_shared = load_media()
+    return _media_shared
+
 
 async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
     """后台预取媒体数据（图片/介绍/AI 评价），用户点开详情即刻显示不再等待。
@@ -576,12 +598,11 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
     **city 必须传**：缓存 key 是「城市|景点名」，抓取也依赖正确城市（高德搜索带 citylimit）。
     """
     import editor
-    from media_cache import get_entry, load_media, media_key, save_media
+    from media_cache import get_entry, media_key, save_media
 
-    media = load_media()
+    media = _shared_media()
     # 多个协程并发写同一份 JSON：原子写只保证不写坏文件，不保证不丢更新，
-    # 所以「读-改-写」这段要串行化
-    write_lock = asyncio.Lock()
+    # 所以「读-改-写」这段要串行化（锁与字典均为模块级，见上方注释）
     sem = asyncio.Semaphore(3)   # 并发 3 路：12 个景点预热从 ~45s 缩到 ~15s
 
     async def one(name: str):
@@ -601,7 +622,7 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
                     (entry.get("address", "") or ""))
                 entry["reviews"] = rv
                 entry["reviews_ai"] = rv is not None
-            async with write_lock:
+            async with _media_write_lock:
                 media[ck] = entry
                 save_media(media)
         except Exception as e:

@@ -280,14 +280,21 @@ REQUIRED_CONSTS = {
     "extractor.py": ["LLM_TIMEOUT_S"],
     "editor.py": ["LLM_TIMEOUT_S"],
 }
-# 允许出现城市字面量的位置（默认值定义、注释、白名单）
+# 允许出现**城市名**字面量的位置（数据定义 / 演示脚本 / 提示词示例）。
+# ⚠️ 这份豁免只管城市名，**不管坐标**——坐标检查在本函数前半段无条件执行。
+# 2026-09-23 移除了 tasks.py / main.py：它们是运行时业务模块，曾借此藏住 3 处硬编码西安坐标。
 CITY_LITERAL_ALLOW = {
-    "cities.py", "demo_data.py", "models.py", "tasks.py", "main.py",
-    "fetch_spot_details.py", "editor.py", "extractor.py",  # extractor 的提示词里有示例 JSON
+    "cities.py", "demo_data.py", "models.py",
+    "fetch_spot_details.py", "editor.py", "extractor.py",  # 提示词里有示例（「西安必吃啥」等）
     "run_demo.py", "run_demo_amap.py", "evaluation.py", "bench_models.py", "eval_simulation.py", "eval_preference.py", "eval_cluster.py",
 }
 CITY_NAMES = ("西安", "成都", "北京", "杭州", "重庆")
 HARDCODED_COORD_HINTS = ("34.2", "34.3", "108.9", "108.94", "34.26")
+# 允许**定义**坐标字面量的文件——只有这两处，因为它们的本职工作就是坐标数据源：
+#   cities.py    城市中心表（唯一权威来源，其它模块一律 city_center() 引用）
+#   demo_data.py 西安手写演示数据（其余 24 城由 build_demo_data.py 从高德抓取后落 JSON）
+# 除此之外任何文件里出现坐标字面量 = 多城市泛化的静默错误源，一律判失败。
+COORD_DEF_ALLOW = {"cities.py", "demo_data.py"}
 
 
 def check_cost(tree: ast.AST, path: Path, src: str, f: Findings) -> None:
@@ -300,6 +307,22 @@ def check_cost(tree: ast.AST, path: Path, src: str, f: Findings) -> None:
         if not defined:
             f.error("成本", path.name, f"缺少常量 {const}（限频/缓存/超时保护）")
 
+    # ---- 坐标字面量：**任何文件都不得出现**，且不走 CITY_LITERAL_ALLOW 豁免 ----
+    # 理由（踩过两次才知道）：坐标和城市名不是一回事。城市名出现在提示词举例里是正当的
+    # （如 editor 的 _SYSTEM 里「西安必吃啥」），但坐标硬编码**没有任何正当理由**——
+    # 它就是「粘成都攻略得到西安坐标且不报错」这类静默错误的唯一来源。
+    # 旧版把两者混在同一个 return 后面，结果含真实坐标的 editor/tasks/main 被一并豁免，
+    # 这道门等于没上锁（CI 恒绿而 bug 一直在）。
+    if path.name in COORD_DEF_ALLOW:
+        return  # 坐标数据源本身，见上方 COORD_DEF_ALLOW 注释
+    for i, line in enumerate(src.splitlines(), 1):
+        code = line.split("#")[0]
+        for hint in HARDCODED_COORD_HINTS:
+            if hint in code:
+                f.error("成本", f"{path.name}:{i}",
+                        f"硬编码坐标 {hint} —— 请用 cities.city_center()")
+
+    # ---- 城市名字面量：仅对数据/脚本/提示词类文件豁免 ----
     if path.name in CITY_LITERAL_ALLOW:
         return
     for i, line in enumerate(src.splitlines(), 1):
@@ -308,10 +331,6 @@ def check_cost(tree: ast.AST, path: Path, src: str, f: Findings) -> None:
             if f'"{city}"' in code or f"'{city}'" in code:
                 f.error("成本", f"{path.name}:{i}",
                         f"代码里硬编码城市 {city!r} —— 多城市泛化回归，改用 cities.py 的常量")
-        for hint in HARDCODED_COORD_HINTS:
-            if hint in code:
-                f.error("成本", f"{path.name}:{i}",
-                        f"硬编码坐标 {hint} —— 请用 cities.city_center()")
 
 
 def audit() -> Findings:

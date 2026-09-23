@@ -49,8 +49,8 @@ def make_day(day_no: int, specs: list[tuple[str, int]]) -> DayPlan:
                    cost=0.0, active_min=float(sum(s for _n, s in specs)))
 
 
-def _req(start=9.0, end=18.0):
-    return SimpleNamespace(daily_start_h=start, daily_end_h=end, hotel=HOTEL)
+def _req(start=9.0, end=18.0, hotel=HOTEL):
+    return SimpleNamespace(daily_start_h=start, daily_end_h=end, hotel=hotel)
 
 
 def test_no_noise_means_certain():
@@ -135,6 +135,35 @@ def test_all_days_must_be_on_time():
     assert res.per_day[0].on_time_prob == 1.0
     assert res.per_day[1].on_time_prob < 0.5
     assert res.on_time_prob < 0.5, "整体概率不该被宽松的那天掩盖"
+
+
+def test_no_hotel_must_not_double_count_last_leg():
+    """无住宿锚点时，末段通勤不能被算两遍（2026-09-23 修的回归测试）。
+
+    bug 原貌：`eval_day` 结尾无条件执行 `t += legs[-1]`。而 `hotel=None` 时
+    `_commute_table` 产出的 legs 是 [0, s1→s2, …, s_{n-1}→sn]，最后一项**就是**
+    最后两个景点之间的通勤，循环里已经加过了 ⇒ 多算一整段，返回时刻虚高。
+
+    这是演示默认路径（`PlanRequest.hotel` 可选），而旧测试全部带 HOTEL，所以从未被覆盖。
+    """
+    specs = [("A", 60), ("B", 60), ("C", 60)]
+    day = make_day(1, specs)
+    spots = {n: make_spot(n, s) for n, s in specs}
+    zero = NoiseModel(stay_low=1.0, stay_high=1.0, commute_sigma=0.0,
+                      respect_open_hour=False)
+
+    with_hotel = simulate([day], spots, _req(), commute_10min, runs=100, noise=zero)
+    no_hotel = simulate([day], spots, _req(hotel=None), commute_10min, runs=100,
+                        noise=zero)
+
+    # 有酒店：4 段通勤（酒店→A、A→B、B→C、C→酒店）+ 180 分钟游玩
+    assert with_hotel.per_day[0].return_p50 == pytest.approx(
+        9 + (4 * 10 + 180) / 60, abs=0.01)
+    # 无酒店：只有 2 段景点间通勤 + 180 分钟游玩（无出发段、无回程段）
+    assert no_hotel.per_day[0].return_p50 == pytest.approx(
+        9 + (2 * 10 + 180) / 60, abs=0.01)
+    # 没有住宿锚点必然更早回——若这条挂了，多半是末段又被算了两遍
+    assert no_hotel.per_day[0].return_p50 < with_hotel.per_day[0].return_p50
 
 
 def test_result_carries_noise_params_for_reproducibility():

@@ -893,7 +893,10 @@ function gpDone(ok, text) {
 function log(stage, msg) {
   document.querySelector('details').open = true;
   const div = document.createElement('div');
-  div.innerHTML = `<span class="st">[${stage}]</span>${msg}`;
+  // ⚠️ stage / msg 不可信：WebSocket 把后端进度原样推来（`(d.progress||[]).forEach(p => log(p.stage, p.msg))`），
+  // 而后端会把 **LLM 原始输出**写进「调试」阶段、把 `json.dumps(op)` 写进「理解」阶段。
+  // 2026-09-23 修：原先两处都没转义，等于给了 LLM 输出一条直进 innerHTML 的通道。
+  div.innerHTML = `<span class="st">[${esc(stage)}]</span>${esc(msg)}`;
   $('log').appendChild(div); $('log').scrollTop = 1e9;
 }
 
@@ -1168,7 +1171,9 @@ function openSpotDetail(name) {
       const qn = name.replace(/'/g, "\\'");
       const navLink = (d.lon && d.lat)
         ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" data-act="nav" data-lon="${d.lon}" data-lat="${d.lat}" data-name="${esc(name)}">🧭 导航</a>` : '';
-      if (d.opentime) rows.push(['🕘', '营业时间', d.opentime]);
+      // opentime 来自高德接口，与下一行 address 一样要过 esc()
+      // （2026-09-23 修：同一函数里 address 转义了、opentime 漏了）
+      if (d.opentime) rows.push(['🕘', '营业时间', esc(d.opentime)]);
       if (d.address) rows.push(['📍', '地址', `${esc(d.address)}${navLink}`]);
       $('spotRows').innerHTML = rows.map(([e, k, v]) =>
         `<div style="padding:9px 0;border-bottom:1px solid var(--line)">${e} <b>${k}</b>　${v}</div>`).join('');
@@ -1755,8 +1760,11 @@ function switchPage(which) {
 function renderMap() {
   $('view').style.display='none'; $('mapView').style.display='block';
   if (!map) {
-    // 初始视野跟随当前城市（原先写死西安坐标，是多城市泛化漏掉的一处）
-    const c = cityCenters[currentCity] || [34.26, 108.94];
+    // 初始视野跟随当前城市。拿不到当前城市中心时退回**任意一个已知城市中心**，
+    // 绝不写字面坐标——写死坐标正是「粘成都攻略得到西安坐标且不报错」的源头。
+    // （2026-09-23 修：上一行注释早就写了"不该写死"，代码却一直留着字面值）
+    const c = cityCenters[currentCity] || Object.values(cityCenters)[0];
+    if (!c) { log('地图', '未拿到任何城市中心坐标，地图暂不可用'); return; }
     map = L.map('map').setView(c, 11);
     L.tileLayer(tileCfg.tile_url, { subdomains: tileCfg.subdomains,
       attribution: tileCfg.attribution, maxZoom: 18 }).addTo(map);

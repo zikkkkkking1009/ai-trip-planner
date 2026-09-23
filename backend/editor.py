@@ -25,7 +25,7 @@ import urllib.parse
 import urllib.request
 
 from aligner import type_flag
-from cities import DEFAULT_CITY
+from cities import DEFAULT_CITY, city_center
 from commute import AMAP_TIMEOUT_S, load_env_file
 from models import Spot
 from reliability import retry_call
@@ -237,7 +237,8 @@ def make_spot(poi: dict, stay_min: int = 60) -> Spot:
 # ---- 确定性执行：把 ops 应用到景点列表（纯函数，可单测）----
 def apply_ops(base_spots: list[Spot], ops: list[dict],
               poi_search_fn=None,
-              day_anchors: dict[int, tuple[float, float]] | None = None
+              day_anchors: dict[int, tuple[float, float]] | None = None,
+              city: str | None = None,
               ) -> tuple[list[Spot], list[str]]:
     """返回 (修改后的景点列表, 变更说明列表)。
 
@@ -245,6 +246,7 @@ def apply_ops(base_spots: list[Spot], ops: list[dict],
     测试时注入桩函数即可，不碰网络。
     day_anchors: day(1-based) → (lat, lon)，由调用方从原行程算好传入，
     作为「附近」搜索的锚点；缺省用全部景点的几何中心。
+    city: 当前城市；仅在完全没有景点、需要退回城市中心时用到（避免写死坐标）。
     """
     spots = [s.model_copy() for s in base_spots]
     anchors = day_anchors or {}
@@ -268,7 +270,7 @@ def apply_ops(base_spots: list[Spot], ops: list[dict],
         elif kind == "add":
             query = op.get("query", "")
             day = op.get("day")
-            anchor = anchors.get(day) or _overall_centroid(base_spots)
+            anchor = anchors.get(day) or _overall_centroid(base_spots, city)
             cands = (poi_search_fn or (lambda q, a, b: []))(query, *anchor)
             poi = pick_poi(cands)
             if poi is None:
@@ -283,7 +285,7 @@ def apply_ops(base_spots: list[Spot], ops: list[dict],
             changes.append(f"移除「{old}」")
             query = op.get("query", "")
             day = op.get("day")
-            anchor = anchors.get(day) or _overall_centroid(base_spots)
+            anchor = anchors.get(day) or _overall_centroid(base_spots, city)
             cands = (poi_search_fn or (lambda q, a, b: []))(query, *anchor)
             poi = pick_poi(cands)
             if poi is not None:
@@ -294,10 +296,15 @@ def apply_ops(base_spots: list[Spot], ops: list[dict],
     return spots, changes
 
 
-def _overall_centroid(spots: list[Spot]) -> tuple[float, float]:
-    """全部景点的几何中心，作为无 day 信息时的搜索锚点。"""
+def _overall_centroid(spots: list[Spot],
+                      city: str | None = None) -> tuple[float, float]:
+    """全部景点的几何中心，作为无 day 信息时的搜索锚点。
+
+    `spots` 为空时退回**城市中心表**（`cities.city_center`），绝不写字面坐标——
+    写死坐标正是「粘成都攻略得到西安坐标且不报错」那类静默错误的源头。
+    """
     if not spots:
-        return (34.26, 108.94)
+        return city_center(city) or city_center(DEFAULT_CITY)
     return (sum(s.lat for s in spots) / len(spots),
             sum(s.lon for s in spots) / len(spots))
 
