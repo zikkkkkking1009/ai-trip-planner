@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import time
+from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -45,6 +46,7 @@ from media_cache import (get_entry, load_media, media_key, save_media,
                          suspected_wrong_city)
 from models import PlanRequest, PlanResult
 from solver import Solver
+from weather import daily_weather
 
 app = FastAPI(title="AI 行程规划 API", version="1.0.0")
 
@@ -202,6 +204,25 @@ def list_cities() -> dict:
     """可演示城市列表（前端城市选择器数据源）。"""
     return {"cities": demo_cities(), "default": DEFAULT_CITY,
             "centers": {c: city_center(c) for c in demo_cities()}}
+
+
+@app.get("/weather")
+def get_weather(city: str, start: str, end: str) -> dict:
+    """行程期间的按天天气（可选增强）。
+
+    为什么独立成接口、不并进 /plan 的返回：天气**不参与求解**（不该影响排期结果），
+    拆开可以让它自己失败而不拖累主流程，前端也能在行程渲染完之后再异步取。
+    拿不到时返回 available=false + reason，由前端明说原因 —— 不用假数据填充。
+    """
+    try:
+        d0, d1 = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError:
+        raise HTTPException(400, "start / end 需为 YYYY-MM-DD 格式")
+    if d1 < d0:
+        raise HTTPException(400, "end 不能早于 start")
+    if (d1 - d0).days > 31:
+        raise HTTPException(400, "日期范围过大（最多 32 天）")
+    return daily_weather(normalize_city(city) or DEFAULT_CITY, d0, d1)
 
 
 # ---------- 用户页：历史规划 + 收藏 ----------

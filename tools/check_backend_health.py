@@ -46,6 +46,7 @@ RETRY_EXEMPT_FUNCS = {
     "amap_get": "一次性数据生成脚本",
     "_amap_driving_min": "由调用方 commute.minutes 包 retry_call",
     "once": "本身作为 retry_call 的入参",
+    "_fetch": "天气模块：本身作为 retry_call 的入参，重试包在 daily_weather() 里",
     "_llm": "只是构造客户端，实际调用点在 parse_instruction/generate_reviews 里已包 retry_call",
     "fake": "bench/eval 脚本内的假客户端（离线压测用）",
     "_with_provider": "bench 脚本，重试会干扰延迟测量",
@@ -279,6 +280,7 @@ REQUIRED_CONSTS = {
     "aligner.py": ["POI_TIMEOUT_S", "POI_CACHE_TTL_SEC", "AUTO_THRESHOLD"],
     "extractor.py": ["LLM_TIMEOUT_S"],
     "editor.py": ["LLM_TIMEOUT_S"],
+    "weather.py": ["WEATHER_TIMEOUT_S", "CACHE_TTL_SEC", "FORECAST_MAX_DAYS"],
 }
 # 允许出现**城市名**字面量的位置（数据定义 / 演示脚本 / 提示词示例）。
 # ⚠️ 这份豁免只管城市名，**不管坐标**——坐标检查在本函数前半段无条件执行。

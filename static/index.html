@@ -283,6 +283,31 @@
   .rb-loading { color:var(--muted-3); font-size:13px }
   .rb-note { font-size:11px; color:var(--muted-3); margin-top:8px }
 
+  /* ===== 出行天气 =====
+     刻意做成「行程的注脚」而不是独立版块：只按天给本次行程那几天的天气，
+     不做逐小时、不做历史气候。数据源 open-meteo（无需 key，见 backend/weather.py）。 */
+  #weatherBox { display:none; }
+  #weatherBox.on { display:block; }
+  .wx-card { background:var(--surface); border:1px solid var(--border); border-radius:14px;
+             padding:14px 16px; margin-bottom:12px; box-shadow:var(--sh-1); }
+  .wx-head { font-size:11.5px; color:var(--muted-3); margin-bottom:10px; }
+  .wx-days { display:grid; grid-template-columns:repeat(auto-fit,minmax(94px,1fr)); gap:8px; }
+  .wx-day { border:1px solid var(--border); border-radius:10px; padding:9px 10px;
+            background:var(--fill); text-align:center; }
+  /* 有雨雪的那天单独描边 —— 一眼扫出「哪天要带伞」，这是这个卡片唯一的核心信息 */
+  .wx-day.wx-wet { background:var(--accent-soft); border-color:var(--accent-line); }
+  .wx-d { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .wx-d span { font-weight:400; color:var(--muted-3); margin-left:3px; }
+  .wx-ico { font-size:20px; line-height:1.5; }
+  .wx-txt { font-size:12px; color:var(--muted-2); }
+  .wx-temp { font-size:12.5px; font-weight:650; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .wx-precip { font-size:11px; color:var(--muted-3); margin-top:1px; }
+  .wx-day.wx-wet .wx-precip { color:var(--accent); font-weight:600; }
+  .wx-note { margin-top:10px; font-size:11.5px; color:var(--muted-3); line-height:1.6; }
+  /* 拿不到时用虚线灰卡，明说原因，不假装有数据 */
+  .wx-na { background:var(--fill); border-style:dashed; box-shadow:none; }
+  .wx-na .wx-head { margin-bottom:0; }
+
   /* ===== 小舟：petdex「deepseek酱」原版 sprite =====
      资源 static/vendor/pet/deepseek.webp：1536×1872，8 列 × 9 行，帧 192×208。
      切帧方式与官方 CSS 完全一致：background-size:1536px auto，
@@ -651,6 +676,9 @@
 
     <!-- N3 稳健性模拟（按时概率 + 风险点），由 loadRobustness() 填充 -->
     <div id="robustBox"></div>
+
+    <!-- 出行天气（行程的注脚），由 loadWeather() 填充；拿不到就明说拿不到 -->
+    <div id="weatherBox"></div>
 
     <div class="daytabs" id="daytabs" style="display:none"></div>
     <div class="seg" id="viewSeg" style="display:none">
@@ -1122,6 +1150,7 @@ function render() {
   switchView('itin');
   loadRobustness();      // N3：异步算稳健性（不阻塞上面的渲染）
   loadReview();          // AI 总评（同样异步，放在稳健性之上）
+  loadWeather();         // 出行天气（可选增强，失败只降级成一条说明）
 }
 
 function renderItin() {
@@ -1528,6 +1557,7 @@ function resetPlanView() {
   const rb = $('robustBox'); if (rb) { rb.style.display = 'none'; rb.innerHTML = ''; }
   reviewForTask = null;                                  // 重置后允许重新总评
   const rv = $('reviewBox'); if (rv) { rv.classList.remove('on'); rv.innerHTML = ''; }
+  const wb = $('weatherBox'); if (wb) { wb.classList.remove('on'); wb.innerHTML = ''; }
   $('chips').innerHTML = '<span class="chip">🎒 高德真实通勤</span>' +
     '<span class="chip">🧭 三级缓存</span><span class="chip">✅ 约束校验</span>';
   $('hotelText').textContent = '未设置（点此搜索选择）';  // 住宿字段一起清空
@@ -1779,6 +1809,64 @@ document.querySelectorAll('#robRow .pref').forEach(el => {
 
 // ---- AI 总评：主动给整份行程一个综合评价（分数 + 总评 + 花费 + 亮点/提醒）----
 let reviewForTask = null;      // 按 task_id 去重：LLM 调用（约 1~3 秒）不该被重复触发
+
+// ---- 出行天气：行程的注脚 ----
+// 定位刻意收窄：只按天给「本次行程那几天」的天气，不做逐小时、不做独立页面。
+// 拿不到就明说拿不到（超出预报范围 / 服务不可用），不用假数据填充 ——
+// 与项目一贯立场一致：宁可显示「未收录」，也不显示错的。
+async function loadWeather() {
+  const box = $('weatherBox'); if (!box) return;
+  const city = (($('cityInput') || {}).value || '').trim() || currentCity || '';
+  const s = ($('startDate') || {}).value, e = ($('endDate') || {}).value;
+  if (!city || !s || !e) return;
+  try {
+    const r = await fetch(`/weather?city=${encodeURIComponent(city)}&start=${s}&end=${e}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    renderWeather(await r.json());
+  } catch (err) {
+    // 天气是可选增强，任何失败都只降级成一条说明，不影响行程本身的渲染
+    renderWeather({ available: false, reason: '天气服务请求失败' });
+  }
+}
+
+function renderWeather(d) {
+  const box = $('weatherBox'); if (!box) return;
+  box.classList.add('on');
+  if (!d || !d.available) {
+    box.innerHTML = `<div class="wx-card wx-na">
+      <div class="wx-head">🌤 出行天气 · ${esc((d && d.reason) || '暂不可用')}</div>
+    </div>`;
+    return;
+  }
+  // 「有雨雪」的判据：WMO code >= 51 即降水类；另外把降水概率与降水量也算进来，
+  // 因为「明天 80% 有雨但 code 仍报多云」这种情况对出行决策更要紧。
+  const isWet = x => x.code >= 51 || (x.precip_prob || 0) >= 50 || (x.precip_mm || 0) >= 1;
+  const days = d.days.map(x => {
+    const t = (x.t_min == null || x.t_max == null)
+      ? '—' : `${Math.round(x.t_min)}~${Math.round(x.t_max)}°C`;
+    // 归档数据没有降水概率，这时退回显示降水量；两样都没有就整行不显示
+    const p = x.precip_prob == null
+      ? (x.precip_mm ? `降水 ${x.precip_mm}mm` : '')
+      : `降水 ${x.precip_prob}%`;
+    return `<div class="wx-day${isWet(x) ? ' wx-wet' : ''}">
+      <div class="wx-d">${esc(x.date.slice(5))}<span>${esc(x.weekday)}</span></div>
+      <div class="wx-ico">${esc(x.emoji)}</div>
+      <div class="wx-txt">${esc(x.text)}</div>
+      <div class="wx-temp">${t}</div>
+      ${p ? `<div class="wx-precip">${esc(p)}</div>` : ''}
+    </div>`;
+  }).join('');
+  const wetN = d.days.filter(isWet).length;
+  // 只给一句可执行的提示，不堆数据 —— 天气是注脚，不是新的叙事线
+  const note = wetN
+    ? `⚠️ 有 ${wetN} 天可能有雨雪（已高亮），户外景点建议备伞或留出机动时间`
+    : '这几天看起来没有明显降水，按计划走就行';
+  box.innerHTML = `<div class="wx-card">
+    <div class="wx-head">🌤 出行天气 · 按天（${esc(d.source)}）</div>
+    <div class="wx-days">${days}</div>
+    <div class="wx-note">${note}</div>
+  </div>`;
+}
 
 async function loadReview() {
   const box = $('reviewBox');
