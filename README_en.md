@@ -141,7 +141,7 @@ cp backend/.env.example backend/.env
 | DELETE | `/plans/{id}` · POST `/plans/delete` | Delete / batch delete (soft delete, recoverable) |
 | GET | `/favorites` · POST `/favorites` | Favorites list / add-remove |
 
-**24 endpoints in total** (12 GET / 10 POST / 1 DELETE / 1 WebSocket).
+**25 endpoints in total** (13 GET / 10 POST / 1 DELETE / 1 WebSocket).
 
 ---
 
@@ -166,7 +166,7 @@ cp backend/.env.example backend/.env
 
 ```
 backend/
-  main.py                 FastAPI entrypoint, 24 endpoints (23 HTTP + 1 WebSocket)
+  main.py                 FastAPI entrypoint, 25 endpoints (24 HTTP + 1 WebSocket)
   models.py               Pydantic domain models (Spot / PlanRequest / DayPlan / Hotel)
   extractor.py            Guide text → spot candidates (LLM + tolerant JSON parsing + city detection)
   aligner.py              Entity alignment (AMap POI search + score fusion + type filter + LLM arbitration)

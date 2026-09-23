@@ -151,7 +151,7 @@ cp backend/.env.example backend/.env
 | GET | `/health` · `/` · `/app` | 健康检查 / 首页 / 规划器页面 |
 | GET | `/demo/spots` · `/demo/config` | 演示景点 / 前端配置（城市表、无 Key 降级开关） |
 
-共 **24 个接口**（12 GET / 10 POST / 1 DELETE / 1 WebSocket）。
+共 **25 个接口**（13 GET / 10 POST / 1 DELETE / 1 WebSocket）。
 
 ---
 
@@ -210,7 +210,7 @@ python eval_gap.py --n 50 --seed 42 --limit 8      # 启发式 vs CP-SAT 最优�
 
 ```
 backend/
-  main.py                 FastAPI 入口与 24 个接口（23 HTTP + 1 WebSocket）
+  main.py                 FastAPI 入口与 25 个接口（24 HTTP + 1 WebSocket）
   models.py               Pydantic 领域模型（Spot / PlanRequest / DayPlan / Hotel）
   extractor.py            攻略文本 → 景点候选（LLM + 容错 JSON 解析 + 城市识别）
   aligner.py              实体对齐（高德 POI 检索 + 打分融合 + 类型过滤 + LLM 仲裁）
