@@ -245,6 +245,37 @@ def test_fast_url_without_fast_key_is_invalid_without_request(monkeypatch):
     assert calls == [] and sink == []
 
 
+def test_cli_main_loads_env_before_probing(monkeypatch):
+    """回归：CLI 自检不经 main.py，必须自己把 .env 灌进 os.environ。
+
+    实测踩过：_env() 走 load_env_file 能看到 Key，而 editor._llm() 读的是
+    os.environ → 主通道被误报成 missing（症状是高德 ok、LLM missing）。
+    """
+    import os
+    monkeypatch.delenv("SELFTEST_SKIP", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.setattr("commute.load_env_file",
+                        lambda: {"LLM_API_KEY": "sk-from-env",
+                                 "LLM_BASE_URL": "https://from-env/v1"})
+    seen: dict[str, str] = {}
+
+    def fake_llm(fast: bool = False):
+        seen["key"] = os.environ.get("LLM_API_KEY")
+        seen["url"] = os.environ.get("LLM_BASE_URL")
+        return _FakeClient([]), "stub-model"
+    monkeypatch.setattr(editor, "_llm", fake_llm)
+
+    try:
+        assert selftest.main() == 0
+        assert seen == {"key": "sk-from-env", "url": "https://from-env/v1"}, \
+            "main() 没把 .env 灌进进程环境，_llm 看到的是空配置"
+    finally:
+        # _ensure_env_loaded 用 setdefault 写进 os.environ 的键，monkeypatch 不会回收
+        os.environ.pop("LLM_API_KEY", None)
+        os.environ.pop("LLM_BASE_URL", None)
+
+
 def test_amap_ok_on_status_1(monkeypatch):
     _env(monkeypatch, AMAP_KEY="fake-amap")
     payload = {"status": "1", "results": [{"duration": "900"}]}

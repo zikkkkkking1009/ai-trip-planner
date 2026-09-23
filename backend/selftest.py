@@ -144,7 +144,10 @@ def _probe_llm_channel(fast: bool) -> tuple[str, str]:
     try:
         client, model = editor._llm(fast=fast)
     except RuntimeError:
-        # _llm 的「未配置」提示：missing 是**正常**结论之一，不值得打日志
+        # _llm 的「未配置」提示。走到这里说明 _env() 认为已配置、os.environ 却是空的 ——
+        # 正常只发生在「既不经 main.py 也没调 _ensure_env_loaded()」的调用方，
+        # 报 missing 是如实的；打条日志帮人定位到这一层差异
+        log.warning("_llm 报告未配置，但 _env 认为已配置 —— 调用方可能没把 .env 灌进进程环境")
         return MISSING, ""
     except ImportError:
         return INVALID, "dependency_missing"
@@ -284,11 +287,26 @@ def status() -> dict[str, Any]:
     return snap
 
 
+def _ensure_env_loaded() -> None:
+    """把 .env 灌进进程环境 —— 与 main.py 启动时同一动作。
+
+    为什么必须有：editor._llm() 读的是 **os.environ**，而 .env 只有 main.py 在
+    import 期灌进去。命令行自检不经 main.py，若不自己灌，就会出现
+    「配置明明写在 .env 里、_llm 却看到空环境」→ 探测把已配置误报成 missing
+    （实测踩过：高德 ok、LLM missing，因为高德探测拿的是 _env() 的值）。
+    setdefault 与 main.py 同语义：真实环境变量优先于 .env。
+    """
+    from commute import load_env_file
+    for k, v in load_env_file().items():
+        os.environ.setdefault(k, v)
+
+
 def main() -> int:
     """命令行自检：拿到 Key 后先验一次再启服务，省得「改了 .env 重启了才发现 Key 错了」。
 
     退出码：0 = 所有已配置通道都可用（或未配置/回落），1 = 有通道不可用。
     """
+    _ensure_env_loaded()
     probe_all()
     snap = status()
     reasons = snap.get("reasons") or {}
