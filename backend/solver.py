@@ -279,9 +279,10 @@ class Solver:
                 day.spots.pop(idx)
                 if (day.timeline(self.req, self.hotel) is not None
                         and self._objective() > before + 1e-6):
+                    # 只传 name/reason：UnplannedSpot 只有这两个字段，多传的
+                    # score/ticket/stay_min 会被 pydantic 静默丢弃（extra 默认 ignore）
                     self._unplanned.append(UnplannedSpot(
-                        name=s.name, score=s.score, ticket=s.ticket,
-                        stay_min=s.stay_min,
+                        name=s.name,
                         reason=f"按「{self.pref}」偏好主动放弃：通勤成本高于其收益"))
                     improved = True
                 else:

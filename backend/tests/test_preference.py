@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ConfigDict
 
 import editor
+import solver
 from demo_data import XI_AN_SPOTS
-from models import PlanRequest, Spot
+from models import PlanRequest, Spot, UnplannedSpot
 from solver import (MORE_SPOTS_EXTRA_H, PREFERENCES, Solver,
                     normalize_preference)
 
@@ -90,6 +92,33 @@ def test_pref_op_leaves_spots_untouched():
     spots, changes = editor.apply_ops(base, [{"op": "pref", "value": "less_walk"}])
     assert len(spots) == len(base)
     assert any("偏好" in c for c in changes)
+
+
+def test_drop_improve_unplanned_has_only_declared_fields(monkeypatch):
+    """偏好触发「主动放弃」时，产出的 UnplannedSpot 只含声明字段（name/reason）。
+
+    为什么用 extra='forbid' 的严格子类跑一遍：UnplannedSpot 只声明了 name/reason，
+    而 pydantic 2.x 默认 extra='ignore' —— 调用点多传 score/ticket/stay_min 时
+    **不报错、直接丢弃**（正是本项目最忌讳的静默失败）。换成严格子类后，
+    多传字段会在构造时抛错，而不是悄悄消失。
+    """
+    assert set(UnplannedSpot.model_fields) == {"name", "reason"}, \
+        "UnplannedSpot 字段变了：要么同步调用点，要么确认下游真的用得上"
+
+    class _StrictUnplannedSpot(UnplannedSpot):
+        model_config = ConfigDict(extra="forbid")
+
+    monkeypatch.setattr(solver, "UnplannedSpot", _StrictUnplannedSpot)
+    # 3 天 × 省钱：实测会真的放弃一个景点（_req 固定 2 天，这里单独构造）
+    req = PlanRequest(city="西安", days=3, budget=500,
+                      spots=[s.model_copy() for s in XI_AN_SPOTS],
+                      preference="save_money")
+    _, unplanned, _, _ = Solver(req).solve()
+    dropped = [u for u in unplanned if "偏好主动放弃" in u.reason]
+    # 先确认本场景真的触发了 _drop_improve，否则下面的循环是空断言（假通过）
+    assert dropped, "该场景没有触发主动放弃，换个偏好/天数再守这条"
+    for u in dropped:
+        assert set(u.model_dump()) == {"name", "reason"}
 
 
 def test_all_preferences_are_calibrated():
