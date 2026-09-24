@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-260%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-266%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -63,6 +63,7 @@ This is not a gut feeling. A three-way evaluation over 50 programmatically gener
 - **Constraint checker**: independently re-verifies the solver output (budget / time window / commute share / empty days) — it does not trust the solver's own claims
 - **Async tasks + live progress**: `/plan/async` returns a task id instantly, a background coroutine runs the pipeline, WebSocket streams stage progress, polling as fallback
 - **Conversational editing**: the LLM parses intent (remove / add / replace / pin_add / hotel / pref) → deterministic code executes → re-solve + re-verify; supports **multi-turn anaphora** ("the hotel is HanTing" → then "move it near Xi'an station")
+- **Hotel recommendation & search**: `POST /hotel/recommend` suggests nearby hotels the moment the picker opens (no keyword needed), while `/hotel/search` narrows by keyword — both paginate via `page`; POI queries gained `types` (lodging-category filter), `extensions` (to fetch ratings, etc.) and offset paging; results are normalized and **graded** (economy / comfort / upscale / luxury / homestay). `PlanRequest.hotel` is now **passed through and echoed back**, so "pick a hotel before planning" is no longer blocked by a frontend gate
 - **Multi-city**: a city-center table (`cities.py`) + LLM city detection + a frontend city picker; **25 cities / 254 spots** preloaded. Unknown cities are surfaced explicitly and **never silently fall back to a default city**
 - **AI trip review**: a single holistic assessment (score / summary / highlights / actionable warnings); the cost line says "tickets only, excluding transit and meals" — unreliable numbers are not invented
 - **Spot media & AI reviews**: AMap photos + opening hours + address; review summaries are LLM-generated and cached, **prefetched in the background** while planning, so opening a card is instant
@@ -73,13 +74,16 @@ This is not a gut feeling. A three-way evaluation over 50 programmatically gener
 
 - Two views: **Plan** (form → progress log → day-tabbed itinerary → map) and **My** (history + favorite spots)
 - Date-range picker (start before end, highlighted range, click a selected date to cancel)
-- Leaflet map with per-day colored routes, legend toggles, hotel-anchor marker; basemap switchable between AMap and OSM (incl. GCJ-02 ↔ WGS84 conversion)
+- Leaflet map with per-day colored routes (**7 distinct hues**: blue / orange / teal / purple / rose / yellow-green / indigo, shared by the map, legend, timeline and overview), legend toggles, hotel-anchor marker; basemap switchable between AMap and OSM (incl. GCJ-02 ↔ WGS84 conversion)
 - Spot detail card: photo lightbox, AI intro, pros/cons cards, one-tap AMap navigation
-- Hotel picker: search → thumbnail → inline mini-map (orange dot = hotel, colored dots = current spots) to judge whether the location is convenient
+- **Hotel picker**: opens straight into **nearby hotel recommendations** (Ctrip-style, no search needed), narrowable by keyword, with **paginated "load more"** (25 per page); each card shows rating, **grade** (economy / comfort / upscale / luxury / homestay), district, **real distance to the itinerary center**, address, phone and a multi-photo gallery, with "recommended / nearest first / top-rated" sorting plus grade and rating filters and one-tap switching (current hotel highlighted); clicking a name expands an inline mini-map (orange dot = hotel, colored dots = current spots) to judge whether the location is convenient. **There is no real room price** — AMap's free API does not return prices, so the field stays empty instead of being invented
 - **Desk-pet AI assistant "XiaoZhou"**: a persistent sprite-animated character in the corner (blinking / breathing / cursor-following / multiple states); click to open a chat bubble. It edits the itinerary **and answers trip questions**, with **cross-session long-term memory**
 - **AI review card**: score + summary + total cost + highlights / warnings, above the robustness simulation
-- **Share long image**: hand-drawn on Canvas and exported as a vertical PNG (includes the AI review), **zero dependencies** — no screenshot library. The map is deliberately omitted (AMap static images taint the canvas cross-origin and `toBlob` throws `SecurityError`)
+- **Share long image**: hand-drawn on Canvas and exported as a vertical PNG (includes the AI review), now with a **preview overlay before "Download / Cancel"** (previously it downloaded silently); **zero dependencies** — no screenshot library. The map is deliberately omitted (AMap static images taint the canvas cross-origin and `toBlob` throws `SecurityError`)
 - Planning progress bar (progress used to be buried in a collapsed log, making the app look frozen), itinerary-list thumbnails, click-to-switch city in the header
+- **modern-minimal visual unification**: the left form, right results column, "My" view and calendar popover all follow the OpenDesign `modern-minimal` direction (hairline borders, no card shadows, tight letter-spacing, tabular numerals, collapsed font weights)
+- **Icon standard**: all icons are now **linear SVG** (16 viewbox, `currentColor`, 1.8px stroke; the hotel icon uses Lucide's `hotel`), replacing emoji — only the desk-pet 🐋 and emoji inside code comments remain
+- **User-facing wording de-jargoned**: the hero subtitle, explainer chips and detection hints are plain language; the planning progress bar uses friendly stage names (the collapsed log keeps the raw stage names)
 
 ---
 
@@ -100,7 +104,7 @@ python run_demo.py
 cd backend
 pip install -r requirements.txt
 uvicorn main:app --port 8000
-# open http://localhost:8000 → click 「开始规划」→ switch to 「🗺 地图」 for routes
+# open http://localhost:8000 → click 「开始规划」→ switch to 「地图」 for routes
 ```
 
 **Configure keys** (optional; unlocks real commute data, LLM extraction and AI reviews):
@@ -126,6 +130,7 @@ cp backend/.env.example backend/.env
 |--------|------|-------------|
 | GET | `/` · `/app` | Landing page / planner |
 | GET | `/health` | Health check (incl. solver and AMap status) |
+| GET | `/meta` | Service metadata: an endpoint list built by walking `app.routes` at runtime + service status |
 | GET | `/demo/spots` · `/demo/config` | Demo spots (with photos and intros) / basemap config |
 | GET | `/cities` | Demoable city list + city centers (frontend picker data source) |
 | POST | `/extract` | Guide text → LLM extraction (incl. city detection) → entity alignment |
@@ -135,20 +140,31 @@ cp backend/.env.example backend/.env
 | POST | `/plan/simulate` | Robustness simulation: on-time probability + risk-spot suggestions (Monte Carlo) |
 | POST | `/plan/review` | AI trip review: score / summary / highlights / warnings |
 | GET | `/weather` | Day-by-day weather for the trip dates (open-meteo, keyless); returns `available=false` + a reason when it cannot be fetched |
-| POST | `/hotel/search` · `/hotel/set` | Hotel search / set as anchor and re-plan |
+| POST | `/hotel/recommend` · `/hotel/search` | Nearby hotel recommendations (no keyword needed) / keyword search (both paginate via `page`) |
+| POST | `/hotel/set` | Set as anchor and re-plan |
 | GET | `/poi/detail` · `/poi/reviews` | Place details (fast endpoint) / AI reviews (can be fetched async) |
 | GET | `/plans` | Plan history |
 | DELETE | `/plans/{id}` · POST `/plans/delete` | Delete / batch delete (soft delete, recoverable) |
 | GET | `/favorites` · POST `/favorites` | Favorites list / add-remove |
 
-**25 endpoints in total** (13 GET / 10 POST / 1 DELETE / 1 WebSocket).
+**26 endpoints in total** (13 GET / 11 POST / 1 DELETE / 1 WebSocket).
 
 ---
 
 ## Engineering practices
 
-- **Tests and CI**: **260 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather), GitHub Actions green
-- **Five CI gates**: unit tests + **frontend static check** (syntax gate + variable-shadowing guard + hardcoded-coordinate guard) + **backend five-dimension robustness audit** + **jsdom runtime smoke test** (14 DOM assertions) + a keyless solver demo
+**Test and gate commands** (all run without an API key):
+
+```bash
+cd backend && python -m pytest -q          # unit tests (266 passed; AMap-dependent hotel cases skip without AMAP_KEY)
+cd .. && node tools/frontend_smoke.js      # frontend jsdom runtime smoke (14 assertions)
+node tools/hotel_smoke.js                  # hotel picker + long-image preview + map view jsdom smoke (30 assertions)
+python tools/check_frontend.py             # frontend static check (7 blocking gates)
+python tools/check_backend_health.py       # backend five-dimension robustness audit (AST, keyless)
+```
+
+- **Tests and CI**: **266 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather / hotel endpoints), GitHub Actions green
+- **Five CI gates**: unit tests + **frontend static check** (7 blocking gates: syntax / variable shadowing / hardcoded coordinates / attribute escaping / CSS self-reference / undefined CSS variables / document integrity) + **backend five-dimension robustness audit** + **jsdom runtime smoke** (`frontend_smoke.js` 14 assertions + `hotel_smoke.js` 30 assertions) + a keyless solver demo
 - **Caching and throttling**: three-tier commute cache (repeat solves issue **zero** API calls); AMap throttled at 0.35 s
 - **Fast/slow endpoint split**: the details endpoint returns only millisecond-level AMap data; AI reviews arrive via a second async request, so the first paint never waits
 - **Background prefetch**: media is prefetched concurrently (3-way) when planning starts, in parallel with solving, so opening a detail usually hits cache
@@ -166,7 +182,7 @@ cp backend/.env.example backend/.env
 
 ```
 backend/
-  main.py                 FastAPI entrypoint, 25 endpoints (24 HTTP + 1 WebSocket)
+  main.py                 FastAPI entrypoint, 26 endpoints (25 HTTP + 1 WebSocket)
   models.py               Pydantic domain models (Spot / PlanRequest / DayPlan / Hotel)
   extractor.py            Guide text → spot candidates (LLM + tolerant JSON parsing + city detection)
   aligner.py              Entity alignment (AMap POI search + score fusion + type filter + LLM arbitration)
@@ -176,7 +192,7 @@ backend/
   robustness.py           Robust scheduling (shrink the window to leave slack + adaptive buffer)
   constraint_check.py     Independent constraint verification
   commute.py              Commute matrix (AMap API + 3-tier cache + throttling)
-  editor.py               Conversational editing (intent parsing + deterministic execution + review generation + AI trip review)
+  editor.py               Conversational editing (intent parsing + deterministic execution + review generation + AI trip review); POI normalization and hotel-card / grade normalization
   tasks.py                Async tasks, progress push, media prefetch
   cities.py               City-center table (25 cities, coordinates from AMap geocoding)
   demo_data.py            Demo spots (14 hand-written for Xi'an + 240 script-fetched across 24 cities)
@@ -184,9 +200,9 @@ backend/
   reliability.py          Unified timeouts and retries (shared by LLM and AMap)
   weather.py              Trip weather (open-meteo, keyless; admits "unavailable" rather than inventing data)
   logging_setup.py        Logging config and request-id context
-  tests/                  260 unit tests
+  tests/                  266 unit tests
 static/index.html         Roadbook frontend (single file, zero build, zero CDN)
-tools/                    Check and verification scripts (five-dimension audit / frontend static check / multi-city end-to-end)
+tools/                    Check and verification scripts (five-dimension audit / frontend static check / frontend & hotel jsdom smoke / multi-city end-to-end)
 data/plans/               Plan snapshots (soft-delete flag)
 docs/experiments.md       Experiment report
 ROADMAP.md                Project retrospective and roadmap
@@ -231,6 +247,7 @@ Methodology, results and failure-case analysis: **[docs/experiments.md](docs/exp
 - **The persistence layer is JSON files** — no database, no user accounts, so `/plans` and `/favorites` are global; multi-user isolation is pending (B1/B2 in ROADMAP.md)
 - **Not deployed yet**: Dockerfile and docker-compose are ready; what's missing is creating the service on a platform (needs an account + key injection)
 - **Demo ticket prices and dwell times are approximations**: coordinates come from real AMap geocoding, but prices and dwell times are demo parameters; `ticket` is 0 when the guide doesn't state a price. **AMap's `place/text` endpoint does not return ticket prices** (measured coverage: 0% across 8 well-known paid attractions), so "fetch prices from AMap" is a dead end — the options are a local price table or simply not pretending to know
+- **Hotels have no real room price**: AMap's free API does not return prices (`biz_ext.lowest_price` / `cost` are empty) and no OTA source is wired up — the rating, grade, district, distance and phone on each card are real, but **the price field stays empty when unknown**; review counts, room types, availability and cancellation policies are likewise unavailable (no estimation, no invention)
 - **The alignment labeled set is only 22 cases**: an F1 of 100% has limited statistical meaning; it should grow to 100–200 (A3 in ROADMAP.md)
 - **The simulation noise parameters are estimates**: dwell time uses a triangular distribution and commute uses a log-normal; neither is calibrated against real logs ⇒ **absolute probabilities should not be treated as exact** (they swing up to 48.9 pp across parameter sets), but the *relative* ranking of risk spots is insensitive to the parameters, so the product leans on "suggestions" rather than percentages
 - **Commute degrades to straight-line estimation offline**: real AMap driving durations require `AMAP_KEY`
@@ -254,6 +271,8 @@ Architecture ideas drawn from [liketrek/TREK](https://github.com/liketrek/TREK),
 
 ## Changelog
 
+- **v1.9（2026-09-24）**: **Hotel picker rebuilt + modern-minimal visual unification + a round of user-facing frontend fixes** — the hotel picker moved from "search first, then look" to a **Ctrip-style open-then-recommend** flow (nearby hotels appear immediately, narrowable by keyword, with **paginated "load more"**, 25 per page); cards gained **rating / grade (economy·comfort·upscale·luxury·homestay, normalized from AMap keytag) / district / real distance to the itinerary center / address / phone / multi-photo gallery**, plus "recommended / nearest-first / top-rated" sorting, grade and rating filters and one-tap switching (current hotel highlighted); **honestly labelled as having no real room price** (AMap's free API leaves `biz_ext.lowest_price` empty and no OTA source is wired up), so the price field stays blank instead of being invented; **the left form, right results column, "My" view and calendar popover were unified onto OpenDesign `modern-minimal`** (hairline borders, no card shadows, tight letter-spacing, tabular numerals, collapsed font weights; an earlier "conversation" left column was **reverted** after the user rejected it); **all emoji icons were replaced with linear SVG** (16 viewbox / `currentColor` / 1.8px stroke; the hotel icon uses Lucide `hotel`; the desk-pet 🐋 and comment emoji stay); **user-facing jargon removed** (hero subtitle, chips and detection hints rewritten in plain language; progress-bar stage names made friendly while the collapsed log keeps the raw stages); **per-day map colors changed from "one hue, varying lightness" to 7 distinct hues** (blue / orange / teal / purple / rose / yellow-green / indigo, shared by map / legend / timeline / overview); **the long image now shows a preview overlay before "Download / Cancel"** (it used to download silently), with a cleaner modern canvas header; **fixes**: ① blank right column on first open (init missed `renderItin`) ② "pick a hotel before planning" was blocked by a frontend gate (and the backend `/plan` now **passes through and echoes** `hotel`) ③ hotel search passed a click event as `page` and got a 500 ④ hotel `intro` picked the first of AMap's multi-segment categories, describing a hotel as "catering"; **backend** added `POST /hotel/recommend`, both it and `/hotel/search` support `page`, POI queries gained `types` / `extensions` / `offset` with unified `_poi_row()` normalization and `_grade()` grading; **tests** added `tools/hotel_smoke.js` (jsdom runtime smoke, 30 assertions covering the hotel overlay + long-image preview + map view + first-paint empty state) and `backend/tests/test_hotels.py` (4 cases, skipped without `AMAP_KEY`); unit tests 260 → **266**, endpoints 25 → **26**
+- **v1.8（2026-09-23）**: **Key-availability self-check** — the landing page's "service status" used to turn green as long as an env var was non-empty, so a stale key lit up; it now **probes for real in the background at startup** (one AMap distance call, one probe per LLM channel with `max_tokens=1`), caches the result for 6 hours, and reports one of **missing / ok / invalid / unreachable** — **a network failure and an invalid key are reported separately** (they need opposite fixes); a misconfiguration where the fast channel points elsewhere without its own key is **statically detected without sending a request**; added a CLI entrypoint `python backend/selftest.py` (verify keys before starting the service); the planner had a hardcoded "real AMap commute" chip that lied under degradation (now generated from actual usage); a missing-LLM known limitation was added; tests 238 → **260**
 - **v1.7（2026-09-23）**: **Landing-page narrative rebuilt + a real type scale on both pages** — what used to be five equally-sized charts in one grid (you could not tell which one mattered) is now **conclusion first, evidence second**: the core claim (solver and LLM land within a hair of each other on trip-quality score, 0.915 vs 0.921, yet one has **0** violations and the other has 8) is stated as a 28px claim line above the fold, the main chart takes the full width and the page's only elevated shadow, and the other four fold into a native `<details>` (no JS, keyboard-expandable, still readable with JS off); **semantic chart colors** — the solver and the LLM baseline used to be two tints of the same blue (the single most important comparison in the piece, and the hardest to tell apart); they are now **solid saturated blue / solid mid grey / hollow pale outline**, so hue and fill-style give two independent channels and it still reads in greyscale; **type scale collapsed to 12/14/16/20/28/44/62 with weights 400/500/600/700/800** (previously every weight on the page was ≥650 — not one light word existed), and the planner's 17 font sizes became 5; **vertical rhythm split into 128/96/64** (all eight sections used to share one 96px step); the `#results` section's share of page copy dropped **51.6% → 18.6%**; the frontend checker gained **document-integrity** and **leaked-Markdown** guards
 - **v1.6（2026-09-23）**: **Footer dead links fixed + real experiment charts** — the footer's "API docs" pointed at `/docs` (FastAPI's bundled Swagger UI, whose CSS/JS come from a CDN, breaking this site's zero-CDN rule) and "service status" pointed at a 137-byte JSON blob; both were "click through and there is nothing there". They are now **in-page sections** fed by a new `GET /meta`, which walks `app.routes` **at runtime** to build the endpoint list (not a hand-maintained second copy, so it cannot drift) — which immediately surfaced four endpoints missing their docstrings, now added; added **five experiment charts** (inline SVG only, zero JS, every data point labelled with its exact value, chart 1 being the three-way scheduling comparison); added a **cross-page transition** between the landing page and the planner (with an explicit way back); endpoints 24 → **25**, tests 228 → **238**
 - **v1.5（2026-09-23）**: **One design system for both pages + trip weather + a sweep of silent errors** — the landing page and the planner are split into `/` and `/app`, and both now share **one set of oklch design tokens** (with an extra `--muted-3` step for dense UIs) plus one motion rule (**only react to explicit user actions; never animate data re-renders**); added **trip weather** (open-meteo, keyless; per-day, rain highlighted, honestly unavailable beyond the 16-day window); fixed a batch of **silent errors**: the coordinate check in the five-dimension audit had been neutered by an exemption list (5 hardcoded Xi'an coordinates while CI stayed green), the final commute leg was double-counted when no hotel anchor existed (systematically understating the on-time probability), the media-prefetch lock was a function-local variable (concurrent calls lost updates), `UnplannedSpot` received fields the pydantic model silently dropped, pin-insert commute excluded the hotel legs (making one day's figures incomparable with the rest), and the media-cache entry for "Sichuan Museum" actually held Xi'an data (AMap's loose `citylimit` bled data across cities; a write-side city check was added); the frontend checker gained **CSS self-reference / undefined-variable / attribute-escaping** guards; tests 195 → **228**
