@@ -52,6 +52,33 @@ def test_async_task_full_lifecycle():
         assert "check_report" in result
 
 
+def test_hotel_passed_as_plan_input():
+    """酒店可以「先选好再规划」：入参里的 hotel 必须进入结果。
+
+    回归点：tasks.run_plan_task 原先把 req_params["hotel"] 写死成 None，
+    导致 PlanRequest.hotel 形同虚设 —— 前端点了选酒店没反应，
+    只能"先规划一次、再用 /hotel/set 换酒店"。
+    """
+    req = _small_req()
+    req["hotel"] = {"name": "测试住宿·钟楼店", "lat": 34.2600, "lon": 108.9430, "desc": ""}
+    with TestClient(app) as client:
+        r = client.post("/plan/async", json=req)
+        assert r.status_code == 200, r.text
+        body = r.json()
+
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            snap = client.get(f"/task/{body['task_id']}").json()
+            if snap["status"] in ("completed", "failed"):
+                break
+            time.sleep(0.3)
+        assert snap["status"] == "completed", snap.get("error")
+
+        hotel = (snap["result"] or {}).get("hotel")
+        assert hotel, "规划入参里的酒店没进结果 —— hotel 未透传给求解器"
+        assert hotel["name"] == "测试住宿·钟楼店"
+
+
 def test_task_not_found():
     client = TestClient(app)
     assert client.get("/task/nonexistent").status_code == 404

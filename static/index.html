@@ -1051,6 +1051,9 @@ function pickCity(c) {
   try { localStorage.setItem(CITY_KEY, v); } catch (e) {}
   // 旧行程属于别的城市：标记失效并提示，不静默沿用
   if (plan) { window.cityMismatch = true; }
+  // 换城市后旧酒店坐标就失效了（跨城锚点会把通勤算歪），清掉并回显
+  pendingHotel = null;
+  if (!plan) $('hotelText').textContent = '未设置（点此搜索选择）';
   if (map) { map.remove(); map = null; layers = {}; }   // 切城市后地图需按新城市重建视野
   loadDemoSpots().then(d => {
     if (d.available) log('城市', `已切换到 ${d.city}，载入 ${d.spots.length} 个预置景点`);
@@ -1338,7 +1341,8 @@ $('go').onclick = async () => {
     budget: $('budget').value==='' ? null : Number($('budget').value),
     daily_start_h: timeToH($('start').value || '09:00'),
     daily_end_h: timeToH($('end').value || '18:00'),
-    preference: currentPref, robustness: currentRob, spots };
+    preference: currentPref, robustness: currentRob, spots,
+    hotel: pendingHotel || null };   // 先选好的酒店，作为规划入参（后端 PlanRequest.hotel）
   try {
     const {task_id, ws_url} = await fetch('/plan/async', {method:'POST',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)}).then(r=>r.json());
@@ -2083,6 +2087,7 @@ function resetPlanView() {
   const wb = $('weatherBox'); if (wb) { wb.classList.remove('on'); wb.innerHTML = ''; }
   $('chips').innerHTML = heroChipsFor('reset').join('');
   $('hotelText').textContent = '未设置（点此搜索选择）';  // 住宿字段一起清空
+  pendingHotel = null;                                 // 暂存的酒店一起清掉
   $('log').textContent = '';
   $('view').innerHTML = '<div class="uempty">行程已删除 —— 点「开始规划」生成新的行程</div>';
   if (map) { Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
@@ -2091,6 +2096,9 @@ function resetPlanView() {
 
 // ---- 酒店搜索选择器（缩略图 + 点名称就地展开位置小地图，同时只开一个）----
 let hotelMaps = {}, openMiniIdx = null;
+// 还没规划时先选好的酒店：后端 PlanRequest.hotel 支持把酒店作为规划入参
+// （每天从这里出发、回到这里），所以"先选酒店再规划"是合法路径，不该被前端拦住。
+let pendingHotel = null;
 function closeHotelPicker() {
   Object.values(hotelMaps).forEach(m => m.remove());
   hotelMaps = {}; openMiniIdx = null;
@@ -2167,7 +2175,9 @@ function hotelQuickTags() {
 }
 
 function openHotelPicker() {
-  if (!lastTaskId) { log('提示', '先规划一次行程，再选酒店'); return; }
+  // 不再要求"先规划一次再选酒店"：酒店是行程的**输入**而不是产物
+  // （后端 PlanRequest.hotel 支持），先选好再规划完全合理。
+  // 旧实现在这里直接 return，只往折叠日志里写一行 —— 用户点下去毫无反应，等于"选择不了"。
   hotelMaps = {}; openMiniIdx = null;
   const ov = document.createElement('div');
   ov.className = 'cal-overlay'; ov.id = 'hotelModal';
@@ -2181,7 +2191,9 @@ function openHotelPicker() {
         border-radius:9px;padding:8px 18px;cursor:pointer;font-weight:600">搜索</button></div>
     <div class="hotel-quick" id="hotelQuick"></div>
     <div style="padding:0 16px 8px;font-size:11.5px;color:var(--muted-3)">
-      点酒店名就地看位置（橙点=酒店，彩点=当前行程景点）· 输入停顿会自动搜索</div>
+      ${lastTaskId
+        ? '点酒店名就地看位置（橙点=酒店，彩点=当前行程景点）· 输入停顿会自动搜索'
+        : '选好后作为每天出发 / 返回的锚点，点「开始规划」时生效 · 输入停顿会自动搜索'}</div>
     <div id="hotelResults" style="overflow-y:auto;flex:1;padding:0 16px 12px">
       <div class="uempty">输入关键词搜索高德酒店</div></div>
   </div>`;
@@ -2242,6 +2254,14 @@ function openHotelPicker() {
 
 function pickHotel(name, lat, lon) {
   closeHotelPicker();
+  // 还没规划过：/hotel/set 需要 task_id（它本质是"按酒店重排"），这里不能调。
+  // 改为暂存，规划请求带上它（后端 PlanRequest.hotel）。
+  if (!lastTaskId) {
+    pendingHotel = { name, lat, lon };
+    $('hotelText').textContent = name;
+    log('住宿', `已选酒店「${name}」，点「开始规划」时作为每天出发 / 返回的锚点`);
+    return;
+  }
   showLoading(`正在按「${name}」重排行程…`, '住宿锚点已设置，重新计算通勤与每天路线');
   fetch('/hotel/set', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({task_id: lastTaskId, name, lat, lon})})

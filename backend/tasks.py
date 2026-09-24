@@ -124,7 +124,10 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
     task.req_params = {"city": req.city, "days": req.days,
                        "budget": req.budget,
                        "daily_start_h": req.daily_start_h,
-                       "daily_end_h": req.daily_end_h, "hotel": None,
+                       "daily_end_h": req.daily_end_h,
+                       # 住宿锚点：前端允许"先选酒店再规划"，这里必须把入参透传给求解器。
+                       # 原先写死 None，导致 PlanRequest.hotel 形同虚设（只能规划完再换酒店）。
+                       "hotel": req.hotel.model_dump() if req.hotel else None,
                        # 偏好（A2）：后续编辑重排、换酒店、历史回看都要沿用
                        "preference": normalize_preference(req.preference),
                        # 稳妥度（N3b）：同样要沿用
@@ -189,6 +192,9 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
             "total_cost": total_cost, "total_score": total_score,
             "unplanned": [u.model_dump() for u in unplanned],
             "check_report": report,
+            # 住宿锚点：前端靠 plan.hotel 回显"当前住宿"。原先结果里根本没有这个键，
+            # 于是即使求解器用了酒店（Solver 里 self.hotel = req.hotel），选完也显示不出来。
+            "hotel": req.hotel.model_dump() if req.hotel else None,
             # N3b：稳妥度目标的达成情况（没开稳妥度时为 None）
             "robustness": robustness_info,
         }
