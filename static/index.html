@@ -788,14 +788,27 @@
     padding:10px 15px; font-size:13.5px; font-weight:700; cursor:pointer; flex-shrink:0; }
   .hpk-pick.ghost { background:var(--fill); color:var(--muted-2); }
 
-  /* 筛选条：档次 + 评分（纯前端过滤） */
-  .hpk-filters { display:flex; flex-wrap:wrap; gap:6px; padding:9px 16px;
-    border-bottom:1px solid var(--border); }
-  .hpk-fchip { font-size:12px; padding:5px 11px; border-radius:999px; cursor:pointer;
-    border:1px solid var(--line); background:var(--surface); color:var(--muted-2); }
+  /* 筛选条：档位（归一化 5 档）+ 评分。chip 刻意少而清楚：
+     默认态只留一层发丝描边 + 次级文字（不铺底色，视觉更轻），选中才上 accent-soft。 */
+  .hpk-filters { display:flex; flex-wrap:wrap; gap:8px; padding:10px 16px;
+    border-bottom:1px solid var(--border); align-items:center; }
+  .hpk-fchip { font-size:12.5px; padding:6px 14px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--line); background:transparent; color:var(--muted-2);
+    transition:var(--t); }
+  .hpk-fchip:hover { background:var(--fill); }
   .hpk-fchip.on { background:var(--accent-soft); color:var(--accent-deep);
     border-color:var(--accent-line); font-weight:700; }
-  .hpk-fsep { width:1px; align-self:stretch; background:var(--border); margin:0 3px; }
+  .hpk-fsep { width:1px; align-self:stretch; background:var(--border); margin:0 2px; }
+
+  /* 分页：「加载更多」按钮 / 到底提示 —— 居中、轻量，不抢卡片视觉 */
+  .hpk-more { align-self:center; margin:6px auto 2px; padding:10px 32px; font-size:13px;
+    font-weight:700; font-family:inherit; color:var(--accent-deep); background:var(--accent-soft);
+    border:1px solid var(--accent-line); border-radius:999px; cursor:pointer; transition:var(--t); }
+  .hpk-more:hover { background:var(--fill); }
+  .hpk-more.load, .hpk-more:disabled { color:var(--muted-2); background:var(--fill);
+    border-color:var(--border); cursor:default; }
+  .hpk-more.end { font-size:12px; font-weight:600; color:var(--muted-3); background:transparent;
+    border:none; cursor:default; padding:9px 0; }
 
   /* 封面容器 + 多图角标 */
   .hpk-imgwrap { position:relative; flex-shrink:0; display:block; line-height:0; }
@@ -2176,6 +2189,9 @@ function resetPlanView() {
 // ---- 酒店搜索选择器（缩略图 + 点名称就地展开位置小地图，同时只开一个）----
 let hotelMaps = {}, openMiniIdx = null;
 let hotelRowsCache = [];   // 当前列表（含 photos），供画廊按索引取图
+// 「加载更多」的当前实现：分页状态活在 openHotelPicker 的闭包里，
+// 而点击走的是模块级中央委托，所以在打开弹层时把处理器挂到这里，关闭时清空。
+let hotelMoreHandler = null;
 // 酒店多图画廊：点封面看大图 + 缩略图切换（高德每家最多给 3 张）
 function openHotelGallery(i) {
   const h = hotelRowsCache[i]; if (!h) return;
@@ -2206,6 +2222,7 @@ let pendingHotel = null;
 function closeHotelPicker() {
   Object.values(hotelMaps).forEach(m => m.remove());
   hotelMaps = {}; openMiniIdx = null;
+  hotelMoreHandler = null;                 // 弹层关了就没人接「加载更多」
   const ov = $('hotelModal'); if (ov) ov.remove();
 }
 function toggleHotelMap(i, lat, lon, name) {
@@ -2340,37 +2357,60 @@ function openHotelPicker() {
   document.body.appendChild(ov);
   // 酒店列表状态与渲染（携程卡片骨架：方形封面 + 名称层级 + 评分/档次/距离 + 独立行动列）
   let hotelLast = [], hotelSort = 'reco';
-  let hotelFilter = { keytag: '', minScore: 0 };
+  let hotelFilter = { grade: '', minScore: 0 };
+  // 分页状态：高德单页上限 25 条（西安这类城市实测 600+ 家，一次只给一页用户会
+  // 以为"就这么多"）。page > 1 的结果**追加**到 hotelLast，非替换。
+  const HOTEL_PAGE_SIZE = 25;
+  let hotelPage = 1;            // 已加载到第几页
+  let hotelHasMore = false;     // 上一页返回满 25 条 → 可能还有下一页
+  let hotelLoading = false;     // 加载中：防重复点击
+  let hotelMode = 'reco';       // 当前模式：reco=推荐列表 / search=关键词搜索
+  let hotelLastQuery = '';      // search 模式下产生当前列表的关键词（翻页要用同一个）
   const currentHotelName = () =>
     (plan && plan.hotel && plan.hotel.name) || (pendingHotel && pendingHotel.name) || '';
 
-  // 筛选条：档次（取自返回数据的 keytag）+ 评分档。纯前端过滤，不额外请求。
+  // 筛选条：档位 + 评分档。纯前端过滤，不额外请求。
+  // 原来按 keytag（高德给的高档型/经济型/民宿/商务酒店/公寓…十几种）铺 chip，
+  // 又杂又长；现改用后端归一化的 grade（固定 5 档），且**只显示数据里出现过的档位**，
+  // 避免出现点了没结果的空 chip。
+  const HOTEL_GRADES = ['经济型', '舒适型', '高档型', '豪华型', '民宿'];
   const renderHotelFilters = () => {
     const box = $('hotelFilters'); if (!box) return;
-    const tags = [...new Set(hotelLast.map(h => h.keytag).filter(Boolean))];
+    const present = new Set(hotelLast.map(h => h.grade).filter(Boolean));
+    const grades = HOTEL_GRADES.filter(g => present.has(g));
     const chip = (f, v, label, on) =>
       `<span class="hpk-fchip${on ? ' on' : ''}" data-f="${f}" data-v="${esc(v)}">${esc(label)}</span>`;
-    let html = chip('keytag', '', '全部档次', !hotelFilter.keytag)
-      + tags.map(t => chip('keytag', t, t, hotelFilter.keytag === t)).join('')
-      + '<span class="hpk-fsep"></span>'
-      + chip('score', '0', '全部评分', !hotelFilter.minScore)
+    const gradeChips = grades.length
+      ? chip('grade', '', '全部档位', !hotelFilter.grade)
+        + grades.map(g => chip('grade', g, g, hotelFilter.grade === g)).join('')
+      : '';
+    const scoreChips = chip('score', '0', '全部评分', !hotelFilter.minScore)
       + chip('score', '4.5', '4.5分以上', hotelFilter.minScore === 4.5)
       + chip('score', '4.0', '4.0分以上', hotelFilter.minScore === 4.0);
-    box.innerHTML = html;
+    box.innerHTML = gradeChips
+      + (gradeChips ? '<span class="hpk-fsep"></span>' : '') + scoreChips;
     box.querySelectorAll('.hpk-fchip').forEach(el => {
       el.onclick = () => {
-        if (el.dataset.f === 'keytag') hotelFilter.keytag = el.dataset.v;
+        if (el.dataset.f === 'grade') hotelFilter.grade = el.dataset.v;
         else hotelFilter.minScore = Number(el.dataset.v) || 0;
         renderHotelFilters(); renderHotelList();
       };
     });
   };
 
+  // 列表末尾的分页脚：加载中 / 已到底 / 加载更多。计数只说"已加载"，不谎报总数。
+  const hotelMoreHtml = () => {
+    if (hotelLoading) return '<button class="hpk-more load" data-act="hotel-more" disabled>加载中…</button>';
+    if (!hotelHasMore) return hotelLast.length
+      ? `<div class="hpk-more end">已到底部 · 共 ${hotelLast.length} 家</div>` : '';
+    return '<button class="hpk-more" data-act="hotel-more">加载更多</button>';
+  };
+
   const renderHotelList = () => {
     const ref = hotelRefPoint();
     const cur = currentHotelName();
     let rows = hotelLast.filter(h =>
-      (!hotelFilter.keytag || (h.keytag || '') === hotelFilter.keytag) &&
+      (!hotelFilter.grade || (h.grade || '') === hotelFilter.grade) &&
       (!hotelFilter.minScore || Number(h.rating || 0) >= hotelFilter.minScore));
     if (hotelSort === 'dist' && ref) {
       rows = [...rows].sort((a, b) =>
@@ -2381,13 +2421,18 @@ function openHotelPicker() {
     }
     if ($('hotelCount')) {
       const total = hotelLast.length, n = rows.length;
+      // 只说"已加载 N 家"——高德有 600+，页面上直说总数是不诚实的。
       $('hotelCount').textContent = !total ? '附近没找到酒店'
-        : (n === total ? `附近 ${total} 家酒店` : `筛选后 ${n} / ${total} 家`);
+        : (n === total ? `已加载 ${total} 家` : `筛选后 ${n} / ${total} 家`);
     }
+    // 重渲染会重建卡片 DOM（含内嵌小地图容器 hmap-i），先把 Leaflet 实例销毁，
+    // 否则旧实例会持有被移除的节点（加载更多/改筛选后必然触发）
+    Object.values(hotelMaps).forEach(m => m.remove());
+    hotelMaps = {}; openMiniIdx = null;
     if (!rows.length) {
-      $('hotelResults').innerHTML = hotelLast.length
+      $('hotelResults').innerHTML = (hotelLast.length
         ? '<div class="uempty">没有符合筛选条件的酒店，放宽一下试试</div>'
-        : '<div class="uempty">没搜到，换个关键词试试</div>';
+        : '<div class="uempty">没搜到，换个关键词试试</div>') + hotelMoreHtml();
       return;
     }
     hotelRowsCache = rows;                       // 供画廊按索引取图
@@ -2408,7 +2453,9 @@ function openHotelPicker() {
       // ⚠️ 价格：高德没有房价，字段为空就**整块不显示** —— 绝不编造价格。
       const score = Number(h.rating || 0);
       const scoreHtml = score ? `<span class="hpk-score">${score.toFixed(1)}</span>` : '';
-      const tagHtml = h.keytag ? `<span class="hpk-tag">${esc(h.keytag)}</span>` : '';
+      // 档次 chip 用归一化 grade（5 档），不再直接铺高德原始 keytag
+      // （原始值会出现「中餐」这类非档次项，正是"分类太杂"的来源）；空值不显示
+      const tagHtml = h.grade ? `<span class="hpk-tag">${esc(h.grade)}</span>` : '';
       const areaHtml = h.adname ? `<span class="hpk-area">${esc(h.adname)}</span>` : '';
       const priceHtml = h.price ? `<span class="hpk-price">¥${esc(h.price)}</span>` : '';
       const addr = h.address || h.intro || '';
@@ -2434,7 +2481,7 @@ function openHotelPicker() {
         <div id="hmap-${i}" style="display:none;margin-top:9px;height:180px;
           border-radius:12px;overflow:hidden"></div>
       </div>`;
-    }).join('');
+    }).join('') + hotelMoreHtml();
   };
   // 排序切换（携程的"距离近→远"）：用 data-sort + 绑定，不内联 onclick 拼字符串
   ov.querySelectorAll('.hpk-sort').forEach(el => {
@@ -2448,43 +2495,92 @@ function openHotelPicker() {
   // ---- 打开即推荐（携程模式）——
   // 携程是"进来就有一屏推荐，再让你筛"；我们原来是一片空白逼用户先搜，方向反了。
   // 这里不依赖关键词，直接按"行程中心 / 城市中心"拉附近住宿。
-  const loadRecommend = () => {
+  // page > 1 时只在列表末尾解禁按钮、原地等结果，不整屏清空（避免闪一下空白）
+  const setMoreLoading = (on) => {
+    const b = document.querySelector('#hotelResults .hpk-more');
+    if (!b || b.classList.contains('end')) return;    // 已到底就没有按钮可动
+    b.textContent = on ? '加载中…' : '加载更多';
+    b.classList.toggle('load', on);
+    if (b.tagName === 'BUTTON') b.disabled = on;
+  };
+
+  const loadRecommend = (page = 1) => {
     const ref0 = hotelRefPoint();
     if (!ref0) {
       $('hotelResults').innerHTML = '<div class="uempty">输入关键词搜索酒店</div>';
       return;
     }
-    $('hotelResults').innerHTML = '<div class="uempty">正在找附近的酒店…</div>';
+    hotelMode = 'reco';
+    if (page === 1) {
+      hotelPage = 1; hotelHasMore = false;
+      $('hotelResults').innerHTML = '<div class="uempty">正在找附近的酒店…</div>';
+    } else {
+      setMoreLoading(true);
+    }
+    hotelLoading = true;
     fetch('/hotel/recommend', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({city: currentCity, lat: ref0.lat, lon: ref0.lon})})
+      body: JSON.stringify({city: currentCity, lat: ref0.lat, lon: ref0.lon, page})})
       .then(r => r.json()).then(d => {
-        hotelLast = d.results || [];
-        hotelSort = 'dist';                    // 推荐默认按距离：离行程近的先给
-        ov.querySelectorAll('.hpk-sort').forEach(x =>
-          x.classList.toggle('on', x.dataset.sort === 'dist'));
+        const got = d.results || [];
+        hotelLast = page === 1 ? got : hotelLast.concat(got);   // 首页替换、后续追加
+        hotelPage = page;
+        hotelHasMore = got.length >= HOTEL_PAGE_SIZE;           // 不满一页 = 到底了
+        hotelLoading = false;
+        if (page === 1) {
+          hotelSort = 'dist';                    // 推荐默认按距离：离行程近的先给
+          ov.querySelectorAll('.hpk-sort').forEach(x =>
+            x.classList.toggle('on', x.dataset.sort === 'dist'));
+        }
         renderHotelFilters(); renderHotelList();
       }).catch(() => {
-        $('hotelResults').innerHTML = '<div class="uempty">暂时取不到推荐，输入关键词试试</div>';
+        hotelLoading = false;
+        if (page === 1) $('hotelResults').innerHTML = '<div class="uempty">暂时取不到推荐，输入关键词试试</div>';
+        else setMoreLoading(false);
       });
   };
 
-  const doSearch = () => {
-    const q = $('hotelQ').value.trim();
+  const doSearch = (page = 1) => {
+    // 翻页必须复用**产生当前列表的那个词**，而不是输入框里的实时值
+    // （否则用户改了词没回车、直接点加载更多，就会用新词翻旧列表的第 2 页）
+    const q = page === 1 ? $('hotelQ').value.trim()
+                         : (hotelLastQuery || $('hotelQ').value.trim());
     if (!q) { loadRecommend(); return; }        // 清空关键词 = 回到推荐列表
-    pushHotelHistory(q);                       // 记住搜过的词，下次直接点
-    Object.values(hotelMaps).forEach(m => m.remove());
-    hotelMaps = {}; openMiniIdx = null;
-    $('hotelResults').innerHTML = '<div class="uempty">搜索中…</div>';
+    hotelMode = 'search'; hotelLastQuery = q;
+    if (page === 1) {
+      pushHotelHistory(q);                      // 记住搜过的词，下次直接点
+      Object.values(hotelMaps).forEach(m => m.remove());
+      hotelMaps = {}; openMiniIdx = null;
+      hotelFilter = { grade: '', minScore: 0 };   // 新搜索重置筛选
+      hotelPage = 1; hotelHasMore = false;
+      $('hotelResults').innerHTML = '<div class="uempty">搜索中…</div>';
+    } else {
+      setMoreLoading(true);
+    }
+    hotelLoading = true;
     fetch('/hotel/search', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query: q, city: currentCity})})
+      body: JSON.stringify({query: q, city: currentCity, page})})
       .then(r => r.json()).then(d => {
-        hotelLast = d.results || [];
-        hotelFilter = { keytag: '', minScore: 0 };   // 新搜索重置筛选
+        const got = d.results || [];
+        hotelLast = page === 1 ? got : hotelLast.concat(got);
+        hotelPage = page;
+        hotelHasMore = got.length >= HOTEL_PAGE_SIZE;
+        hotelLoading = false;
         renderHotelFilters(); renderHotelList();
+      }).catch(() => {
+        hotelLoading = false;
+        if (page === 1) $('hotelResults').innerHTML = '<div class="uempty">搜索失败，请重试</div>';
+        else setMoreLoading(false);
       });
   };
   $('hotelSearchBtn').onclick = doSearch;
   $('hotelQ').onkeydown = e => { if (e.key === 'Enter') doSearch(); };
+
+  // 「加载更多」的点击入口（走中央委托）：按**当前模式**拉下一页再追加
+  hotelMoreHandler = () => {
+    if (hotelLoading || !hotelHasMore) return;
+    const next = hotelPage + 1;
+    if (hotelMode === 'search') doSearch(next); else loadRecommend(next);
+  };
 
   // ---- 输入优化：快捷标签（含"住某景点附近"）+ 历史 + 防抖自动搜索 ----
   const quick = $('hotelQuick');
@@ -3325,6 +3421,7 @@ document.addEventListener('click', e => {
     case 'hotel-map':  toggleHotelMap(Number(d.idx), Number(d.lat), Number(d.lon), d.name); break;
     case 'hotel-pick': pickHotel(d.name, Number(d.lat), Number(d.lon)); break;
     case 'hotel-gallery': openHotelGallery(Number(d.hi)); break;
+    case 'hotel-more': if (hotelMoreHandler) hotelMoreHandler(); break;  // 分页：加载下一页
     case 'day':        toggleDay(Number(d.idx)); break;
     case 'view-map':   currentDay = Number(d.day); switchView('map'); break;  // 移动端：跳到已有地图视图看当天路线
     // ---- 空状态引导 ----
