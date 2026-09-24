@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -429,6 +430,19 @@ def poi_reviews(name: str, city: str = "") -> dict:
     return {"reviews": m.get("reviews"), "reviews_ai": m.get("reviews_ai", False)}
 
 
+def _lodging_intro(type_str: str) -> str:
+    """卡片副标题取"住宿相关"的那段类别。
+
+    高德同一个 POI 会给多段类别，用 `;` 与 `|` 分隔，例如
+    `餐饮服务;中餐厅;中餐厅|住宿服务;宾馆酒店;宾馆酒店`。
+    直接 `split(";")[0]` 会把一家酒店描述成「餐饮服务」（用户会以为搜错了）。
+    """
+    for seg in re.split(r"[;|]", type_str or ""):
+        if any(k in seg for k in ("住宿", "宾馆", "酒店")):
+            return seg
+    return (type_str or "").split(";")[0]
+
+
 def _hotel_card(c: dict) -> dict:
     """酒店卡片数据：基础信息 + 能拿到的富信息（携程式卡片用）。
 
@@ -437,11 +451,12 @@ def _hotel_card(c: dict) -> dict:
     """
     return {
         "name": c.get("name", ""), "lat": c.get("lat"), "lon": c.get("lon"),
-        "intro": (c.get("type_str") or "").split(";")[0],
+        "intro": _lodging_intro(c.get("type_str", "")),
         "image": c.get("image", ""),
         "rating": c.get("rating", ""),        # 高德评分（extensions=all 才有）
         "price": c.get("price", ""),          # 房价：拿不到就是空
         "keytag": c.get("keytag", ""),        # 经济型/舒适型/高档型/豪华型 ≈ 携程钻级
+        "grade": c.get("grade", ""),          # 归一化档位（经济型/舒适型/高档型/豪华型/民宿）
         "adname": c.get("adname", ""),        # 所在区（碑林区）≈ 携程"外滩核心区"
         "address": c.get("address", ""),
         "tel": c.get("tel", ""),
@@ -465,19 +480,24 @@ def hotel_search(body: dict) -> dict:
     # 界面上看着像酒店，用户一点就把景点当成住宿选走了。
     HOTEL_TYPES = "100000"          # 高德 POI 分类：住宿服务
     # extensions=all 才能拿到 biz_ext.rating（评分）与多张图
-    # 取 20 条：前端还要按档次/评分筛选，取太少筛完就没了
-    cands = text_search(query, city, types=HOTEL_TYPES, extensions="all", offset=20)
+    # 分页取满 25 条/页（高德单页上限）：西安这类城市实测有 600+ 家，
+    # 一次只给 12 家会让用户以为"就这么多"（用户原话）。
+    page = max(1, int(body.get("page") or 1))
+    cands = text_search(query, city, types=HOTEL_TYPES, extensions="all",
+                        offset=25, page=page)
     if not cands:
         # 关键词多半是地标/景点：先定位它，再搜它附近的住宿（携程的做法）
-        for m in (text_search(query, city, extensions="all", offset=20) or [])[:1]:
+        for m in (text_search(query, city, extensions="all",
+                              offset=25, page=page) or [])[:1]:
             if m.get("lat") is not None:
                 cands = poi_search("", m["lat"], m["lon"], radius=3000,
-                                   types=HOTEL_TYPES, extensions="all", offset=20) or []
+                                   types=HOTEL_TYPES, extensions="all",
+                                   offset=25, page=page) or []
     if not cands:                   # 最后才退回原来的不限制类别，保证有结果
-        cands = (text_search(query, city, extensions="all", offset=20)
+        cands = (text_search(query, city, extensions="all", offset=25, page=page)
                  or poi_search(query, center[0], center[1], radius=10000,
-                               extensions="all", offset=20))
-    return {"results": [_hotel_card(c) for c in cands[:12]], "city": city}
+                               extensions="all", offset=25, page=page))
+    return {"results": [_hotel_card(c) for c in cands], "city": city, "page": page}
 
 
 @app.post("/hotel/recommend")
@@ -498,12 +518,14 @@ def hotel_recommend(body: dict) -> dict:
     HOTEL_TYPES = "100000"          # 住宿服务
     # 只给 types、不给 keywords = "附近这类 POI"，正是推荐想要的效果；
     # extensions=all 拿到评分与多图。
+    page = max(1, int(body.get("page") or 1))
     cands = poi_search("", center[0], center[1], radius=5000, types=HOTEL_TYPES,
-                       extensions="all", offset=20) or []
+                       extensions="all", offset=25, page=page) or []
     if not cands:                   # 兜底：附近实在没有住宿大类
         cands = poi_search("酒店", center[0], center[1], radius=5000,
-                           types=HOTEL_TYPES, extensions="all", offset=20) or []
-    return {"results": [_hotel_card(c) for c in cands[:12]], "city": city}
+                           types=HOTEL_TYPES, extensions="all",
+                           offset=25, page=page) or []
+    return {"results": [_hotel_card(c) for c in cands], "city": city, "page": page}
 
 
 @app.post("/hotel/set")
