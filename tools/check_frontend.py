@@ -16,9 +16,12 @@
 6. 禁止文档被复制/截断（`<html>`/`<body>` 单例 + 结构标签开闭配平）
 7. 报告 `innerHTML` 插值中直接使用未转义外部字段的可疑位置（提示级）
 8. 报告可见正文里残留的 Markdown 加粗标记（提示级）
+9. 对比度门禁：委托 tools/check_contrast.py，按 WCAG 阈值量两页的配色令牌（错误级）
+10. 禁止承载成段文字的容器内联写死颜色（错误级，覆盖两页 + docs/design 下两份设计稿）
 """
 from __future__ import annotations
 
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -30,6 +33,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # 需要检查的页面：首页与规划器都已从单页里拆开，两个都要进 CI 门禁
 # （新增页面若漏进这份清单，就等于绕过了语法门与转义/坐标守卫）
 PAGES = ("static/index.html", "static/home.html")
+
+# 设计稿：它们用**同一套令牌**渲染（"规范即样张"），所以配色规则也得守；
+# 但没有页面级 JS，不需要跑语法门/转义门，只跑第 10 项容器配色检查。
+DOCS = ("docs/design/ui-design-system.html", "docs/design/home-redesign.html")
 
 # 全局函数名：这些名字不允许被局部变量遮蔽
 GLOBAL_FN_NAMES = {
@@ -190,6 +197,57 @@ def check_undefined_css_vars(html: str) -> list[str]:
     return errors
 
 
+# 容器级硬编码色：只认**承载成段文字**的容器标签。
+# 为什么不用「全部内联色」一刀切：设计稿里的色卡（`<div class="sw__chip" style="background:#539af2">`）
+# 是在**展示**色值，写死是对的；压在图上的蒙层（rgba 遮罩）本来就该与主题无关。
+# 这两类是 div，所以把规则收窄到块级容器标签，实测四个文件命中 0 处、零误报。
+CONTAINER_TAGS = ("section", "article", "aside", "main", "header", "footer")
+CONTAINER_STYLE_RE = re.compile(
+    r"<(section|article|aside|main|header|footer)\b[^>]*?\bstyle=\"([^\"]*)\"", re.I)
+# 只看填色/描边这类「会造出新参照面」的属性，不看 width/filter 之类
+INLINE_LITERAL_COLOR_RE = re.compile(
+    r"(?<![\w-])(?:color|background|background-color|border|border-\w+-color)"
+    r"\s*:\s*[^;\"']*?(#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\))")
+
+
+def check_container_hardcoded_colors(html: str) -> list[str]:
+    """错误级：承载成段文字的容器不得内联写死颜色。
+
+    为什么值得单独一条：2026-09-24 给规范文档加「落地状态」块时，容器上写了
+    `style="background:#eef6ee;border:1px solid #cde8cf"`，字色却走主题令牌。
+    文档默认暗色（`apply(saved || 'dark')`）→ 浅灰字压浅绿底，实测 **1.1:1**，整块隐形。
+    更隐蔽的是第二层：块内表格表头用 `--text-3`，而这个令牌的反解参照面是
+    `--bg / --surface / --fill`，**从来没有针对 `--ok-soft` 解过** → 浅色 4.21:1、
+    暗色 4.29:1，两套主题都被这层染色底拉成不达标。
+
+    也就是说：容器一旦写死底色，就等于凭空造出一个「调色板没解过的新参照面」，
+    块内所有令牌的达标前提全部失效——而这种错**不会报任何错**，只是看起来"淡了"。
+    守卫成本远低于事后逐令牌复算。
+
+    **边界（有意留白）**：只覆盖「容器级底色/描边」，这是根因那一类；
+    页面上还有两类合法的硬编码色**不在**本项范围内，别误以为它管全部内联色：
+      · 色卡（设计稿里在展示色值，`<div class="sw__chip">` 写死是对的）
+      · 压在图/视频上的蒙层与标记描边（本来就该与主题无关）
+    确有正当理由时，在 style 里写 `/* theme-independent */` 显式豁免：
+    浏览器会把该注释当无效内容忽略，不影响解析，但规则会放行。
+    """
+    errors: list[str] = []
+    for m in CONTAINER_STYLE_RE.finditer(html):
+        tag, style = m.group(1).lower(), m.group(2)
+        if "theme-independent" in style:
+            continue
+        for c in INLINE_LITERAL_COLOR_RE.finditer(style):
+            line = html[:m.start()].count("\n") + 1
+            errors.append(
+                f"第 {line} 行：<{tag}> 的内联样式里写死了颜色 `{c.group(0).strip()[:48]}` ——"
+                f"容器写死底色会造出令牌没解过的参照面，块内文字在另一套主题下必然不达标，"
+                f"请改用令牌（如 var(--ok-soft) / var(--ok-line)），"
+                f"确与主题无关则加 `/* theme-independent */` 豁免")
+    if not errors:
+        print("  ✓ 无容器级硬编码颜色")
+    return errors
+
+
 def check_unescaped(js: str) -> list[str]:
     """提示级：innerHTML 模板里直接插外部字段的位置。"""
     warns: list[str] = []
@@ -267,6 +325,53 @@ def check_markdown_leak(html: str) -> list[str]:
     return warns
 
 
+# ---------------------------------------------------------------------------
+# 第 9 项：对比度门禁
+# 委托给 tools/check_contrast.py，避免把 oklch→sRGB→WCAG 的色彩数学写两遍。
+# ---------------------------------------------------------------------------
+_CONTRAST_MOD = None
+
+
+def _load_contrast_module():
+    global _CONTRAST_MOD
+    if _CONTRAST_MOD is None:
+        spec = importlib.util.spec_from_file_location(
+            "check_contrast", Path(__file__).resolve().parent / "check_contrast.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _CONTRAST_MOD = module
+    return _CONTRAST_MOD
+
+
+def check_contrast_tokens(rel: str) -> list[str]:
+    """错误级：页面配色令牌必须满足 WCAG 对比度下限。
+
+    为什么值得单独一条：2026-09-23 修「线性图标太淡看不见」时，改的是描边粗细
+    （1.6px → 1.8px），而根因是图标色只有 2.88:1。**颜色改坏不会触发任何报错** ——
+    页面照常渲染、JS 语法门照常通过、截图肉眼也未必看得出「淡了 0.3」。
+    只有拿 WCAG 阈值去量才能发现，所以固化成检查项。
+
+    令牌的「角色 × 参照底」登记在 check_contrast.py 的 BASE_ROLES / PAGE_EXTRA，
+    阈值会按实际用法自动收紧（某令牌一旦有了文字用法，就必须满足正文 4.5）。
+    已知历史债列在 KNOWN_DEBT，逐条附修复方案；它们不阻塞，但会随修复被提示删除。
+    """
+    try:
+        module = _load_contrast_module()
+    except Exception as exc:                      # noqa: BLE001
+        print(f"  ⚠ 对比度门禁加载失败，跳过：{exc}")
+        return []
+    errors, debt, _unreg, _report, fragile = module.audit_page(rel, strict=False)
+    if errors:
+        return errors
+    tail = ""
+    if debt:
+        tail += f"，历史债 {len(debt)} 项待偿还"
+    if fragile:
+        tail += f"，待复核 {len(fragile)} 项（贴线 / color-mix 动态色）"
+    print(f"  ✓ 对比度达标{tail}")
+    return []
+
+
 def main() -> int:
     all_errors: list[str] = []
     for rel in PAGES:
@@ -280,12 +385,22 @@ def main() -> int:
         errs = (check_syntax(js) + check_shadowing(js)
                 + check_hardcoded_coords(html) + check_unescaped_attrs(js)
                 + check_css_self_ref(html) + check_undefined_css_vars(html)
-                + check_document_integrity(html))
+                + check_document_integrity(html) + check_contrast_tokens(rel)
+                + check_container_hardcoded_colors(html))
         warns = check_unescaped(js) + check_markdown_leak(html)
         if warns:
             print(f"  ⚠ 提示 {len(warns)} 处（不阻塞）：")
             for w in warns[:8]:
                 print(f"     - {w}")
+        all_errors += [f"{rel}: {e}" for e in errs]
+        print()
+    for rel in DOCS:
+        path = ROOT / rel
+        if not path.exists():
+            all_errors.append(f"{rel}：文件不存在")
+            continue
+        print(f"检查 {rel}（设计稿，仅配色）")
+        errs = check_container_hardcoded_colors(path.read_text(encoding="utf-8"))
         all_errors += [f"{rel}: {e}" for e in errs]
         print()
     if all_errors:

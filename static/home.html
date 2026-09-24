@@ -31,7 +31,7 @@
     --fg:      oklch(18% 0.012 250);
     --muted:   oklch(54% 0.012 250);      /* 说明性正文 */
     --muted-2: oklch(44% 0.014 250);      /* 需要读的次级文字 */
-    --muted-3: oklch(68% 0.016 255);      /* 标签 / 元信息 / 占位 */
+    --muted-3: oklch(53.2% 0.016 255);    /* 标签 / 元信息 / 占位（原 68% 仅 2.88:1）*/
     --border:  oklch(92% 0.005 250);
     --fill:    oklch(97% 0.004 250);      /* 浅填充（hover 底色等） */
     --fill-2:  oklch(94.5% 0.006 250);    /* 其上的 hover 态 */
@@ -40,32 +40,35 @@
     --accent-deep: oklch(52% 0.19 255);   /* hover / 按下时加深 */
     --accent-ink:  oklch(99% 0.01 255);
     --accent-soft: oklch(96% 0.02 255);
-    --accent-line: oklch(88% 0.05 255);   /* 主色浅线：hover 边框、聚焦态 */
+    --accent-line: oklch(65.9% 0.09 255); /* 主色线（原 88% 仅 1.43:1）*/
+    --accent-solid: oklch(55.6% 0.16 255);/* 实心主色底 */
+    --on-accent:  #f7fcff;                /* 压在其上的字 */
 
     /* 语义色保留原十六进制 —— 色相本身承载语义（红=危险 / 绿=成功 / 橙=注意），
        与规划器同值同理由（把它们 oklch 化会让 --warn 从红橙偏成黄橙，实测过） */
-    --ok:        #12b76a;
+    --ok:        #00803a;
     --ok-ink:    #2b6e34;
     --ok-soft:   #eef6ee;
     --ok-line:   #cde8cf;
     --warn:      #e8590c;
+    --warn-ink:  #bc4c00;   /* 警告文字：压白/压 warn-soft >=4.62 */
     --warn-soft: #fff4e6;
-    --bad:       #e03131;
+    --bad:       #ce3531;
     --bad-ink:   #b42318;
     --bad-soft:  #fef2f2;
     --bad-line:  #fee4e2;
     --stay:      #7048e8;
     --note-soft: #fff8e6;
     --note-line: #ffe58f;
-    --note-ink:  #ad6800;
+    --note-ink:  #af5a00;
 
     /* 图表语义色：让颜色回答「谁是主角」。
        原先求解器与 LLM 直接排期用的是同一个蓝的深浅两档（#1779e1 / #7fb0ea），
        而这两个恰是全篇最重要的对比项 —— 色盲或打印转灰度后几乎不可分。
        现在改成「本项目 = 饱和蓝 / 对照 = 中灰 / 次级参考 = 浅灰空心」，
        区分交给色相 + 实心与否两个通道，不再只靠明度。 */
-    --c-ctrl: #9aa3ad;   /* 对照 / 基线（实心灰） */
-    --c-ref:  #c9d0d8;   /* 次级参考（空心描边浅灰） */
+    --c-ctrl: #7c8288;   /* 对照 / 基线（实心灰） */
+    --c-ref:  #8d9297;   /* 次级参考（空心描边浅灰） */
 
     --unknown-ink: oklch(48% 0.013 250);  /* 状态「没结论」：比 ok 的绿和 na 的橙都中性 */
 
@@ -141,34 +144,41 @@
         border-radius:999px; padding:11px 20px; border:1px solid transparent;
         cursor:pointer; transition:transform .14s ease, background .15s ease, border-color .15s ease; }
   .btn:active{ transform:translateY(1px); }
-  .btn-primary{ background:var(--fg); color:var(--surface); }
-  .btn-primary:hover{ background:oklch(28% 0.012 250); }
+  .btn-primary{ background:var(--accent-solid); color:var(--on-accent); }
+  .btn-primary:hover{ background:var(--accent-deep); }
   .btn-ghost{ background:transparent; color:var(--fg); border-color:var(--border); }
   .btn-ghost:hover{ background:var(--surface); border-color:oklch(86% 0.006 250); }
-  .btn-accent{ background:var(--accent); color:var(--accent-ink); }
+  .btn-accent{ background:var(--accent-solid); color:var(--on-accent); }
   .btn-accent:hover{ background:var(--accent-deep); }
   .btn-lg{ padding:14px 26px; font-size:16px; }
 
   /* ===== Hero：accent 色带（参考页的核心视觉） ===== */
-  .hero{ background:var(--accent); color:var(--accent-ink); }
+  .hero{ background:var(--accent-solid); color:var(--on-accent); }
   .hero-in{
     display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:64px;
-    align-items:center; padding:96px 0 88px;
+    align-items:center;
+    /* 用 padding-block 而不是 padding 简写：本元素同时挂着 .wrap，
+       简写会把 .wrap 的左右留白 padding:0 var(--pad) 一起覆盖成 0，
+       使 hero 成为全站唯一没有左右内边距的区块（桌面少 32px、移动少 20px，
+       移动端标题直接贴到屏幕边缘）。详见 docs/design/home-redesign.html */
+    padding-block:96px 88px;
   }
-  .hero h1{ color:var(--accent-ink); }
+  .hero h1{ color:var(--on-accent); }
   .hero-sub{ margin-top:22px; font-size:16px; line-height:1.7; max-width:44ch;
-             color:color-mix(in oklab, var(--accent-ink) 88%, var(--accent)); }
+             color:var(--on-accent); }
   .hero-cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:34px; }
-  .hero-cta .btn-primary{ background:oklch(16% 0.012 250); color:var(--surface); }
-  .hero-cta .btn-primary:hover{ background:oklch(24% 0.012 250); }
+  .hero-cta .btn-primary{ background:var(--surface); color:var(--accent-deep); }
+  .hero-cta .btn-primary:hover{ background:var(--fill); }
+  /* 次按钮：底色不能是半透明白 —— 它会把文字底抬亮，把 4.5 拉成 3.9。
+     改成深一档的不透明蓝 + 亮字 + 70% 白描边（实测 3.16:1）。 */
   .hero-cta .btn-glass{
-    background:color-mix(in oklab, var(--accent-ink) 18%, transparent);
-    color:var(--accent-ink);
-    border-color:color-mix(in oklab, var(--accent-ink) 34%, transparent);
+    background:var(--accent-deep);
+    color:var(--on-accent);
+    border-color:color-mix(in oklab, var(--on-accent) 70%, transparent);
   }
-  .hero-cta .btn-glass:hover{ background:color-mix(in oklab, var(--accent-ink) 26%, transparent); }
+  .hero-cta .btn-glass:hover{ background:oklch(46% 0.18 255); }
   .hero-note{ margin-top:20px; font-size:12px;
-              color:color-mix(in oklab, var(--accent-ink) 76%, var(--accent)); }
+              color:var(--on-accent); }
 
   /* 右侧白卡 + 手绘线稿（参考页的做法：卡片内是黑白线描，配少量强调笔触） */
   .hero-card{
@@ -189,7 +199,7 @@
   .sec-head{ max-width:62ch; }
   .sec-head p{ margin-top:14px; color:var(--muted); font-size:16px; }
   .sec-kicker{ font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-               color:var(--accent); }
+               color:var(--accent-deep); }
 
   /* Features */
   .grid-3{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; margin-top:44px; }
@@ -210,14 +220,14 @@
   .metric .v small{ font-size:16px; font-weight:700; margin-left:2px; }
   .metric .k{ margin-top:6px; font-size:14px; font-weight:600; }
   .metric .n{ margin-top:4px; font-size:12px; color:var(--muted); line-height:1.5; }
-  .metric.hl .v{ color:var(--accent); }
+  .metric.hl .v{ color:var(--accent-deep); }
 
   .table-note{ margin-top:14px; font-size:12px; color:var(--muted); }
 
   /* 工作流 */
   .flow{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:20px; margin-top:44px; }
   .step .idx{ font-family:var(--font-display); font-size:12px; font-weight:800;
-              color:var(--accent); letter-spacing:.06em; }
+              color:var(--accent-deep); letter-spacing:.06em; }
   .step h3{ margin-top:8px; font-size:16px; }
   .step p{ margin-top:7px; font-size:14px; color:var(--muted); line-height:1.6; }
   .step::before{ content:""; display:block; height:2px; background:var(--border);
@@ -234,12 +244,12 @@
   .limits span{ color:var(--muted); }
 
   /* Footer CTA 色带 */
-  .cta{ background:var(--accent); color:var(--accent-ink); padding:var(--sp-sec-lg) 0; text-align:center; }
-  .cta h2{ color:var(--accent-ink); }
+  .cta{ background:var(--accent-solid); color:var(--on-accent); padding:var(--sp-sec-lg) 0; text-align:center; }
+  .cta h2{ color:var(--on-accent); }
   .cta p{ margin:16px auto 0; max-width:52ch; font-size:16px;
-          color:color-mix(in oklab, var(--accent-ink) 88%, var(--accent)); }
-  .cta .btn{ margin-top:30px; background:oklch(16% 0.012 250); color:var(--surface); }
-  .cta .btn:hover{ background:oklch(24% 0.012 250); }
+          color:var(--on-accent); }
+  .cta .btn{ margin-top:30px; background:var(--surface); color:var(--accent-deep); }
+  .cta .btn:hover{ background:var(--fill); }
 
   footer{ padding:44px 0 56px; }
   .foot-in{ display:flex; flex-wrap:wrap; gap:14px 28px; align-items:center;
@@ -249,7 +259,7 @@
 
   /* ===== 响应式：1440 / 768 / 375 ===== */
   @media (max-width:1024px){
-    .hero-in{ grid-template-columns:1fr; gap:44px; padding:72px 0 64px; }
+    .hero-in{ grid-template-columns:1fr; gap:44px; padding-block:72px 64px; }
     .hero-card{ max-width:360px; }
     .grid-3{ grid-template-columns:repeat(2,minmax(0,1fr)); }
     .metrics{ grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -258,7 +268,7 @@
   @media (max-width:640px){
     :root{ --pad:20px; --sp-sec:56px; --sp-sec-lg:72px; --sp-sec-sm:40px; }
     .nav-links{ display:none; }
-    .hero-in{ padding:52px 0 48px; }
+    .hero-in{ padding-block:52px 48px; }
     .grid-3,.metrics,.flow{ grid-template-columns:1fr; }
     .hero-cta .btn{ flex:1 1 100%; }
       }
@@ -279,7 +289,7 @@
   .apirow .desc { font-size:14px; color:var(--muted); line-height:1.55; }
   .m-badge { justify-self:start; font-size:12px; font-weight:800; letter-spacing:.05em;
              padding:2px 8px; border-radius:5px; text-transform:uppercase; }
-  .m-get    { background:var(--accent-soft); color:var(--accent); }
+  .m-get    { background:var(--accent-soft); color:var(--accent-deep); }
   .m-post   { background:var(--ok-soft); color:var(--ok-ink); }
   .m-delete { background:var(--bad-soft); color:var(--bad-ink); }
   .api-loading { padding:18px; font-size:14px; color:var(--muted-3); }
@@ -293,7 +303,7 @@
              font-variant-numeric:tabular-nums; }
   .stat .n { font-size:12px; color:var(--muted-3); margin-top:5px; line-height:1.5; }
   .stat.is-ok .v { color:var(--ok-ink); }
-  .stat.is-na .v { color:var(--warn); }
+  .stat.is-na .v { color:var(--warn-ink); }
   .stat.is-unknown .v { color:var(--unknown-ink); }   /* 探测没结论：不是好也不是坏 */
   @media (max-width:900px){
     .statgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -433,13 +443,33 @@
                           font-size:14px; font-weight:600; color:var(--muted-2);
                           transition:color var(--t-fast) var(--e); }
   .charts-fold > summary::-webkit-details-marker{ display:none; }
-  .charts-fold > summary:hover{ color:var(--accent); }
+  .charts-fold > summary:hover{ color:var(--accent-deep); }
   .charts-fold > summary::after{ content:' ▾'; color:var(--muted-3); }
   .charts-fold[open] > summary::after{ content:' ▴'; }
   .charts-fold .charts{ margin-top:24px; }
   .charts-fold[open] .chart{ animation:foldIn var(--t-slow) var(--e-out) both; }
   @keyframes foldIn{ from{ opacity:0; transform:translateY(10px); }
                      to{ opacity:1; transform:none; } }
+  /* ===== 暗色主题（跟随系统）：整套令牌逐档反解，全部 >= WCAG AA =====
+     项目此前 0 处暗色支持。这里不是「把浅色倒过来」，每一档都按
+     「压最亮的面仍达标」反解，见 docs/design/home-redesign.html */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0f12;      --surface: #14171b;
+      --fg: #dee0e2;      --muted: #9aa0a6;   --muted-2: #adb2b6;  --muted-3: #8d939b;
+      --border: #292e34;  --fill: #1e2124;    --fill-2: #262b2f;
+
+      --accent: #539af2;  --accent-deep: #539af2;  --accent-solid: #2c7bd7;
+      --accent-ink: #060c13;  --on-accent: #060c13;
+      --accent-soft: #102034; --accent-line: #3c679e;
+
+      --ok: #4ed589;      --ok-ink: #009f57;  --ok-soft: #0e2517;   --ok-line: #1c4430;
+      --warn: #f78955;    --warn-ink: #da672c; --warn-soft: #2f190f;
+      --bad: #fb6157;     --bad-ink: #e85854; --bad-soft: #301715;  --bad-line: #5b2724;
+      --stay: #8a82e9;    --note-ink: #cc7200; --note-soft: #2d1a0a; --note-line: #5a3f14;
+      --unknown-ink: #939aa1;  --c-ctrl: #70767c;  --c-ref: #62676c;
+    }
+  }
 </style>
 </head>
 <body>
@@ -615,7 +645,7 @@
     <!-- 图例顺序必须与每组柱子的顺序一致（朴素 → 求解器 → LLM），
          否则读者按位置对应会读反。柱子里深蓝=求解器、浅蓝=LLM。 -->
     <g aria-hidden="true">
-      <rect x="24" y="62" width="11" height="11" rx="2" fill="none" style="stroke:var(--c-ref)" stroke-width="1.5"/>
+      <rect x="24" y="62" width="11" height="11" rx="2" fill="none" style="stroke:var(--c-ref)" stroke-width="2"/>
       <rect x="132" y="62" width="11" height="11" rx="2" style="fill:var(--accent)"/>
       <rect x="240" y="62" width="11" height="11" rx="2" style="fill:var(--c-ctrl)"/>
     </g>
@@ -627,7 +657,7 @@
     <g>
       <text x="24" y="106" font-size="12" style="fill:var(--fg)">每计划时间冲突数</text>
       <line x1="24" y1="248" x2="224" y2="248" stroke-width="1" aria-hidden="true" style="stroke:var(--border)"/>
-      <rect x="48" y="136" width="40" height="112" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="1.5"/>
+      <rect x="48" y="136" width="40" height="112" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="2"/>
       <text x="68" y="126" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--bad)">0.38</text>
       <rect x="104" y="246" width="40" height="2" rx="1" style="fill:var(--accent);stroke:var(--accent)" stroke-width="1"/>
       <text x="124" y="240" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--ok)">0</text>
@@ -637,7 +667,7 @@
     <g>
       <text x="240" y="106" font-size="12" style="fill:var(--fg)">无冲突率</text>
       <line x1="240" y1="248" x2="440" y2="248" stroke-width="1" aria-hidden="true" style="stroke:var(--border)"/>
-      <rect x="264" y="178.6" width="40" height="69.4" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="1.5"/>
+      <rect x="264" y="178.6" width="40" height="69.4" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="2"/>
       <text x="284" y="168.6" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">62%</text>
       <rect x="320" y="136" width="40" height="112" rx="3" style="fill:var(--accent)"/>
       <text x="340" y="126" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">100%</text>
@@ -647,7 +677,7 @@
     <g>
       <text x="456" y="106" font-size="12" style="fill:var(--fg)">预算违规次数</text>
       <line x1="456" y1="248" x2="656" y2="248" stroke-width="1" aria-hidden="true" style="stroke:var(--border)"/>
-      <rect x="480" y="136" width="40" height="112" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="1.5"/>
+      <rect x="480" y="136" width="40" height="112" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="2"/>
       <text x="500" y="126" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--bad)">12</text>
       <rect x="536" y="246" width="40" height="2" rx="1" style="fill:var(--accent);stroke:var(--accent)" stroke-width="1"/>
       <text x="556" y="240" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--ok)">0</text>
@@ -659,7 +689,7 @@
     <g>
       <text x="24" y="316" font-size="12" style="fill:var(--fg)">通勤时间占比</text>
       <line x1="24" y1="456" x2="332" y2="456" stroke-width="1" aria-hidden="true" style="stroke:var(--border)"/>
-      <rect x="64" y="344" width="60" height="112" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="1.5"/>
+      <rect x="64" y="344" width="60" height="112" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="2"/>
       <text x="94" y="334" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">23.5%</text>
       <rect x="148" y="393.6" width="60" height="62.4" rx="3" style="fill:var(--accent)"/>
       <text x="178" y="383.6" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">13.1%</text>
@@ -669,7 +699,7 @@
     <g>
       <text x="348" y="316" font-size="12" style="fill:var(--fg)">行程质量分</text>
       <line x1="348" y1="456" x2="656" y2="456" stroke-width="1" aria-hidden="true" style="stroke:var(--border)"/>
-      <rect x="388" y="351.8" width="60" height="104.2" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="1.5"/>
+      <rect x="388" y="351.8" width="60" height="104.2" rx="3" fill="none" style="stroke:var(--c-ref)" stroke-width="2"/>
       <text x="418" y="341.8" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">0.857</text>
       <rect x="472" y="344.7" width="60" height="111.3" rx="3" style="fill:var(--accent)"/>
       <text x="502" y="334.7" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">0.915</text>
@@ -755,7 +785,7 @@
       <rect x="182" y="386" width="4" height="13" rx="2" style="fill:var(--c-ctrl)"/>
       <rect x="182" y="403" width="378" height="13" rx="3" style="fill:var(--warn)"/>
       <text x="194" y="396.5" font-size="12" style="fill:var(--muted)">~1 ms</text>
-      <text x="568" y="413.5" font-size="12" font-weight="600" style="fill:var(--warn)">501 ms</text>
+      <text x="568" y="413.5" font-size="12" font-weight="600" style="fill:var(--warn-ink)">501 ms</text>
     </g>
   </svg>
   <figcaption>gap ≤3% 场景占比 46% → 100%；代价是耗时 1 ms → 501 ms。</figcaption>
@@ -779,7 +809,7 @@
     <!-- 中：差值标签 -->
     <g>
       <rect x="302" y="152" width="76" height="22" rx="11" stroke-width="1" style="fill:var(--accent-soft);stroke:var(--accent-line)"/>
-      <text x="340" y="167" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--accent)">−1 个景点</text>
+      <text x="340" y="167" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--accent-deep)">−1 个景点</text>
     </g>
 
     <!-- 右：要求 70% 稳妥 -->
@@ -846,9 +876,9 @@
     </g>
 
     <!-- 跨度标注 -->
-    <text x="434.4" y="338" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn)">跨度 53.5 个百分点（8.9% ~ 62.4%）</text>
+    <text x="434.4" y="338" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn-ink)">跨度 53.5 个百分点（8.9% ~ 62.4%）</text>
     <g>
-      <line x1="257.5" y1="352" x2="611.2" y2="352" stroke-width="1.5" style="stroke:var(--warn)"/>
+      <line x1="257.5" y1="352" x2="611.2" y2="352" stroke-width="2" style="stroke:var(--warn)"/>
       <path d="M 257.5 352 l 9 -5 v 10 z" style="fill:var(--warn)"/>
       <path d="M 611.2 352 l -9 -5 v 10 z" style="fill:var(--warn)"/>
     </g>
@@ -874,21 +904,21 @@
       <rect x="48" y="327.4" width="64" height="28.6" rx="3" style="fill:var(--accent)"/>
       <rect x="144" y="171.8" width="64" height="184.2" rx="3" style="fill:var(--warn)"/>
       <text x="80" y="319.4" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">1.88s</text>
-      <text x="176" y="163.8" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn)">12.12s</text>
+      <text x="176" y="163.8" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn-ink)">12.12s</text>
     </g>
     <!-- 意图解析 -->
     <g>
       <rect x="260" y="344.1" width="64" height="11.9" rx="3" style="fill:var(--accent)"/>
       <rect x="356" y="317.1" width="64" height="38.9" rx="3" style="fill:var(--warn)"/>
       <text x="292" y="336.1" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">0.78s</text>
-      <text x="388" y="309.1" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn)">2.56s</text>
+      <text x="388" y="309.1" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn-ink)">2.56s</text>
     </g>
     <!-- 评价生成 -->
     <g>
       <rect x="472" y="325.9" width="64" height="30.1" rx="3" style="fill:var(--accent)"/>
       <rect x="568" y="268.8" width="64" height="87.2" rx="3" style="fill:var(--warn)"/>
       <text x="504" y="317.9" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--fg)">1.98s</text>
-      <text x="600" y="260.8" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn)">5.74s</text>
+      <text x="600" y="260.8" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn-ink)">5.74s</text>
     </g>
 
     <!-- 分组标签 -->
@@ -900,9 +930,9 @@
     <text x="340" y="400" font-size="11" text-anchor="middle" style="fill:var(--muted-3)">短输出 · 用户等待</text>
     <text x="552" y="400" font-size="11" text-anchor="middle" style="fill:var(--muted-3)">长输出 · 后台预取</text>
 
-    <text x="128" y="422" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn)">慢 6.4 倍</text>
-    <text x="340" y="422" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn)">慢 3.3 倍</text>
-    <text x="552" y="422" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn)">慢 2.9 倍</text>
+    <text x="128" y="422" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn-ink)">慢 6.4 倍</text>
+    <text x="340" y="422" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn-ink)">慢 3.3 倍</text>
+    <text x="552" y="422" font-size="12" font-weight="600" text-anchor="middle" style="fill:var(--warn-ink)">慢 2.9 倍</text>
 
     <text x="340" y="454" font-size="12" text-anchor="middle" style="fill:var(--muted)">工程决策：攻略抽取、意图解析走主模型；评价生成走免费模型（后台预取）</text>
   </svg>

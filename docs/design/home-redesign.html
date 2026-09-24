@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首页改版设计稿 · 路书 AI 行程规划</title>
+<style>
+/* ==========================================================================
+   本文件自用的设计令牌。
+   刻意与 static/home.html 的真实令牌同名同值 —— 这样文档里的「修复前」
+   不是手画的示意图，而是用真实值渲染出来的，数字与页面一致。
+   ========================================================================== */
+:root{
+  --bg:#fbfcfd; --surface:#ffffff; --fg:#0e1217;
+  --text-2:#4d535a; --text-3:#6f757e;
+  --border:#e2e5e8; --border-2:#cfd4d9;
+  --fill:#f3f5f8; --fill-2:#eaedf1;
+  --accent:oklch(58% 0.18 255);
+  --accent-deep:oklch(52% 0.19 255);
+  --accent-soft:oklch(96% 0.02 255);
+  --accent-line:oklch(88% 0.05 255);
+  --accent-ink:oklch(99% 0.01 255);
+  --ok:#00a865; --ok-ink:#2b6e34; --ok-soft:#eef6ee;
+  --bad:#e03131; --bad-ink:#b42318; --bad-soft:#fef2f2;
+  --warn:#e8590c; --warn-ink:#bc4c00; --warn-soft:#fff4e6;
+  /* 修复后 */
+  --fix-hero:oklch(52% 0.19 255);
+  --fix-ctrl:#83878b; --fix-ref:#8f9397; --fix-label:#696f78;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 14px 36px rgba(16,24,40,.07);
+  --r:12px; --r-lg:18px;
+  --fs-1:12px; --fs-2:13px; --fs-3:14px; --fs-4:16px; --fs-5:19px;
+  --fs-6:24px; --fs-7:32px; --fs-8:44px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+:root[data-theme="dark"]{
+  --bg:#0c0f12; --surface:#14171b; --fg:#dee0e2;
+  --text-2:#adb2b6; --text-3:#7e848a;
+  --border:#292e34; --border-2:#3a4046;
+  --fill:#1e2124; --fill-2:#262b2f;
+  --accent:#539af2; --accent-deep:#2c7bd7;
+  --accent-soft:#102034; --accent-line:#1d395b; --accent-ink:#f2f8ff;
+  --ok:#4ed589; --ok-ink:#009f57; --ok-soft:#0e2517;
+  --bad:#f3625d; --bad-ink:#e85854; --bad-soft:#301715;
+  --warn:#f78955; --warn-ink:#da672c; --warn-soft:#2f190f;
+  --fix-hero:oklch(26% 0.09 255);
+  --fix-ctrl:#a8acb0; --fix-ref:#9a9ea2; --fix-label:#a4a9ae;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 14px 36px rgba(0,0,0,.36);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font); font-size:15px; line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 32px}
+code{font-family:var(--mono);font-size:.88em;
+  background:var(--fill);padding:2px 6px;border-radius:5px;
+  border:1px solid var(--border);white-space:nowrap}
+h2,h3,h4{line-height:1.3;letter-spacing:-.015em;margin:0}
+
+/* ---------- 顶栏 ---------- */
+.top{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 86%,transparent);
+  backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+.top__in{max-width:1120px;margin:0 auto;padding:12px 32px;display:flex;align-items:center;gap:14px}
+.top__brand{font-weight:800;font-size:15px;display:flex;align-items:center;gap:9px}
+.top__brand i{width:20px;height:20px;border-radius:6px;background:var(--accent);display:block}
+.top__links{display:flex;gap:2px;margin-left:10px;flex-wrap:wrap}
+.top__links a{font-size:13px;color:var(--text-2);text-decoration:none;padding:6px 11px;border-radius:8px}
+.top__links a:hover{background:var(--fill);color:var(--fg)}
+.top__sp{flex:1}
+.tgl{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;
+  color:var(--text-2);background:var(--fill);border:1px solid var(--border);
+  padding:7px 13px;border-radius:99px;cursor:pointer;font-family:inherit}
+.tgl:hover{background:var(--fill-2);color:var(--fg)}
+
+/* ---------- 封面 ---------- */
+.cover{padding:76px 0 60px}
+.cover__tag{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
+  background:var(--accent-soft);border:.5px solid var(--accent-line);
+  padding:6px 13px;border-radius:99px}
+.cover h1{font-size:var(--fs-8);font-weight:800;margin:22px 0 0;letter-spacing:-.03em}
+.cover__sub{font-size:var(--fs-5);color:var(--text-2);margin:20px 0 0;max-width:60ch;line-height:1.6}
+.cover__verdict{
+  margin-top:34px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;
+}
+.vc{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:20px 22px;box-shadow:var(--shadow)}
+.vc b{display:block;font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.vc span{display:block;font-size:13px;color:var(--text-2);margin-top:6px;line-height:1.5}
+.vc--bad b{color:var(--bad)} .vc--warn b{color:var(--warn-ink)} .vc--ok b{color:var(--ok-ink)}
+
+/* ---------- 章节 ---------- */
+.sec{padding:56px 0;border-top:1px solid var(--border);
+  /* 顶栏是 sticky；锚点跳转时目标不能被它盖住。
+     （static/home.html 早就加了同样的处理，见其 section{scroll-margin-top:80px}） */
+  scroll-margin-top:72px}
+.sec__no{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent);
+  letter-spacing:.1em}
+.sec h2{font-size:var(--fs-7);font-weight:800;margin:10px 0 0}
+.sec__lead{font-size:var(--fs-4);color:var(--text-2);margin:16px 0 0;max-width:66ch}
+.sec__body{margin-top:30px}
+.sec__body > * + *{margin-top:20px}
+p{margin:0}
+.sec h3{font-size:var(--fs-5);font-weight:700;margin-top:36px}
+.sec h4{font-size:var(--fs-4);font-weight:700;margin-top:26px}
+
+/* ---------- 结论框 ---------- */
+.call{border-radius:var(--r);padding:20px 24px;border:1px solid;font-size:var(--fs-3)}
+.call--bad{background:var(--bad-soft);border-color:color-mix(in oklab,var(--bad) 28%,transparent)}
+.call--ok{background:var(--ok-soft);border-color:color-mix(in oklab,var(--ok) 28%,transparent)}
+.call--warn{background:var(--warn-soft);border-color:color-mix(in oklab,var(--warn) 30%,transparent)}
+.call b{font-weight:700}
+.call__t{font-weight:700;font-size:var(--fs-4);margin-bottom:8px;display:flex;align-items:center;gap:9px}
+.call--bad .call__t{color:var(--bad-ink)}
+.call--ok .call__t{color:var(--ok-ink)}
+.call--warn .call__t{color:var(--warn-ink)}
+
+/* ---------- 表格 ---------- */
+.tbl-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r);
+  background:var(--surface);box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:var(--fs-3)}
+th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--border);
+  vertical-align:top;white-space:nowrap}
+th{font-size:var(--fs-1);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text-3);background:var(--fill)}
+tbody tr:last-child td{border-bottom:none}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.fail{color:var(--bad-ink);font-weight:700}
+.pass{color:var(--ok-ink);font-weight:700}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;
+  border:1px solid;white-space:nowrap}
+.tag--bad{color:var(--bad-ink);border-color:color-mix(in oklab,var(--bad) 34%,transparent);
+  background:var(--bad-soft)}
+.tag--ok{color:var(--ok-ink);border-color:color-mix(in oklab,var(--ok) 34%,transparent);
+  background:var(--ok-soft)}
+.tag--fix{color:var(--accent-deep);border-color:var(--accent-line);background:var(--accent-soft)}
+.tag--warn{color:var(--warn-ink);border-color:color-mix(in oklab,var(--warn) 34%,transparent);
+  background:var(--warn-soft)}
+
+/* ---------- hero 复刻：迷你浏览器 ---------- */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.duo--stack{grid-template-columns:1fr}
+.mini{border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+  background:var(--surface);box-shadow:var(--shadow)}
+.mini__bar{display:flex;align-items:center;gap:7px;padding:9px 14px;
+  background:var(--fill);border-bottom:1px solid var(--border)}
+.mini__dot{width:9px;height:9px;border-radius:50%;background:var(--border-2)}
+.mini__url{margin-left:8px;font-family:var(--mono);font-size:11px;color:var(--text-3);
+  background:var(--surface);padding:3px 12px;border-radius:99px;border:1px solid var(--border)}
+.mini__cap{padding:11px 16px;font-size:var(--fs-2);border-top:1px solid var(--border);
+  background:var(--fill);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.mini__cap b{font-weight:700}
+
+/* hero 复刻本体 */
+.mh{background:var(--mh-bg);padding:0}
+.mh__nav{display:flex;align-items:center;gap:14px;padding:11px 24px;background:var(--surface);
+  border-bottom:1px solid var(--border)}
+.mh__logo{width:18px;height:18px;border-radius:5px;background:var(--accent);flex:none}
+.mh__name{font-size:12px;font-weight:800;color:var(--fg)}
+.mh__links{display:flex;gap:12px;font-size:11px;color:var(--text-2)}
+.mh__sp{flex:1}
+.mh__cta{font-size:11px;font-weight:600;color:var(--surface);background:var(--fg);
+  padding:6px 13px;border-radius:99px}
+.mh__cta--fixed{background:var(--accent-deep);color:var(--accent-ink)}
+.mh__in{padding:38px 24px 34px;display:grid;grid-template-columns:1fr 152px;gap:26px;align-items:center}
+.mh__h1{font-size:27px;font-weight:800;line-height:1.16;letter-spacing:-.03em;
+  color:var(--accent-ink);margin:0}
+.mh__sub{font-size:11.5px;line-height:1.62;margin:11px 0 0;color:var(--mh-sub)}
+.mh__btns{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.mh__b{font-size:11px;font-weight:600;padding:8px 15px;border-radius:99px;border:1px solid transparent}
+.mh__b--primary{background:oklch(16% 0.012 250);color:#fff}
+.mh__b--fixed{background:#fff;color:var(--accent-deep);border-color:#fff}
+.mh__b--ghost{background:color-mix(in oklab,var(--accent-ink) 18%,transparent);
+  color:var(--accent-ink);border-color:color-mix(in oklab,var(--accent-ink) 34%,transparent)}
+.mh__b--ghostfix{background:transparent;color:var(--accent-ink);
+  border-color:color-mix(in oklab,var(--accent-ink) 62%,transparent)}
+.mh__note{font-size:10px;margin:11px 0 0;color:var(--mh-note)}
+.mh__card{background:var(--surface);border-radius:14px;padding:16px;
+  box-shadow:0 16px 40px rgba(0,10,30,.14);height:150px;
+  display:grid;place-items:center}
+.mh__card svg{width:100%;height:100%}
+
+/* 左边界标尺 */
+.ruler{position:relative}
+.ruler::before{content:attr(data-pad);position:absolute;left:0;top:0;bottom:0;
+  width:var(--pad-w,32px);border-right:1px dashed color-mix(in oklab,var(--bad) 62%,transparent);
+  font-size:8.5px;font-family:var(--mono);color:var(--bad-ink);
+  padding-top:3px;writing-mode:vertical-rl;overflow:hidden}
+.ruler--ok::before{border-right-color:color-mix(in oklab,var(--ok) 62%,transparent);color:var(--ok-ink)}
+
+/* ---------- 令牌色卡 ---------- */
+.sws{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:11px}
+.sw{border:1px solid var(--border);border-radius:11px;overflow:hidden;background:var(--surface)}
+.sw__chip{height:46px}
+.sw__body{padding:10px 13px}
+.sw__nm{font-family:var(--mono);font-size:11.5px;font-weight:700}
+.sw__v{font-family:var(--mono);font-size:11px;color:var(--text-2);margin-top:3px}
+.sw__r{margin-top:7px;font-size:11px}
+
+/* ---------- 对比条 ---------- */
+.bar{display:grid;grid-template-columns:118px 1fr 86px;gap:12px;align-items:center;
+  padding:9px 0;font-size:var(--fs-2);border-bottom:1px solid var(--border)}
+.bar:last-child{border-bottom:none}
+.bar__t{font-family:var(--mono);font-size:11.5px;color:var(--text-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar__track{height:22px;background:var(--fill);border-radius:5px;overflow:hidden;position:relative}
+.bar__fill{height:100%;border-radius:5px;display:grid;place-items:center;
+  font-size:10px;font-weight:700;color:#fff;font-family:var(--mono)}
+.bar__r{font-family:var(--mono);font-size:11.5px;font-weight:700;text-align:right}
+.bar__lim{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text-3);opacity:.7}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:20px 22px;box-shadow:var(--shadow);min-width:0}
+.card pre{max-width:100%;white-space:pre;overflow-x:auto}
+.grid2 > *{min-width:0}
+.card h4{margin-top:0}
+ul{margin:0;padding-left:20px}
+li{margin:5px 0}
+.mut{color:var(--text-2)}
+.small{font-size:var(--fs-2)}
+.tiny{font-size:var(--fs-1);color:var(--text-3)}
+footer{padding:44px 0 60px;border-top:1px solid var(--border);color:var(--text-3);
+  font-size:var(--fs-2)}
+@media(max-width:900px){
+  .wrap{padding:0 20px}
+  .top__in{padding:12px 20px}
+  .duo,.grid2,.cover__verdict{grid-template-columns:1fr}
+  .cover h1{font-size:var(--fs-7)}
+  .cover{padding:52px 0 40px}
+  .sec{padding:44px 0}
+  .top__links{display:none}
+  .mh__in{grid-template-columns:1fr;gap:18px}
+  .bar{grid-template-columns:96px 1fr 72px}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top__in">
+    <span class="top__brand"><i></i>首页改版设计稿</span>
+    <nav class="top__links">
+      <a href="#bug">内边距 bug</a>
+      <a href="#hero">首屏文字</a>
+      <a href="#cta">主按钮</a>
+      <a href="#chart">图表</a>
+      <a href="#spec">改版稿</a>
+      <a href="#plan">落地批次</a>
+    </nav>
+    <span class="top__sp"></span>
+    <button class="tgl" id="tgl" type="button">◐ 切换主题</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ══════════════ 封面 ══════════════ -->
+<section class="cover">
+  <span class="cover__tag">static/home.html · 1204 行 · 实测于 2026-09-24</span>
+  <h1>首页不是「没设计过」，<br>是没人拿尺子量过。</h1>
+  <p class="cover__sub">
+    上一轮的设计规范只覆盖了规划器（<code>static/index.html</code>）。首页作为独立页面
+    一直被跳过 —— 而它恰恰是访问者看到的第一屏。这次用真实浏览器把首页量了一遍，
+    拿到的不是观感评价，是 7 个可复现的数字。
+  </p>
+  <div class="cover__verdict">
+    <div class="vc vc--ok"><b>0 → 32px</b><span>hero 左右内边距已修复<br>（移动端 0 → 20px）</span></div>
+    <div class="vc vc--bad"><b>3.14:1</b><span>首屏补充说明文字对比度<br>下限 4.5:1</span></div>
+    <div class="vc vc--bad"><b>1.56:1</b><span>图表第一个数据系列<br>几乎看不见</span></div>
+  </div>
+  <div class="call call--ok" style="margin-top:22px">
+    <div class="call__t">✓ 其中 1 个不是设计取舍，是 bug —— 本轮已修复并复测</div>
+    <code>.hero-in</code> 的 <code>padding</code> 简写覆盖了 <code>.wrap</code> 的左右内边距，
+    导致 hero 成为全站唯一没有左右留白的区块。桌面端少 32px，移动端少 20px ——
+    移动端上标题直接贴到屏幕边缘，字母被裁。<strong>已改为 padding-block 并复测：桌面 120→152px、移动 0→20px，与同页其他区块对齐。</strong>
+  </div>
+</section>
+
+<!-- ══════════════ §1 bug ══════════════ -->
+<section class="sec" id="bug">
+  <div class="sec__no">01 / LAYOUT</div>
+  <h2>hero 左右内边距被吃掉了</h2>
+  <p class="sec__lead">
+    一个元素同时挂了两个类，而两个类都设了 <code>padding</code>。后者用简写把前者的
+    左右值一起覆盖成 0 —— 这是 CSS 里最典型的"看起来没问题、量起来全是问题"。
+  </p>
+
+  <div class="sec__body">
+    <div class="card">
+      <h4>根因（2 行）</h4>
+      <pre style="margin:12px 0 0;font-family:var(--mono);font-size:12.5px;line-height:1.85;
+        background:var(--fill);border:1px solid var(--border);border-radius:9px;
+        padding:15px 18px;overflow-x:auto"><span class="mut">&lt;!-- static/home.html:465 --&gt;</span>
+&lt;section class="hero" style="padding:0"&gt;
+  &lt;div class="<b>wrap hero-in</b>"&gt;          <span class="mut">← 一个元素，两个类</span>
+
+<span class="mut">/* CSS */</span>
+.wrap    { padding: <b>0 var(--pad)</b>; }     <span class="mut">← 想提供的左右留白</span>
+.hero-in { padding: <b>96px 0 88px</b>; }      <span class="mut">← 简写把左右也写成 0</span>
+<span class="mut">/* .hero-in 在后，同优先级 → 胜出。左右内边距归零。*/</span>
+
+<span class="mut">/* 修法：只改纵向，让 .wrap 的左右留白生效 */</span>
+.hero-in { padding-<b>block</b>: 96px 88px; }</pre>
+    </div>
+
+    <h3>实测（<span style="color:var(--warn-ink)">修复前</span>）：hero 比全站其他区块多探出去一截</h3>
+    <p class="mut small">
+      用 Playwright 打开真实页面读 <code>getBoundingClientRect().left</code>，
+      与同页其他区块的标题左边界对比。
+    </p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>视口</th><th>hero 内容 left</th><th>其他区块 left</th><th>差额</th><th>应等于</th><th>判定</th></tr></thead>
+        <tbody>
+          <tr><td>桌面 1440</td><td class="num fail">120.0px</td><td class="num">152.0px</td><td class="num fail">−32px</td><td class="num">32px</td><td><span class="tag tag--bad">bug</span></td></tr>
+          <tr><td>移动 390</td><td class="num fail">0.0px</td><td class="num">20.0px</td><td class="num fail">−20px</td><td class="num">20px</td><td><span class="tag tag--bad">bug</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tiny">
+      注：桌面的 120px 是 <code>(1440−1200)/2</code> 的居中留白；hero 因为丢了 <code>--pad</code>，
+      内容比别的区块整体外移 32px，视觉上「标题顶着区块边界」。
+    </p>
+    <div class="call call--ok">
+      <div class="call__t">✓ 已修复并复测</div>
+      改 <code>.hero-in</code> 的 <code>padding</code> 为 <code>padding-block</code>（三个断点各一处）。
+      复测结果：<strong>桌面 left 120 → 152px</strong>、<strong>移动 390 下 0 → 20px</strong>，
+      与同页其他区块完全对齐；<code>tools/check_frontend.py</code> 全绿。
+    </div>
+
+    <h3>前后对比（真实值渲染，非示意图）</h3>
+    <div class="duo">
+      <div class="mini">
+        <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">/  修复前 · 移动 390</span></div>
+        <div class="mh" style="--mh-bg:var(--accent);--mh-sub:color-mix(in oklab,var(--accent-ink) 88%,var(--accent));--mh-note:color-mix(in oklab,var(--accent-ink) 76%,var(--accent))">
+          <div class="mh__nav"><span class="mh__logo"></span><span class="mh__name">路书</span><span class="mh__sp"></span><span class="mh__cta">开始规划</span></div>
+          <div class="ruler" data-pad="0px" style="--pad-w:0px">
+            <div class="mh__in" style="grid-template-columns:1fr;padding:22px 0 20px">
+              <div>
+                <div class="mh__h1" style="font-size:20px">把一段攻略，<br>变成走得完的行程。</div>
+                <p class="mh__sub">LLM 只负责理解攻略文本，预算、时间窗、开门时间、每晚回酒店这些硬约束，全部交给确定性求解器。</p>
+                <div class="mh__btns" style="margin-top:11px">
+                  <span class="mh__b mh__b--primary" style="flex:1;text-align:center">开始规划我的行程 →</span>
+                </div>
+                <p class="mh__note">无需登录 · 25 城 254 个预置景点</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mini__cap"><span class="tag tag--bad">before</span><span>标题贴边、被裁；副标题 <b>3.64:1</b></span></div>
+      </div>
+
+      <div class="mini">
+        <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">/  修复后 · 移动 390</span></div>
+        <div class="mh" style="--mh-bg:var(--fix-hero);--mh-sub:var(--accent-ink);--mh-note:color-mix(in oklab,var(--accent-ink) 88%,var(--fix-hero))">
+          <div class="mh__nav"><span class="mh__logo"></span><span class="mh__name">路书</span><span class="mh__sp"></span><span class="mh__cta mh__cta--fixed">开始规划</span></div>
+          <div class="ruler ruler--ok" data-pad="20px" style="--pad-w:20px">
+            <div class="mh__in" style="grid-template-columns:1fr;padding:22px 20px 20px">
+              <div>
+                <div class="mh__h1" style="font-size:20px">把一段攻略，<br>变成走得完的行程。</div>
+                <p class="mh__sub">LLM 只负责理解攻略文本，预算、时间窗、开门时间、每晚回酒店这些硬约束，全部交给确定性求解器。</p>
+                <div class="mh__btns" style="margin-top:11px">
+                  <span class="mh__b mh__b--fixed" style="flex:1;text-align:center">开始规划我的行程 →</span>
+                </div>
+                <p class="mh__note">无需登录 · 25 城 254 个预置景点</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mini__cap"><span class="tag tag--ok">after</span><span>留白归位；副标题 <b>5.39:1</b></span></div>
+      </div>
+    </div>
+    <p class="tiny">虚线标出内容起始边界。左侧为 0px 内边距（贴边），右侧为 20px。</p>
+  </div>
+</section>
+
+<!-- ══════════════ §2 首屏文字 ══════════════ -->
+<section class="sec" id="hero">
+  <div class="sec__no">02 / CONTRAST</div>
+  <h2>首屏三行字，全部读不动</h2>
+  <p class="sec__lead">
+    hero 是蓝色满屏。白字压在蓝底上本来就只有 4.21:1 —— 刚好低于正文所需的 4.5:1。
+    而实现里还额外用 <code>color-mix()</code> 把白字往主色里兑了一点，"让层次更细腻"。
+    结果是：越细腻越读不动。
+  </p>
+
+  <div class="sec__body">
+    <h3>浏览器实测（不是令牌推算）</h3>
+    <p class="mut small">
+      取 <code>getComputedStyle</code> 的实际颜色、字号、字重，向上寻找最近的不透明背景色，
+      按 WCAG 2.2 算。大字号（≥24px，或 ≥18.66px 且加粗）下限 3.0，其余 4.5。
+    </p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>元素</th><th>字号/字重</th><th>实测</th><th>下限</th><th>判定</th></tr></thead>
+        <tbody>
+          <tr><td>hero 主标题</td><td class="num">62px / 800</td><td class="num">4.18:1</td><td class="num">3.0</td><td><span class="tag tag--ok">通过</span></td></tr>
+          <tr><td>hero 副标题</td><td class="num">16px / 400</td><td class="num fail">3.64:1</td><td class="num">4.5</td><td><span class="tag tag--bad">不达标</span></td></tr>
+          <tr><td>hero 次按钮文字</td><td class="num">16px / 600</td><td class="num fail">4.18:1</td><td class="num">4.5</td><td><span class="tag tag--bad">不达标</span></td></tr>
+          <tr><td>hero 补充说明</td><td class="num">12px / 400</td><td class="num fail">3.14:1</td><td class="num">4.5</td><td><span class="tag tag--bad">不达标</span></td></tr>
+          <tr><td>导航链接</td><td class="num">14px / 400</td><td class="num">4.92:1</td><td class="num">4.5</td><td><span class="tag tag--ok">通过</span></td></tr>
+          <tr><td>指标卡数值</td><td class="num">28px / 800</td><td class="num">4.32:1</td><td class="num">3.0</td><td><span class="tag tag--ok">通过</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>为什么 <code>color-mix</code> 是元凶</h3>
+    <p class="mut small">
+      <code>color-mix(in oklab, var(--accent-ink) 88%, var(--accent))</code> 的意思是
+      "88% 的白 + 12% 的主色"。它让文字看起来略微偏蓝、更"融入"背景 ——
+      但对比度从 4.21 掉到 3.64。<strong>换了 0.57 的对比度，换来的是肉眼几乎看不出的色偏。</strong>
+    </p>
+
+    <div class="card">
+      <h4>实测：底色亮度决定一切</h4>
+      <p class="tiny" style="margin-bottom:14px">
+        表格是"该底色下，白字能拿到多少对比度"。判定列要求<strong>三行字全部 ≥4.5</strong>。
+      </p>
+      <div class="tbl-scroll" style="border:none;box-shadow:none">
+        <table>
+          <thead><tr><th>hero 底色</th><th>纯白字</th><th>副标题 88%</th><th>说明 76%</th><th>判定</th></tr></thead>
+          <tbody>
+            <tr><td><code>oklch(58% 0.18 255)</code> <span class="mut">现状</span></td><td class="num">4.21</td><td class="num fail">3.65</td><td class="num fail">3.15</td><td><span class="tag tag--bad">❌</span></td></tr>
+            <tr><td><code>oklch(55% 0.18 255)</code></td><td class="num">4.78</td><td class="num fail">4.11</td><td class="num fail">3.49</td><td><span class="tag tag--bad">❌</span></td></tr>
+            <tr><td><code>oklch(52% 0.19 255)</code> <span class="mut">= --accent-deep</span></td><td class="num">5.41</td><td class="num">4.60</td><td class="num fail">3.86</td><td><span class="tag tag--warn">note 仍差</span></td></tr>
+            <tr><td><code>oklch(46% 0.18 255)</code></td><td class="num">6.95</td><td class="num">5.78</td><td class="num">4.74</td><td><span class="tag tag--ok">✅ 全部通过</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small" style="margin-top:14px">
+        <strong>两条路：</strong>① 把底色压到 46% 才够——会明显变深；
+        ② <strong>去掉 color-mix，副标题与说明一律用纯 <code>--accent-ink</code></strong>，
+        底色只需 52%，白字 5.41:1，三行全部通过。<br>
+        层次改由<strong>字号（62 / 16 / 12）</strong>承担——原来那 12% 与 24% 的色偏，
+        肉眼分不出来，代价却是把最需要读的那行压到了 3.14:1。
+      </p>
+    </div>
+
+    <div class="call call--warn">
+      <div class="call__t">这也暴露了上一轮门禁的盲区</div>
+      <code>tools/check_contrast.py</code> 只看 <code>:root</code> 里的令牌取值，
+      而 <code>color-mix()</code> 生成的是<strong>运行时动态颜色</strong>，不在令牌表里 —— 
+      所以门禁报了「通过」，浏览器却量出 3.64:1。<br>
+      已在本轮补上：门禁现在会扫出页面里的 <code>color-mix</code> 用法并列为待人工复核项。
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ §3 主按钮 ══════════════ -->
+<section class="sec" id="cta">
+  <div class="sec__no">03 / CONSISTENCY</div>
+  <h2>同一句「开始规划」，两个颜色</h2>
+  <p class="sec__lead">
+    首页的主按钮是<strong>黑底</strong>，规划器的主按钮是<strong>蓝底</strong>。
+    两处各写各的，谁也没错，合起来就是"点进去像换了个网站"。
+  </p>
+
+  <div class="sec__body">
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>位置</th><th>实现</th><th>白/深字对比度</th><th>问题</th></tr></thead>
+        <tbody>
+          <tr><td>首页 导航 CTA</td><td><code>.btn-primary{background:var(--fg)}</code></td><td class="num">18.79:1</td><td rowspan="3"><span class="tag tag--bad">颜色语言断裂</span><br><span class="tiny">首页黑、内页蓝<br>且黑底是令牌 <code>--fg</code> 反用作背景</span></td></tr>
+          <tr><td>首页 hero 主 CTA</td><td><code>background:oklch(16% 0.012 250)</code></td><td class="num">19.39:1</td></tr>
+          <tr><td>规划器 主按钮</td><td><code>.go{background:var(--accent)}</code></td><td class="num fail">4.34:1</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>两个独立缺陷</h4>
+        <ul class="small">
+          <li><strong>语义反用</strong>：<code>background:var(--fg)</code> 把"文字色"当背景用。
+            改主题时这一处最容易漏。</li>
+          <li><strong>字面值未令牌化</strong>：<code>oklch(16% 0.012 250)</code> 在
+            <code>.hero-cta</code> 和 <code>.cta</code> 里各写一遍，不在 <code>:root</code>。</li>
+          <li><strong>对比度不够</strong>：规划器蓝底白字只有 4.34:1，低于 4.5 —— 已在
+            上一轮列入历史债。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>为什么不能统一成"全是蓝按钮"</h4>
+        <p class="small">
+          hero 本身就是满屏主色。在蓝底上放蓝按钮＝按钮消失。
+          彩色区块内的主按钮必须<strong>反转</strong>：
+        </p>
+        <ul class="small">
+          <li><strong>hero 内</strong>：白底 + 深蓝字（实测 <b>6.04:1</b>）
+            <br><span class="tiny">按钮块自身压 hero 底 6.06:1</span></li>
+          <li><strong>hero 外</strong>（导航 / 页尾 CTA）：主色实心 + 浅字
+            <br><span class="tiny">与规划器同一套，点进去不跳色</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>按钮三态对照</h3>
+    <div class="duo">
+      <div class="mini">
+        <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">修复前</span></div>
+        <div class="mh" style="--mh-bg:var(--accent);--mh-sub:color-mix(in oklab,var(--accent-ink) 88%,var(--accent));--mh-note:color-mix(in oklab,var(--accent-ink) 76%,var(--accent))">
+          <div class="mh__nav"><span class="mh__logo"></span><span class="mh__name">路书</span><span class="mh__sp"></span><span class="mh__cta">开始规划</span></div>
+          <div class="mh__in" style="grid-template-columns:1fr;padding:26px 24px">
+            <div class="mh__btns" style="margin-top:0">
+              <span class="mh__b mh__b--primary">开始规划我的行程 →</span>
+              <span class="mh__b mh__b--ghost">看实验数据</span>
+            </div>
+            <p class="tiny" style="margin-top:12px;color:var(--mh-note)">
+              ↑ 黑按钮在蓝底上是个"洞"；次按钮文字 4.18:1 不达标
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="mini">
+        <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">修复后</span></div>
+        <div class="mh" style="--mh-bg:var(--fix-hero);--mh-sub:var(--accent-ink);--mh-note:color-mix(in oklab,var(--accent-ink) 88%,var(--fix-hero))">
+          <div class="mh__nav"><span class="mh__logo"></span><span class="mh__name">路书</span><span class="mh__sp"></span><span class="mh__cta mh__cta--fixed">开始规划</span></div>
+          <div class="mh__in" style="grid-template-columns:1fr;padding:26px 24px">
+            <div class="mh__btns" style="margin-top:0">
+              <span class="mh__b mh__b--fixed">开始规划我的行程 →</span>
+              <span class="mh__b mh__b--ghostfix">看实验数据</span>
+            </div>
+            <p class="tiny" style="margin-top:12px;color:var(--mh-note)">
+              ↑ 主按钮反转成白底蓝字（6.04:1）；次按钮底色改用深一档的不透明蓝、描边提到 70%
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ §4 图表 ══════════════ -->
+<section class="sec" id="chart">
+  <div class="sec__no">04 / THE EVIDENCE</div>
+  <h2>首页的价值是"拿数据说话"，但数据看不清</h2>
+  <p class="sec__lead">
+    「量化结果」是整页最有说服力的区块 —— 结论先写、证据在后，这个顺序是对的。
+    问题在于证据本身：第一个数据系列只有 <strong>1.56:1</strong>，
+    在浅底上等于没画。
+  </p>
+
+  <div class="sec__body">
+    <h3>五个色值实测</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>令牌</th><th>角色</th><th>现值</th><th>实测</th><th>下限</th><th>判定</th></tr></thead>
+        <tbody>
+          <tr><td><code>--c-ctrl</code></td><td>对照系列（实心灰）</td><td class="num">#9aa3ad</td><td class="num fail">2.56:1</td><td class="num">3.0</td><td><span class="tag tag--bad">不达标</span></td></tr>
+          <tr><td><code>--c-ref</code></td><td>次级参考（空心描边）</td><td class="num">#c9d0d8</td><td class="num fail">1.56:1</td><td class="num">3.0</td><td><span class="tag tag--bad">几乎不可见</span></td></tr>
+          <tr><td><code>--muted-3</code></td><td>图表标签（13 处 SVG text）</td><td class="num">oklch(68%)</td><td class="num fail">2.88:1</td><td class="num">4.5</td><td><span class="tag tag--bad">不达标</span></td></tr>
+          <tr><td><code>--ok</code></td><td>柱顶数字（12px）</td><td class="num">#12b76a</td><td class="num fail">2.62:1</td><td class="num">4.5</td><td><span class="tag tag--bad">不达标</span></td></tr>
+          <tr><td><code>--warn</code></td><td>柱顶数字（12px）</td><td class="num">#e8590c</td><td class="num fail">3.58:1</td><td class="num">4.5</td><td><span class="tag tag--bad">不达标</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>对比度距离下限还有多远</h3>
+    <div class="card">
+      <p class="tiny" style="margin-bottom:12px">灰线为各自下限。柱子长度＝实测值，越短越糟。</p>
+      <div class="bar">
+        <span class="bar__t">--c-ref</span>
+        <div class="bar__track"><div class="bar__fill" style="width:39%;background:var(--bad)">1.56</div><div class="bar__lim" style="left:50%"></div></div>
+        <span class="bar__r fail">需 3.0</span>
+      </div>
+      <div class="bar">
+        <span class="bar__t">--c-ctrl</span>
+        <div class="bar__track"><div class="bar__fill" style="width:64%;background:var(--bad)">2.56</div><div class="bar__lim" style="left:50%"></div></div>
+        <span class="bar__r fail">需 3.0</span>
+      </div>
+      <div class="bar">
+        <span class="bar__t">--muted-3</span>
+        <div class="bar__track"><div class="bar__fill" style="width:64%;background:var(--bad)">2.88</div><div class="bar__lim" style="left:75%"></div></div>
+        <span class="bar__r fail">需 4.5</span>
+      </div>
+      <div class="bar">
+        <span class="bar__t">--ok（12px）</span>
+        <div class="bar__track"><div class="bar__fill" style="width:58%;background:var(--bad)">2.62</div><div class="bar__lim" style="left:75%"></div></div>
+        <span class="bar__r fail">需 4.5</span>
+      </div>
+      <div class="bar">
+        <span class="bar__t">--warn（12px）</span>
+        <div class="bar__track"><div class="bar__fill" style="width:80%;background:var(--warn)">3.58</div><div class="bar__lim" style="left:75%"></div></div>
+        <span class="bar__r fail">需 4.5</span>
+      </div>
+    </div>
+
+    <h3>替换值（已反解到"刚达标 + 留余量"，余量 0.10~0.12）</h3>
+    <div class="sws">
+      <div class="sw"><div class="sw__chip" style="background:#83878b"></div>
+        <div class="sw__body"><div class="sw__nm">--c-ctrl</div>
+        <div class="sw__v">oklch(62% 0.008 250)<br>#83878b</div>
+        <div class="sw__r"><span class="tag tag--fix">2.56 → 3.64:1</span></div></div></div>
+      <div class="sw"><div class="sw__chip" style="background:#8f9397"></div>
+        <div class="sw__body"><div class="sw__nm">--c-ref</div>
+        <div class="sw__v">oklch(66% 0.010 250)<br>#8f9397</div>
+        <div class="sw__r"><span class="tag tag--fix">1.56 → 3.11:1</span></div></div></div>
+      <div class="sw"><div class="sw__chip" style="background:#696f78"></div>
+        <div class="sw__body"><div class="sw__nm">--muted-3</div>
+        <div class="sw__v">oklch(54% 0.016 255)<br>#696f78</div>
+        <div class="sw__r"><span class="tag tag--fix">2.88 → 5.05:1</span></div></div></div>
+      <div class="sw"><div class="sw__chip" style="background:#008741"></div>
+        <div class="sw__body"><div class="sw__nm">--ok</div>
+        <div class="sw__v">oklch(54% 0.16 155)<br>#008741</div>
+        <div class="sw__r"><span class="tag tag--fix">2.62 → 4.62:1</span></div></div></div>
+      <div class="sw"><div class="sw__chip" style="background:#ba5927"></div>
+        <div class="sw__body"><div class="sw__nm">--warn</div>
+        <div class="sw__v">oklch(58% 0.14 45)<br>#ba5927</div>
+        <div class="sw__r"><span class="tag tag--fix">3.58 → 4.62:1</span></div></div></div>
+    </div>
+    <p class="tiny">
+      <code>--muted-3</code> 取到压白 5.05:1 —— 因为该令牌也会落在 <code>--fill</code>(#f3f5f8)
+      这类浅填充面上，只按白底解会不够（压白刚好 4.5 时，压 fill 只剩 4.23）。
+    </p>
+
+    <div class="call call--ok">
+      <div class="call__t">✓ 空心柱还有一步：描边加粗</div>
+      <code>--c-ref</code> 从 1.56 提到 3.11 只解决"看得出颜色"；
+      空心柱的描边目前是 <code>stroke-width:1.5</code>，建议同步加到 <code>2</code>。
+      <br><span class="small">
+      上一轮修「线性图标太淡」时只把 1.6px 加到 1.8px、没动颜色，所以没解决问题。
+      这次<strong>颜色和描边一起改</strong> —— 加粗提升"存在感"，改色保证"达标"，
+      两件事不能互相替代。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ §5 改版稿 ══════════════ -->
+<section class="sec" id="spec">
+  <div class="sec__no">05 / SPEC</div>
+  <h2>改版稿</h2>
+  <p class="sec__lead">
+    下面三张按真实令牌值渲染。<strong>结构、文案、区块顺序一行没动</strong> ——
+    改的只有内边距、底色、按钮与图表色。首页那套"结论先写、证据在后、把已知局限
+    放上桌面"的叙事是好的，不该被重做稀释。
+  </p>
+
+  <div class="sec__body">
+    <h3>桌面 hero</h3>
+    <div class="mini">
+      <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">/  ·  桌面 1440（等比缩略）</span></div>
+      <div class="mh" style="--mh-bg:var(--fix-hero);--mh-sub:var(--accent-ink);--mh-note:color-mix(in oklab,var(--accent-ink) 88%,var(--fix-hero))">
+        <div class="mh__nav" style="padding:13px 30px">
+          <span class="mh__logo"></span><span class="mh__name">路书 · AI 行程规划</span>
+          <span class="mh__links" style="margin-left:16px">功能　量化结果　怎么工作　已知局限</span>
+          <span class="mh__sp"></span><span class="mh__cta mh__cta--fixed">开始规划</span>
+        </div>
+        <div class="mh__in" style="padding:52px 30px 46px;grid-template-columns:minmax(0,1fr) 200px;gap:34px">
+          <div>
+            <div class="mh__h1" style="font-size:38px">把一段攻略，<br>变成走得完的行程。</div>
+            <p class="mh__sub" style="font-size:13px;max-width:44ch">
+              LLM 只负责理解攻略文本，预算、时间窗、开门时间、每晚回酒店这些硬约束，
+              全部交给确定性求解器。50 组场景对照实验中 100% 无冲突、0 预算违规。
+            </p>
+            <div class="mh__btns" style="margin-top:20px">
+              <span class="mh__b mh__b--fixed" style="padding:10px 19px;font-size:12.5px">开始规划我的行程 →</span>
+              <span class="mh__b mh__b--ghostfix" style="padding:10px 19px;font-size:12.5px">看实验数据</span>
+            </div>
+            <p class="mh__note" style="font-size:11px">无需登录 · 25 城 254 个预置景点 · 也可粘贴自己的攻略</p>
+          </div>
+          <div class="mh__card" style="height:186px">
+            <svg viewBox="0 0 120 150" aria-hidden="true">
+              <g fill="none" stroke="var(--fg)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="30" cy="26" r="12"/><path d="M30 18v8l6 4"/>
+                <path d="M18 84h26v20H18z"/><path d="M44 96h34"/>
+                <path d="M14 122h34v18H14z"/><path d="M92 40v18"/><path d="M86 40h12"/>
+              </g>
+              <path d="M46 108c16-8 20-30 34-40 10-7 14-16 16-24" fill="none"
+                    stroke="var(--fg)" stroke-width="1.8" stroke-dasharray="5 4" stroke-linecap="round"/>
+              <g fill="var(--accent-deep)" stroke="var(--accent-deep)" stroke-width="1.4">
+                <circle cx="46" cy="108" r="4"/><circle cx="80" cy="68" r="4"/><circle cx="96" cy="44" r="4"/>
+              </g>
+              <path d="M20 132c14-10 30-10 46-2" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" opacity=".55"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="mini__cap"><span class="tag tag--fix">改</span>
+        <span>底色 <code>--accent</code> → <code>--accent-deep</code>；副标题/说明去掉 <code>color-mix</code>；主按钮反转；左右留白用回 <code>--pad</code></span></div>
+    </div>
+
+    <h3>图表：第一个数据系列从"看不见"到"看得见"</h3>
+    <p class="mut small">用真实数据（无冲突率 62% / 100% / 98%）与真实色值渲染同一组柱子。</p>
+    <div class="duo">
+      <div class="mini">
+        <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">修复前</span></div>
+        <div style="padding:22px 22px 18px;background:var(--surface)">
+          <div style="display:flex;gap:26px;align-items:flex-end;height:132px;border-bottom:1px solid var(--border);padding-bottom:0">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+              <span style="font-size:11px;font-family:var(--mono);color:var(--text-3)">62%</span>
+              <div style="width:44px;height:82px;border:1.5px solid #c9d0d8;background:transparent;border-radius:3px"></div>
+              <span style="font-size:10.5px;color:#6f757e">朴素基线</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+              <span style="font-size:11px;font-family:var(--mono);color:var(--text-3)">100%</span>
+              <div style="width:44px;height:132px;background:var(--accent);border-radius:3px 3px 0 0"></div>
+              <span style="font-size:10.5px;color:var(--ok-ink)">本项目</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+              <span style="font-size:11px;font-family:var(--mono);color:var(--text-3)">98%</span>
+              <div style="width:44px;height:129px;background:#9aa3ad;border-radius:3px 3px 0 0"></div>
+              <span style="font-size:10.5px;color:#6f757e">LLM</span>
+            </div>
+          </div>
+          <p class="tiny" style="margin-top:11px">标签 <b>2.88:1</b> · 空心柱 <b>1.56:1</b> · 灰柱 <b>2.56:1</b></p>
+        </div>
+      </div>
+      <div class="mini">
+        <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">修复后</span></div>
+        <div style="padding:22px 22px 18px;background:var(--surface)">
+          <div style="display:flex;gap:26px;align-items:flex-end;height:132px;border-bottom:1px solid var(--border);padding-bottom:0">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+              <span style="font-size:11px;font-family:var(--mono);color:#696f78">62%</span>
+              <div style="width:44px;height:82px;border:2px solid #8f9397;background:transparent;border-radius:3px"></div>
+              <span style="font-size:10.5px;color:#696f78">朴素基线</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+              <span style="font-size:11px;font-family:var(--mono);color:#696f78">100%</span>
+              <div style="width:44px;height:132px;background:var(--accent);border-radius:3px 3px 0 0"></div>
+              <span style="font-size:10.5px;color:#008741">本项目</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+              <span style="font-size:11px;font-family:var(--mono);color:#696f78">98%</span>
+              <div style="width:44px;height:129px;background:#83878b;border-radius:3px 3px 0 0"></div>
+              <span style="font-size:10.5px;color:#696f78">LLM</span>
+            </div>
+          </div>
+          <p class="tiny" style="margin-top:11px">标签 <b>5.05:1</b> · 空心柱 <b>3.11:1</b>（描边 2px）· 灰柱 <b>3.64:1</b></p>
+        </div>
+      </div>
+    </div>
+
+    <h3>暗色主题</h3>
+    <p class="mut small">
+      首页目前<strong>没有暗色主题</strong> —— 系统暗色模式下打开是纯白页面，夜里很刺眼。
+      首页是访客的第一屏，这比内页更值得先补。
+    </p>
+    <div class="mini">
+      <div class="mini__bar"><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__dot"></span><span class="mini__url">/  ·  暗色（新增）</span></div>
+      <div class="mh" style="--mh-bg:#00234e;--mh-sub:#f2f8ff;--mh-note:#c8ddf2">
+        <div class="mh__nav" style="background:#14171b;border-color:#292e34;padding:13px 30px">
+          <span class="mh__logo" style="background:#539af2"></span>
+          <span class="mh__name" style="color:#dee0e2">路书 · AI 行程规划</span>
+          <span class="mh__links" style="color:#adb2b6;margin-left:16px">功能　量化结果　怎么工作　已知局限</span>
+          <span class="mh__sp"></span>
+          <span class="mh__cta" style="background:#2c7bd7;color:#f2f8ff">开始规划</span>
+        </div>
+        <div class="mh__in" style="padding:46px 30px 42px;grid-template-columns:minmax(0,1fr) 164px;gap:30px">
+          <div>
+            <div class="mh__h1" style="font-size:32px;color:#f2f8ff">把一段攻略，<br>变成走得完的行程。</div>
+            <p class="mh__sub" style="font-size:12.5px;max-width:46ch;color:#c8ddf2">
+              LLM 只负责理解攻略文本，预算、时间窗、开门时间、每晚回酒店这些硬约束，
+              全部交给确定性求解器。
+            </p>
+            <div class="mh__btns" style="margin-top:17px">
+              <span class="mh__b" style="background:#f2f8ff;color:#005ecb;padding:9px 17px;font-size:12px">开始规划我的行程 →</span>
+              <span class="mh__b" style="background:transparent;color:#f2f8ff;border-color:rgba(242,248,255,.5);padding:9px 17px;font-size:12px">看实验数据</span>
+            </div>
+          </div>
+          <div class="mh__card" style="height:150px;background:#14171b">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <path d="M14 96c22-10 30-42 48-56 14-11 22-20 26-28" fill="none"
+                    stroke="rgba(242,248,255,.55)" stroke-width="1.8" stroke-dasharray="5 4" stroke-linecap="round"/>
+              <g fill="#539af2"><circle cx="20" cy="94" r="4"/><circle cx="62" cy="52" r="4"/><circle cx="88" cy="20" r="4"/></g>
+              <path d="M10 112c20-8 42-8 60-1" fill="none" stroke="#539af2" stroke-width="4" stroke-linecap="round" opacity=".5"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="mini__cap"><span class="tag tag--fix">新增</span>
+        <span>hero 底 <code>#00234e</code>（白字 <b>14.32:1</b>）；卡片面 <code>#14171b</code>；主色 <code>#539af2</code>；
+        切换方式：<code>prefers-color-scheme</code> + <code>data-theme</code> 覆盖</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ §6 落地批次 ══════════════ -->
+<section class="sec" id="plan">
+  <div class="sec__no">06 / ROLLOUT</div>
+  <h2>落地顺序</h2>
+  <p class="sec__lead">
+    按"风险从低到高"分四批。<strong>批 2 起必须两页一起改</strong> ——
+    因为 <code>--muted-3</code> / <code>--ok</code> / <code>--warn</code> 这些令牌
+    是首页与规划器共用的，只改一页会造成两个页面灰阶不一致。
+  </p>
+
+  <div class="call call--ok" style="margin-top:24px">
+    <div class="call__t">✓ 批 1 / 2 / 3 / 4 已全部落地</div>
+    批 1 改 <code>static/home.html</code> 三处 <code>padding</code> → <code>padding-block</code>；
+    批 2-4 改两页 <code>:root</code> 令牌 + 约 80 处用法，并新增整套暗色主题。
+    复测：<strong>桌面 hero left 120px → 152px</strong>、<strong>移动 390 下 0px → 20px</strong>。
+    <br><span class="small">
+    验证链：<code>tools/check_frontend.py</code> 全绿（静态）；浏览器实测首页 216 / 规划器 36
+    个文字元素，<strong>明暗两套全部达标</strong>（改造前分别是 41 项 / 18 项不达标）。
+    每个取值都可复跑：<code>docs/design/solve-tokens.py</code>（末段会与两页逐项交叉校验）。
+    本页 §1 与 §5 里标注 after 的渲染，即<strong>当前代码的真实效果</strong>。</span>
+  </div>
+
+  <div class="sec__body">
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>批次</th><th>改什么</th><th>触碰范围</th><th>风险</th><th>可否独立验证</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="tag tag--ok">批 1</span></td>
+            <td><code>.hero-in</code> 的 <code>padding</code> → <code>padding-block</code></td>
+            <td class="num">1 行</td>
+            <td><span class="tag tag--ok">零</span></td>
+            <td>是 · 截图对比左右边界</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag--ok">批 1</span></td>
+            <td><code>oklch(16% 0.012 250)</code> 字面值 → 令牌</td>
+            <td class="num">3 处</td>
+            <td><span class="tag tag--ok">零</span></td>
+            <td>是 · 视觉应完全不变</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag--ok">批 2 ✔</span></td>
+            <td>令牌<strong>值</strong>替换：<code>--muted-3</code> <code>--ok</code>
+              <code>--warn</code> <code>--c-ctrl</code> <code>--c-ref</code></td>
+            <td class="num">两页 :root</td>
+            <td><span class="tag tag--warn">中</span></td>
+            <td>已完成 · 门禁 + 截图</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag--ok">批 3 ✔</span></td>
+            <td>hero 底色→<code>--accent-solid</code>；去掉 3 处 <code>color-mix</code>；
+              主按钮反转；图表描边 1.5→2px</td>
+            <td class="num">首页 hero + 图表</td>
+            <td><span class="tag tag--warn">中</span></td>
+            <td>已完成 · 逐块截图对比</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag--ok">批 4 ✔</span></td>
+            <td>拆 <code>--warn-ink</code>；<code>--accent</code> 作底 → <code>--accent-solid</code>；
+              <code>--accent</code> 作正文 → <code>--accent-deep</code></td>
+            <td class="num">约 80 处用法</td>
+            <td><span class="tag tag--bad">较高</span></td>
+            <td>已完成 · 门禁 + 运行时实测</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag--ok">批 4 ✔</span></td>
+            <td>两页暗色主题（<code>@media prefers-color-scheme</code>）</td>
+            <td class="num">新增整套暗色令牌</td>
+            <td><span class="tag tag--warn">中</span></td>
+            <td>已完成 · 明暗各量一遍</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="call call--warn">
+      <div class="call__t">两个坑，都是落地时实测才发现的</div>
+      <strong>①</strong> <code>--ok</code> 从 <code>#12b76a</code> 改到 <code>#00803a</code>，
+      是为让柱顶 12px 数字达标；同一令牌也用在对勾图标上，改暗后图标一起变暗 ——
+      但图标本来也只有 2.62:1、同样不达标，所以是净改善。已截图确认观感没垮。
+      <br><strong>②</strong> 本页原本写「次按钮描边加深到 62%」—— 落地时量了一下，
+      <strong>只有 2.81:1，不够 3:1</strong>，必须到 69% 才达标，最终取 70%（3.16:1）。
+      还顺带发现：半透明白<strong>作底</strong>会把文字底抬亮（4.5 → 3.9），所以次按钮底色改成
+      不透明、深一档的蓝。
+      <br><span class="small">教训和门禁那条一样：<strong>写进文档的数字，也得量过才算数</strong>。
+      上一轮是我自己把 62% 当成结论写进本页的，这轮被自己的实测推翻了。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ §7 门禁 ══════════════ -->
+<section class="sec" id="guard">
+  <div class="sec__no">07 / GUARDRAIL</div>
+  <h2>配套：对比度门禁已接入 CI</h2>
+  <p class="sec__lead">
+    上面这些数字，如果没有机器守着，下次改配色还会再犯一遍。新增的
+    <code>tools/check_contrast.py</code> 已挂进 <code>tools/check_frontend.py</code>，
+    成为 CI 里的第 9 项检查。
+  </p>
+
+  <div class="sec__body">
+    <div class="grid2">
+      <div class="card">
+        <h4>它怎么工作</h4>
+        <ul class="small">
+          <li>从 <code>static/index.html</code> 与 <code>static/home.html</code>
+            解析真实令牌（<code>oklch()</code> 与 hex 都支持）</li>
+          <li>按「<strong>令牌 × 参照底</strong>」断言 —— 因为同名令牌在两页角色完全不同
+            （<code>--muted</code> 在首页是正文主力，在规划页是零引用死令牌）</li>
+          <li>阈值<strong>按实际用法自动收紧</strong>：某令牌一旦有文字用法
+            （含 SVG <code>&lt;text&gt;</code> 的 <code>fill</code>），就必须满足 4.5</li>
+          <li>已知历史债走白名单，但白名单<strong>登记了令牌原始值</strong> ——
+            值被改动即失效，避免"记账"退化成"永久免疫"</li>
+          <li>余量 &lt; 0.15 的达标项会被标为<strong>贴线</strong>，提醒改动时优先复测</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>跑法</h4>
+        <pre style="margin:0;font-family:var(--mono);font-size:12px;line-height:1.9;
+          background:var(--fill);border:1px solid var(--border);border-radius:9px;padding:14px 16px;overflow-x:auto"><span class="mut"># 实测报告（含每档角色、参照底、用法分布）</span>
+python tools/check_contrast.py
+
+<span class="mut"># 门禁：不达标退出码 1</span>
+python tools/check_contrast.py --check
+
+<span class="mut"># 自测：验证门禁真的拦得住</span>
+python tools/check_contrast.py --selftest
+
+<span class="mut"># 债务清零后开严格模式</span>
+python tools/check_contrast.py --check --no-debt
+
+<span class="mut"># 运行时实测：遍历每个文字元素（需本机 Chrome/Edge）</span>
+node tools/contrast_runtime.js static/home.html static/index.html
+node tools/contrast_runtime.js static/home.html --dark</pre>
+      </div>
+    </div>
+
+    <h3>运行时全量扫描：静态门禁看不到的那些</h3>
+    <p class="mut small">
+      静态门禁按「令牌」报账，而问题实际发生在「元素」上。补一个运行时工具
+      <code>tools/contrast_runtime.js</code>：用真实浏览器遍历页面<strong>每一个文字元素</strong>，
+      读 <code>computedStyle</code> 的实际颜色 / 字号 / 字重，向上找最近的不透明背景，再算。
+    </p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>页面</th><th>扫描到的文字元素</th><th>静态门禁报出</th><th>运行时实测</th><th>差距来自</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>首页</td><td class="num">216</td><td class="num">9 个令牌</td>
+            <td class="num fail">41 项不达标</td>
+            <td rowspan="2" style="white-space:normal" class="small">
+              ① 一个令牌可能被用在多个字号/背景上，逐元素算才准<br>
+              ② <code>color-mix()</code> 动态色不在令牌里<br>
+              ③ 半透明前景需先与底色合成
+            </td>
+          </tr>
+          <tr>
+            <td>规划器</td><td class="num">36</td><td class="num">8 个令牌</td>
+            <td class="num fail">18 项不达标</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>新发现（前两轮都没抓到的）</h4>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>元素</th><th>内容</th><th>字号</th><th>实测</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>.sec-kicker</code></td><td>"功能" / "怎么工作" …</td><td class="num">12/700</td><td class="num fail">4.20:1</td><td>每个区块的小标签，共 6 处</td></tr>
+          <tr><td><code>p</code></td><td>不用配置任何 Key 就能跑通…</td><td class="num">16/400</td><td class="num fail">3.64:1</td><td>又一处 <code>color-mix</code> 稀释</td></tr>
+          <tr><td>SVG <code>text</code></td><td><b>95.3%</b></td><td class="num">52/700</td><td class="num fail">2.62:1</td><td><strong>全页最重要的数字</strong>，用的却是最淡的绿</td></tr>
+          <tr><td><code>summary</code></td><td>每天 9:00 出发 · 18:00 返回</td><td class="num">12.5/500</td><td class="num fail">2.63:1</td><td>规划器折叠区标题，最严重的一处</td></tr>
+          <tr><td><code>div.meta</code></td><td>读懂攻略 · 对齐真实地点…</td><td class="num">16/400</td><td class="num fail">3.47:1</td><td>规划器首屏副标题</td></tr>
+          <tr><td><code>button#go</code></td><td>开始规划</td><td class="num">15/600</td><td class="num fail">4.32:1</td><td>主操作按钮</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tiny">
+      另一个副产物：把两页都用 <code>colorScheme:dark</code> 渲染了一遍，
+      结果<strong>颜色与浅色完全相同</strong> —— 这不是工具出错，而是两页都没有
+      <code>prefers-color-scheme</code> 分支，反过来证实了「0 处暗色支持」。
+    </p>
+    <div class="call call--warn">
+      <div class="call__t">结论要调整：这不是「几处令牌不达标」</div>
+      41 + 18 项说明<strong>整套灰阶与语义色整体偏浅</strong>，而不是零散的手误。
+      成因一致：设计时按「浅色底上好看」挑值，没有按「最坏背景下的对比度」反解。
+      所以批 2 要按 <strong>令牌</strong>系统性重解（本文件 §4 给的就是反解出来的值），
+      而不是逐个元素打补丁。
+    </div>
+
+    <div class="call call--ok">
+      <div class="call__t">✓ 门禁做了自测，因为"没被测过的门禁等于没有门禁"</div>
+      自测会在内存里<strong>故意改坏</strong>页面副本，确认：
+      <strong>①</strong> 把 <code>--muted-3</code> 从 68% 调淡到 82% 会被拦下；
+      <strong>②</strong> 注入一个未登记角色的颜色令牌会被提示；
+      <strong>③</strong> 把某个令牌改到达标会提示"可从债务表删除"。
+      <br><span class="small">
+      第 ① 条第一次跑就抓出了设计缺陷：白名单原本只按令牌名豁免，
+      导致"改得更糟"也被静默放过 —— 这就是自测存在的意义。</span>
+    </div>
+
+    <div class="call call--bad">
+      <div class="call__t">⚠ 门禁仍有一个盲区（本轮已部分补上）</div>
+      它只看 <code>:root</code> 里的令牌取值，看不到 <code>color-mix()</code> 这类
+      <strong>运行时动态颜色</strong> —— 这正是首页 hero 副标题 3.64:1 却没被拦下的原因。
+      <br>本轮做了两件事：<strong>①</strong> 静态门禁补上「扫出 <code>color-mix</code> 用法并列为待复核」；
+      <strong>②</strong> 把那套测量脚本固化成 <code>tools/contrast_runtime.js</code> —— 
+      遍历页面上每一个文字元素，读 <code>computedStyle</code> 并向上找最近的不透明背景。
+      <br><span class="small">
+      它<strong>刻意不进 CI</strong>：需要真实浏览器，会给流水线增负担。
+      定位是「改完配色本地跑一次」的验收工具，与静态门禁一快一慢、一粗一细互补。</span>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  首页改版设计稿 · 数字均来自 Playwright(Edge) 实测与可复跑的 Python 脚本 ·
+  与 <code>docs/design/ui-design-system.html</code>（规划器规范）配套
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('tgl');
+  var saved = null;
+  try { saved = localStorage.getItem('atp-theme'); } catch (e) {}
+  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  root.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+  btn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('atp-theme', next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

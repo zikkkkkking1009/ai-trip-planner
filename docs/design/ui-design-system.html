@@ -189,6 +189,12 @@ code{
 .tbl-scroll{overflow-x:auto}
 @media (max-width:820px){.tbl-scroll .tbl{min-width:640px}}
 
+/* #landed 面板底色是 --ok-soft（浅绿 / 深绿），它**不在** --text-3 的反解参照面
+   （--bg / --surface / --fill）里，实测 4.21:1（浅）/ 4.29:1（暗），两套都不达标。
+   这不是 --text-3 的问题，是「令牌 × 参照底」这个组合没有解过 —— 所以只能在块内降一档。
+   表头本身已有大写 + 字距 + 小字号做层级，掉到 --text-2 不丢辨识度。 */
+#landed .tbl th, #landed .tbl .muted{color:var(--text-2)}
+
 /* 判定标签 */
 .tag{
   display:inline-flex;align-items:center;gap:4px;
@@ -528,6 +534,71 @@ footer{padding:var(--sp-7) 0 var(--sp-8);border-top:1px solid var(--border);colo
     <div class="is-ok"><b>21 组</b><span>本轮实测样本量</span></div>
   </div>
 </header>
+
+<!-- ============ 落地状态（2026-09-24 追加） ============
+     注意：这个块**不能**写死十六进制色。文档默认主题是暗色（见文件末尾的
+     apply(saved || 'dark')），而块内文字用的是主题令牌（--fg / --text-2 / --text-3）。
+     一旦底色写死浅绿 #eef6ee，暗色下就是「浅灰字压浅绿底」，实测 1.1:1 —— 隐形。
+     必须走 --ok-soft / --ok-line / --ok-ink 这组令牌，它们本身就是深浅两套。 -->
+<section id="landed" style="border:1px solid var(--ok-line);background:var(--ok-soft);border-radius:16px;padding:26px 28px;margin:46px 0 10px">
+  <div class="eyebrow" style="color:var(--ok-ink)">落地状态 · 2026-09-24</div>
+  <h2 class="sec">本页的方案已经落到 static/index.html</h2>
+  <p class="sec-sub">
+    规划页与首页<strong>共用同一套令牌</strong>，所以两页是一起改完的。有四处需要你知道：
+  </p>
+
+  <p style="margin-top:20px"><strong>① 令牌命名按现网收敛了。</strong>
+    本页原用 <code>--text-2</code> / <code>--text-3</code>，现网实际是
+    <code>--muted-2</code> / <code>--muted-3</code>。落地时改回现网名 ——
+    否则要全站重命名 80+ 处，跟「纯色值替换、零结构改动」自相矛盾。阅读本页时按这张表换名：
+  </p>
+  <div class="tbl-scroll"><table class="tbl">
+    <thead><tr><th>本页写的</th><th>现网实际的</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>--text-2</code></td><td><code>--muted-2</code></td><td>需要读的次级正文</td></tr>
+      <tr><td><code>--text-3</code></td><td><code>--muted-3</code></td><td>标签 / 元信息 / 占位</td></tr>
+      <tr><td><code>--icon</code></td><td>未引入</td><td>现网图形仍复用 <code>--muted-3</code></td></tr>
+      <tr><td><code>--placeholder</code></td><td>未引入</td><td>同上</td></tr>
+      <tr><td><code>--border-strong</code></td><td>未引入</td><td>可交互边界仍用 <code>--accent-line</code> 承担</td></tr>
+      <tr><td><code>--day1/2/3</code></td><td>未引入</td><td>首页图表改用 <code>--c-ctrl</code> / <code>--c-ref</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p style="margin-top:20px"><strong>② 取值以脚本为准，不以本页色卡的 hex 为准。</strong>
+    §3 色卡里的十六进制是<strong>落地前的近似推导</strong>；真正落地时又按
+    「一个令牌压多个参照面」+「浏览器运行时校准」重解过一轮，个别值有出入。
+    权威来源是 <code>docs/design/solve-tokens.py</code> —— 它跑完会拿结果与两页
+    <code>:root</code> 逐项交叉校验，<strong>0 项不一致</strong>才算通过。
+  </p>
+
+  <p style="margin-top:20px"><strong>③ §3 列出的 6 处不达标已全部修复</strong>（规划页 + 首页）：</p>
+  <div class="tbl-scroll"><table class="tbl">
+    <thead><tr><th>令牌</th><th>改前</th><th>改后</th><th>实测</th></tr></thead>
+    <tbody>
+      <tr><td><code>--muted-3</code></td><td class="muted">oklch(68%)</td><td>oklch(53.2%)</td><td>4.80:1</td></tr>
+      <tr><td><code>--ok</code></td><td class="muted">#12b76a</td><td>#00803a</td><td>4.62:1</td></tr>
+      <tr><td><code>--warn</code> 作文字</td><td class="muted">#e8590c</td><td>拆出 <code>--warn-ink</code> #bc4c00</td><td>4.63:1</td></tr>
+      <tr><td><code>--bad</code></td><td class="muted">#e03131</td><td>#ce3531</td><td>4.62:1</td></tr>
+      <tr><td><code>--note-ink</code></td><td class="muted">#ad6800</td><td>#af5a00</td><td>4.63:1</td></tr>
+      <tr><td>实心主色上的字</td><td class="muted">4.21:1</td><td>新增 <code>--accent-solid</code> #2373ce + <code>--on-accent</code></td><td>4.62:1</td></tr>
+      <tr><td><code>--accent-line</code></td><td class="muted">oklch(88%) 1.43:1</td><td>oklch(65.9%)</td><td>3.12:1</td></tr>
+    </tbody>
+  </table></div>
+
+  <p style="margin-top:20px"><strong>④ 暗色主题已补齐</strong>（此前 0 处）。
+    两页各加了一段 <code>@media (prefers-color-scheme: dark)</code>，整套令牌逐档反解。
+    §6 里那份暗色令牌表就是实现值。
+  </p>
+
+  <p style="margin-top:20px;padding-top:16px;border-top:1px solid var(--ok-line)">
+    <strong>验证链：</strong>
+    <code>tools/check_frontend.py</code> 全绿（含对比度门禁）；
+    浏览器实测首页 216 / 规划器 36 个文字元素，<strong>明暗两套全部达标</strong>
+    —— 改造前分别是 41 项 / 18 项不达标。
+    复跑方式见 <code>docs/design/home-redesign.html</code> §7。
+  </p>
+</section>
+
 
 <!-- ============ 结论 ============ -->
 <section id="conclusion">
