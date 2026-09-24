@@ -729,10 +729,10 @@
                 font-weight:600; margin-left:8px; }
   .empty-fill:hover { background:var(--accent-deep); color:var(--on-accent); }
   /* 顶栏 AI 助手入口 —— 桌宠藏起来时点这个也能打开 */
-  .navpet { display:flex; align-items:center; justify-content:center; flex:none;
+  .navpet, .navtheme { display:flex; align-items:center; justify-content:center; flex:none;
             width:30px; height:30px; border-radius:9px; color:var(--muted-3);
             background:transparent; border:none; cursor:pointer; padding:0; font-size:15px; }
-  .navpet:hover { background:var(--fill); color:var(--fg); }
+  .navpet:hover, .navtheme:hover { background:var(--fill); color:var(--fg); }
   /* 空状态卡里嵌入的常驻识别区（攻略识别不再藏在折叠里） */
   .quick-extract-area { margin-top:18px; padding-top:18px; border-top:1px dashed var(--border); }
   .quick-extract-area textarea { width:100%; box-sizing:border-box; padding:8px; border-radius:9px;
@@ -891,8 +891,11 @@
   /* ===== 暗色主题（跟随系统）：整套令牌逐档反解，全部 >= WCAG AA =====
      项目此前 0 处暗色支持。这里不是「把浅色倒过来」，每一档都按
      「压最亮的面仍达标」反解，见 docs/design/home-redesign.html */
-  @media (prefers-color-scheme: dark) {
-    :root {
+  /* 暗色令牌：由 <head> 的主题脚本决定是否挂上 data-theme="dark"。
+     刻意不用 @media 直接切 —— 那样「手动选亮」在暗色系统上会被系统偏好盖回去。
+     脚本用 matchMedia 解析「跟随系统」，所以 prefers-color-scheme 依然有效
+     （tools/contrast_runtime.js 正是靠模拟系统偏好来验暗色的）。 */
+  :root[data-theme="dark"] {
       --bg: #0c0f12;      --surface: #14171b;
       --fg: #dee0e2;      --muted: #9aa0a6;   --muted-2: #adb2b6;  --muted-3: #8d939b;
       --border: #292e34;  --fill: #1e2124;    --fill-2: #262b2f;
@@ -905,9 +908,42 @@
       --warn: #f78955;    --warn-ink: #da672c; --warn-soft: #2f190f;
       --bad: #fb6157;     --bad-ink: #e85854; --bad-soft: #301715;  --bad-line: #5b2724;
       --stay: #8a82e9;    --note-ink: #cc7200; --note-soft: #2d1a0a; --note-line: #5a3f14;
-    }
   }
 </style>
+<script>
+/* ---- 主题：跟随系统 / 亮 / 暗（无闪烁：首帧前就把 data-theme 定下来）----
+   令牌只定义一份（:root 亮 / :root[data-theme="dark"] 暗），由这里决定用哪份。
+   没选过 = 跟随系统（读 matchMedia，所以浏览器模拟系统偏好时同样生效）。 */
+(function () {
+  var KEY = 'theme';
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  var SUN = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.4v1.7M8 12.9v1.7M1.4 8h1.7M12.9 8h1.7M3.3 3.3l1.2 1.2M11.5 11.5l1.2 1.2M12.7 3.3l-1.2 1.2M4.5 11.5l-1.2 1.2"/></svg>';
+  var MOON = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.6 9.6A5.6 5.6 0 0 1 6.4 2.4a5.6 5.6 0 1 0 7.2 7.2z"/></svg>';
+  function saved() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  window.themeApply = function (s) {
+    var dark = s === 'dark' || (s !== 'light' && !!(mq && mq.matches));
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var b = document.getElementById('themeBtn');
+    if (b) {
+      b.innerHTML = dark ? MOON : SUN;
+      b.title = '主题：' + (s === 'dark' ? '暗色' : s === 'light' ? '亮色' : '跟随系统') + '（点击切换）';
+      b.setAttribute('aria-label', b.title);
+      b.dataset.mode = s || 'auto';
+    }
+  };
+  window.cycleTheme = function () {
+    var s = saved();
+    var next = s === 'dark' ? null : (s === 'light' ? 'dark' : 'light');   // 亮→暗→跟随系统
+    try { next ? localStorage.setItem(KEY, next) : localStorage.removeItem(KEY); } catch (e) {}
+    window.themeApply(next);
+  };
+  window.themeApply(saved());                    // 首帧前落地，避免闪烁
+  if (mq && mq.addEventListener) {
+    mq.addEventListener('change', function () { if (!saved()) window.themeApply(null); });
+  }
+  document.addEventListener('DOMContentLoaded', function () { window.themeApply(saved()); });
+})();
+</script>
 </head>
 <body>
 <div id="phone">
@@ -928,6 +964,7 @@
       <a id="navUser" onclick="switchPage('user')">我的</a>
     </span>
     <span class="spacer"></span>
+    <button class="navtheme" id="themeBtn" onclick="cycleTheme()" aria-label="切换主题"></button>
     <span class="navtag navcity" id="navCity" role="button" tabindex="0"
           title="点击切换城市"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14z"/><circle cx="8" cy="6.5" r="1.6"/></svg></span> 选择城市</span>
   </nav>
@@ -1641,7 +1678,9 @@ function render() {
       // 旧实现无条件调 renderMap()，而 renderMap 第一行就是「切到地图视图」——
       // 于是只要看过一次地图，再点某天的 tab 就会被强制拽到地图（用户报的 bug）
       const onMap = $('mapView').style.display === 'block';
-      if (onMap) { if (map) renderMap(); } else renderItin(); });
+      if (onMap) { if (map) renderMap(); } else renderItin();
+      // 天气与地图同口径：切到某天时只显示那天的天气（总览才列全行程）
+      if (weatherData) renderWeather(weatherData); });
   $('daytabs').firstChild.classList.add('active');
   renderItin();          // 规划完成立即渲染总览（这行丢过两次，不能再丢）
   switchView('itin');
@@ -2796,6 +2835,8 @@ let reviewForTask = null;      // 按 task_id 去重：LLM 调用（约 1~3 秒�
 // 定位刻意收窄：只按天给「本次行程那几天」的天气，不做逐小时、不做独立页面。
 // 拿不到就明说拿不到（超出预报范围 / 服务不可用），不用假数据填充 ——
 // 与项目一贯立场一致：宁可显示「未收录」，也不显示错的。
+let weatherData = null;        // 缓存整段行程的天气：切天时按 currentDay 重新渲染，不必再请求
+
 async function loadWeather() {
   const box = $('weatherBox'); if (!box) return;
   const city = (($('cityInput') || {}).value || '').trim() || currentCity || '';
@@ -2804,7 +2845,8 @@ async function loadWeather() {
   try {
     const r = await fetch(`/weather?city=${encodeURIComponent(city)}&start=${s}&end=${e}`);
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    renderWeather(await r.json());
+    weatherData = await r.json();
+    renderWeather(weatherData);
   } catch (err) {
     // 天气是可选增强，任何失败都只降级成一条说明，不影响行程本身的渲染
     renderWeather({ available: false, reason: '天气服务请求失败' });
@@ -2823,7 +2865,12 @@ function renderWeather(d) {
   // 「有雨雪」的判据：WMO code >= 51 即降水类；另外把降水概率与降水量也算进来，
   // 因为「明天 80% 有雨但 code 仍报多云」这种情况对出行决策更要紧。
   const isWet = x => x.code >= 51 || (x.precip_prob || 0) >= 50 || (x.precip_mm || 0) >= 1;
-  const days = d.days.map(x => {
+  // 单天视图只显示**当天**天气（与地图同口径：地图在单天视图也只画当天路线）；
+  // 总览（day 0）才列全行程。切天时由日 tab 处理器重新调用本函数。
+  const raw = d.days || [];
+  const scoped = currentDay >= 1 ? raw.slice(currentDay - 1, currentDay) : raw;
+  if (!scoped.length) { box.classList.remove('on'); box.innerHTML = ''; return; }
+  const days = scoped.map(x => {
     const t = (x.t_min == null || x.t_max == null)
       ? '—' : `${Math.round(x.t_min)}~${Math.round(x.t_max)}°C`;
     // 归档数据没有降水概率，这时退回显示降水量；两样都没有就整行不显示
@@ -2838,13 +2885,14 @@ function renderWeather(d) {
       ${p ? `<div class="wx-precip">${esc(p)}</div>` : ''}
     </div>`;
   }).join('');
-  const wetN = d.days.filter(isWet).length;
+  const wetN = scoped.filter(isWet).length;
+  const one = currentDay >= 1;                 // 单天口径
   // 只给一句可执行的提示，不堆数据 —— 天气是注脚，不是新的叙事线
   const note = wetN
-    ? `${ICON_WARN} 有 ${wetN} 天可能有雨雪（已高亮），户外景点建议备伞或留出机动时间`
-    : '这几天看起来没有明显降水，按计划走就行';
+    ? `${ICON_WARN} ${one ? '这天' : `有 ${wetN} 天`}可能有雨雪（已高亮），户外景点建议备伞或留出机动时间`
+    : `${one ? '这天' : '这几天'}看起来没有明显降水，按计划走就行`;
   box.innerHTML = `<div class="wx-card">
-    <div class="wx-head">${ICON_WEATHER} 出行天气 · 按天（${esc(d.source)}）</div>
+    <div class="wx-head">${ICON_WEATHER} 出行天气 · ${one ? `第 ${currentDay} 天` : '按天'}（${esc(d.source)}）</div>
     <div class="wx-days">${days}</div>
     <div class="wx-note">${note}</div>
   </div>`;

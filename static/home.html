@@ -138,6 +138,11 @@
                 transition:background .15s ease, color .15s ease; }
   .nav-links a:hover{ color:var(--fg); background:var(--surface); }
   .nav-sp{ flex:1; }
+  /* 主题切换（与规划页同一套：自动 → 亮 → 暗 循环）*/
+  .navtheme{ display:flex; align-items:center; justify-content:center; flex:none;
+             width:34px; height:34px; border-radius:10px; color:var(--muted);
+             background:transparent; border:none; cursor:pointer; padding:0; }
+  .navtheme:hover{ background:var(--surface); color:var(--fg); }
 
   .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
         font-family:var(--font-body); font-weight:600; font-size:14px;
@@ -453,8 +458,9 @@
   /* ===== 暗色主题（跟随系统）：整套令牌逐档反解，全部 >= WCAG AA =====
      项目此前 0 处暗色支持。这里不是「把浅色倒过来」，每一档都按
      「压最亮的面仍达标」反解，见 docs/design/home-redesign.html */
-  @media (prefers-color-scheme: dark) {
-    :root {
+  /* 暗色令牌：由 <head> 的主题脚本挂上 data-theme="dark" 才生效（与规划页同一机制）。
+     不用 @media 直接切，否则「手动选亮」在暗色系统上会被系统偏好盖回去。 */
+  :root[data-theme="dark"] {
       --bg: #0c0f12;      --surface: #14171b;
       --fg: #dee0e2;      --muted: #9aa0a6;   --muted-2: #adb2b6;  --muted-3: #8d939b;
       --border: #292e34;  --fill: #1e2124;    --fill-2: #262b2f;
@@ -468,9 +474,42 @@
       --bad: #fb6157;     --bad-ink: #e85854; --bad-soft: #301715;  --bad-line: #5b2724;
       --stay: #8a82e9;    --note-ink: #cc7200; --note-soft: #2d1a0a; --note-line: #5a3f14;
       --unknown-ink: #939aa1;  --c-ctrl: #70767c;  --c-ref: #62676c;
-    }
   }
 </style>
+<script>
+/* ---- 主题：跟随系统 / 亮 / 暗（无闪烁：首帧前就把 data-theme 定下来）----
+   与 static/index.html 同一套实现；令牌只定义一份，由这里决定用哪份。
+   没选过 = 跟随系统（读 matchMedia，浏览器模拟系统偏好时同样生效）。 */
+(function () {
+  var KEY = 'theme';
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  var SUN = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.4v1.7M8 12.9v1.7M1.4 8h1.7M12.9 8h1.7M3.3 3.3l1.2 1.2M11.5 11.5l1.2 1.2M12.7 3.3l-1.2 1.2M4.5 11.5l-1.2 1.2"/></svg>';
+  var MOON = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.6 9.6A5.6 5.6 0 0 1 6.4 2.4a5.6 5.6 0 1 0 7.2 7.2z"/></svg>';
+  function saved() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  window.themeApply = function (s) {
+    var dark = s === 'dark' || (s !== 'light' && !!(mq && mq.matches));
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var b = document.getElementById('themeBtn');
+    if (b) {
+      b.innerHTML = dark ? MOON : SUN;
+      b.title = '主题：' + (s === 'dark' ? '暗色' : s === 'light' ? '亮色' : '跟随系统') + '（点击切换）';
+      b.setAttribute('aria-label', b.title);
+      b.dataset.mode = s || 'auto';
+    }
+  };
+  window.cycleTheme = function () {
+    var s = saved();
+    var next = s === 'dark' ? null : (s === 'light' ? 'dark' : 'light');   // 亮→暗→跟随系统
+    try { next ? localStorage.setItem(KEY, next) : localStorage.removeItem(KEY); } catch (e) {}
+    window.themeApply(next);
+  };
+  window.themeApply(saved());                    // 首帧前落地，避免闪烁
+  if (mq && mq.addEventListener) {
+    mq.addEventListener('change', function () { if (!saved()) window.themeApply(null); });
+  }
+  document.addEventListener('DOMContentLoaded', function () { window.themeApply(saved()); });
+})();
+</script>
 </head>
 <body>
 
@@ -484,6 +523,7 @@
       <a href="#limits" data-od-id="nav-limits">已知局限</a>
     </nav>
     <span class="nav-sp"></span>
+    <button class="navtheme" id="themeBtn" onclick="cycleTheme()" aria-label="切换主题"></button>
     <a class="btn btn-primary" href="/app" data-od-id="nav-cta">开始规划</a>
   </div>
 </header>

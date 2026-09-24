@@ -42,6 +42,14 @@ function makeFetchStub(counter) {
       return res(hotelsForPage(page));
     }
     if (u.includes('/hotel/set')) { counter.set++; return res({ task_id: 'x', poll_url: '/task/x' }); }
+    if (u.includes('/weather')) return res({ available: true, source: '测试源', days: [
+      { date: '2026-09-24', weekday: '周四', emoji: '☀', text: '晴', t_min: 18, t_max: 27,
+        code: 0, precip_prob: 0, precip_mm: 0 },
+      { date: '2026-09-25', weekday: '周五', emoji: '🌧', text: '小雨', t_min: 16, t_max: 22,
+        code: 61, precip_prob: 80, precip_mm: 3 },
+      { date: '2026-09-26', weekday: '周六', emoji: '⛅', text: '多云', t_min: 17, t_max: 25,
+        code: 3, precip_prob: 10, precip_mm: 0 },
+    ] });
     if (u.includes('/demo/config')) return res({ tile_url: '', subdomains: '', attribution: 't', gcj: true });
     if (u.includes('/demo/spots')) return res({ city: '西安', spots: [] });
     if (u.includes('/cities')) return res({ cities: ['西安'], centers: { '西安': [34.26, 108.94] }, default: '西安' });
@@ -58,7 +66,7 @@ function fakePlan() {
     check_report: { passed: true, violations: [],
       stats: { spots_planned: 1, commute_api: { api_calls: 0 }, cache_hit_rate: 1 } },
     unplanned: [], reply: '', changes: [],
-    days: [{ day: 1, commute_min: 12, cost: 30, active_min: 60, spots: [] }],
+    days: [1, 2, 3].map(n => ({ day: n, commute_min: 12, cost: 30, active_min: 60, spots: [] })),
   };
 }
 
@@ -114,6 +122,27 @@ function leafletStub() {
 
   // ---- 酒店弹层 ----
   check('首屏右栏非空（空状态引导卡）', initView.trim().length > 10, initView.trim().slice(0, 18));
+
+  // ---- 主题切换：自动 → 亮 → 暗 → 自动 ----
+  const themeBtn = d.getElementById('themeBtn');
+  const rootEl = d.documentElement;
+  check('导航有主题切换按钮', !!themeBtn);
+  check('首屏 data-theme 已落地（无闪烁前提）',
+    ['light', 'dark'].includes(rootEl.getAttribute('data-theme')),
+    `data-theme=${rootEl.getAttribute('data-theme')}`);
+  if (themeBtn) {
+    click(themeBtn);                       // 自动 → 亮
+    await sleep(10);
+    check('点 1 次：写入显式「亮」', window.localStorage.getItem('theme') === 'light',
+      `saved=${window.localStorage.getItem('theme')}`);
+    click(themeBtn);                       // 亮 → 暗
+    await sleep(10);
+    check('点 2 次：切到暗色', rootEl.getAttribute('data-theme') === 'dark',
+      `data-theme=${rootEl.getAttribute('data-theme')}`);
+    click(themeBtn);                       // 暗 → 跟随系统
+    await sleep(10);
+    check('点 3 次：回到跟随系统（清存储）', window.localStorage.getItem('theme') === null);
+  }
   check('openHotelPicker 是全局函数', typeof window.openHotelPicker === 'function');
   window.openHotelPicker();
   await sleep(90);
@@ -198,6 +227,19 @@ function leafletStub() {
   click(dlBtn);
   await sleep(20);
   check('长图：点「下载」才真正导出', dl === 1, `downloads=${dl}`);
+
+  // ---- 出行天气：总览列全行程，切到某天只显示那天 ----
+  const wxDays = () => d.querySelectorAll('#weatherBox .wx-day').length;
+  await sleep(60);                                   // 等 loadWeather 的 promise
+  check('天气（总览/第0天）列出全行程 3 天', wxDays() === 3, `wx-day=${wxDays()}`);
+  const dayTab1 = d.querySelector('#daytabs .tab[data-day="1"]');
+  check('有第 1 天的 tab', !!dayTab1);
+  if (dayTab1) {
+    click(dayTab1);
+    await sleep(40);
+    check('切到第 1 天：天气只显示当天', wxDays() === 1, `wx-day=${wxDays()}`);
+    check('且标题标明「第 1 天」', /第\s*1\s*天/.test((d.getElementById('weatherBox') || {}).textContent || ''));
+  }
 
   // ---- 地图视图（新的 7 色相配色走这条渲染路径）----
   window.switchView('map');
