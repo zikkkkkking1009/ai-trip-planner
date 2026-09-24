@@ -2,7 +2,7 @@
 
 > 用途：**新会话读这一份就能无损接上下文**。
 > ⚠️ **2026-09-24 状态核对**：① 本地 `main` **领先远端 55 个提交、尚未推送**（缺 GitHub 凭据，需人工 `git push origin main`）；
-> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 266**、接口 **20 → 26**、前端冒烟 **12 → 14+30**（详见二、六节）。
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 286**、接口 **20 → 26**、前端冒烟 **12 → 14+30**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -17,7 +17,7 @@ cd "D:\workby room\ai-trip-planner"
 # 启动服务（当前应有实例在跑，先探测再决定是否重启）
 cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-# 单元测试（266 个）
+# 单元测试（286 个）
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
 # 前端静态检查（语法 + 命名遮蔽 + 属性转义 + CSS 变量 + 文档完整性，共 7 项）——在项目根目录跑
@@ -53,7 +53,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | 求解耗时 | 均值 **501ms**（CP-SAT 均值 4.18s） | 同上 |
 | 实体对齐 F1 | **100%**（20 条标注，转人工率 15%；改进前 90%/20%） | `python eval_aligner.py` |
 | 三方对照（朴素 / 求解器 / LLM 直排） | 求解器 100% 无冲突、0 预算违规；LLM 直排质量分 0.921 但违规 8 次 | `backend/eval_results.json` |
-| 单元测试 | **266 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
+| 单元测试 | **286 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **7 项**全绿；冒烟 **14/14**（行程渲染）+ **30/30**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态） | `tools/` |
 | 接口数 | **26 个**（13 GET / 11 POST / 1 DELETE / 1 WS；含新增 `/hotel/recommend` 与 `/meta`） | `backend/main.py` |
 
@@ -158,7 +158,7 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试
 
 | 工具 | 作用 | 命令 |
 |------|------|------|
-| `pytest` | **266** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
+| `pytest` | **286** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查 **7 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性） | `python tools/check_frontend.py` |
 | `tools/check_backend_health.py` | **五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本，静态检查、不需要密钥，已接入 CI） | `python tools/check_backend_health.py` |
 | `tools/verify_multicity.py` | **多城市端到端验证**（7 组断言：城市列表 / 各城景点数与坐标落城 / 未知城市不回落 / 成都攻略全链路 / 西安回归 / 同名 POI 不串味）。**需先起服务并把 `BASE` 端口对齐** | `python tools/verify_multicity.py` |
