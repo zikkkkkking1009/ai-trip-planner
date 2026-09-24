@@ -65,7 +65,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 
 **界面（2026-09-24 统一）**：全站（左栏表单 / 右栏结果 / 酒店弹层 / 我的页 / 日历 / 长图）统一到 **OpenDesign `modern-minimal`** 方向（发丝描边、除浮层外不用阴影、展示字号紧字距、数字等宽、字重收敛）；**全站图标由 emoji 换为线性 SVG**（16 视窗 / currentColor / 1.8px 描边；酒店图标用 Lucide `hotel`，保留桌宠 🐋）；**地图每日配色为 7 个不同色相**（明度压到 53~54% 以保证色块上白字 ≥4.5:1，算法与断言见 `docs/design/contrast-audit.py`）；**分享长图改为先弹预览再「下载 / 取消」**；**用户面文案去黑话**（hero、说明 chip、识别提示、规划进度条阶段名改白话，折叠日志仍留原始阶段）。
 
-**令牌层与暗色主题（2026-09-24 批 2/3/4 落地，详见 `docs/design/`）**：字号 7 档 / 字重 4 档（**800 全并入 700**）/ 间距 8pt 网格 / 圆角 4 档；`--accent` 拆成「作底 `--accent-solid`」与「作正文 `--accent-deep`」，压在其上的字用成对的 `--on-accent`；**新增暗色主题，跟随系统 `prefers-color-scheme`（没有手动开关）**。独立复核：浏览器运行时实测明暗两套**全部达标**（规划页 36 个文字元素、首页 216 个）。
+**令牌层与暗色主题（2026-09-24 批 2/3/4 落地，详见 `docs/design/`）**：字号 7 档 / 字重 4 档（**800 全并入 700**）/ 间距 8pt 网格 / 圆角 4 档；`--accent` 拆成「作底 `--accent-solid`」与「作正文 `--accent-deep`」，压在其上的字用成对的 `--on-accent`；**新增暗色主题**：默认**跟随系统**（`matchMedia`），导航栏提供**手动切换**（自动 → 亮 → 暗，选择存 `localStorage.theme`）。实现要点：暗色令牌只有一份（`:root[data-theme="dark"]`），由两页 `<head>` 的脚本按「localStorage → 系统偏好」写 `data-theme`，首帧前落地无闪烁；因为脚本读的是 `matchMedia`，**`tools/contrast_runtime.js` 模拟系统偏好时仍能验到暗色**。独立复核：浏览器运行时实测明暗两套**全部达标**（规划页 36 个文字元素、首页 216 个）。
 
 ---
 
