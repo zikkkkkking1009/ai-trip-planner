@@ -2256,13 +2256,13 @@ function openHotelPicker() {
       <button id="hotelSearchBtn">搜索</button></div>
     <div class="hotel-quick" id="hotelQuick"></div>
     <div class="hpk-bar">
-      <span id="hotelCount">输入关键词开始搜索</span>
+      <span id="hotelCount">正在为你推荐附近的酒店</span>
       <span class="hpk-sorts">
         <span class="hpk-sort on" data-sort="reco">推荐</span>
         <span class="hpk-sort" data-sort="dist">距离近→远</span>
       </span></div>
     <div id="hotelResults" class="hpk-list">
-      <div class="uempty">输入关键词搜索酒店</div></div>
+      <div class="uempty">正在找附近的酒店…</div></div>
   </div>`;
   ov.onclick = e => { if (e.target === ov) closeHotelPicker(); };
   document.body.appendChild(ov);
@@ -2312,8 +2312,34 @@ function openHotelPicker() {
     };
   });
 
+  // ---- 打开即推荐（携程模式）——
+  // 携程是"进来就有一屏推荐，再让你筛"；我们原来是一片空白逼用户先搜，方向反了。
+  // 这里不依赖关键词，直接按"行程中心 / 城市中心"拉附近住宿。
+  const loadRecommend = () => {
+    const ref0 = hotelRefPoint();
+    if (!ref0) {
+      $('hotelResults').innerHTML = '<div class="uempty">输入关键词搜索酒店</div>';
+      return;
+    }
+    $('hotelResults').innerHTML = '<div class="uempty">正在找附近的酒店…</div>';
+    fetch('/hotel/recommend', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({city: currentCity, lat: ref0.lat, lon: ref0.lon})})
+      .then(r => r.json()).then(d => {
+        hotelLast = d.results || [];
+        hotelSort = 'dist';                    // 推荐默认按距离：离行程近的先给
+        ov.querySelectorAll('.hpk-sort').forEach(x =>
+          x.classList.toggle('on', x.dataset.sort === 'dist'));
+        if ($('hotelCount')) $('hotelCount').textContent =
+          hotelLast.length ? `附近 ${hotelLast.length} 家酒店` : '附近没找到酒店';
+        renderHotelList();
+      }).catch(() => {
+        $('hotelResults').innerHTML = '<div class="uempty">暂时取不到推荐，输入关键词试试</div>';
+      });
+  };
+
   const doSearch = () => {
-    const q = $('hotelQ').value.trim(); if (!q) return;
+    const q = $('hotelQ').value.trim();
+    if (!q) { loadRecommend(); return; }        // 清空关键词 = 回到推荐列表
     pushHotelHistory(q);                       // 记住搜过的词，下次直接点
     Object.values(hotelMaps).forEach(m => m.remove());
     hotelMaps = {}; openMiniIdx = null;
@@ -2347,6 +2373,8 @@ function openHotelPicker() {
       if ($('hotelQ').value.trim().length >= 2) doSearch();
     }, 420);
   };
+  // 打开就先给一屏推荐：不搜也能选（携程模式），用户输入后再筛选
+  loadRecommend();
 }
 
 function pickHotel(name, lat, lon) {

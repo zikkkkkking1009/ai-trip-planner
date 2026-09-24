@@ -461,6 +461,34 @@ def hotel_search(body: dict) -> dict:
             "city": city}
 
 
+@app.post("/hotel/recommend")
+def hotel_recommend(body: dict) -> dict:
+    """打开酒店选择器时的**默认推荐**：不需要关键词，按给定中心返回附近住宿。
+
+    携程的模式是"进来就有一屏推荐，再让用户筛"，而不是"逼用户先搜"。
+    lat/lon 由前端给（有行程时是行程景点质心，否则不传、后端退回城市中心）。
+    """
+    from editor import poi_search
+    city = normalize_city(body.get("city")) or DEFAULT_CITY
+    lat, lon = body.get("lat"), body.get("lon")
+    center = ((float(lat), float(lon))
+              if (lat is not None and lon is not None)
+              else (city_center(city) or city_center(DEFAULT_CITY)))
+    if center is None:
+        raise HTTPException(500, f"城市表缺少 {DEFAULT_CITY}，请检查 backend/cities.py")
+    HOTEL_TYPES = "100000"          # 住宿服务
+    # 只给 types、不给 keywords = "附近这类 POI"，正是推荐想要的效果
+    cands = poi_search("", center[0], center[1], radius=5000, types=HOTEL_TYPES) or []
+    if not cands:                   # 兜底：附近实在没有住宿大类
+        cands = poi_search("酒店", center[0], center[1], radius=5000,
+                           types=HOTEL_TYPES) or []
+    return {"results": [{"name": c["name"], "lat": c["lat"], "lon": c["lon"],
+                         "intro": c.get("type_str", "").split(";")[0],
+                         "image": c.get("image", "")}
+                        for c in cands[:8]],
+            "city": city}
+
+
 @app.post("/hotel/set")
 async def hotel_set(body: dict) -> dict:
     """界面选择酒店 → 设住宿锚点 → 异步重排（返回新 task_id）。"""
