@@ -1,6 +1,8 @@
 # 交接文档（HANDOFF）
 
-> 用途：**新会话读这一份就能无损接上下文**。A7（对齐器 F1 90%→100%）完成于 2026-09-18 深夜，见仓库最新提交（远程 `main` 同步，CI 全绿）。
+> 用途：**新会话读这一份就能无损接上下文**。
+> ⚠️ **2026-09-24 状态核对**：① 本地 `main` **领先远端 55 个提交、尚未推送**（缺 GitHub 凭据，需人工 `git push origin main`）；
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 266**、接口 **20 → 26**、前端冒烟 **12 → 14+30**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -10,31 +12,33 @@
 
 ```bash
 # 项目根目录
-cd "C:\Users\周周\OneDrive\桌面\workbuddy\2026-09-16_旅游规划项目"
+cd "D:\workby room\ai-trip-planner"
 
 # 启动服务（当前应有实例在跑，先探测再决定是否重启）
-cd backend && "C:\Users\周周\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --port 8000
+cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-# 单元测试（84 个）
-"C:\Users\周周\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest tests/ -q
+# 单元测试（266 个）
+"C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
-# 前端静态检查（语法 + 命名遮蔽守卫）——在项目根目录跑
-cd "C:\Users\周周\OneDrive\桌面\workbuddy\2026-09-16_旅游规划项目"
-"C:\Users\周周\.workbuddy\binaries\python\envs\default\Scripts\python.exe" tools/check_frontend.py
+# 前端静态检查（语法 + 命名遮蔽 + 属性转义 + CSS 变量 + 文档完整性，共 7 项）——在项目根目录跑
+cd "D:\workby room\ai-trip-planner"
+"C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" tools/check_frontend.py
 
-# 前端运行时冒烟（jsdom，12 项断言）
-cd "C:\Users\周周\.workbuddy\binaries\node\workspace" && NODE_PATH="C:/Users/周周/.workbuddy/binaries/node/workspace/node_modules" "C:\Users\周周\.workbuddy\binaries\node\versions\22.22.2-3\node.exe" "C:/Users/周周/OneDrive/桌面/workbuddy/2026-09-16_旅游规划项目/tools/frontend_smoke.js"
+# 前端运行时冒烟（jsdom，14 项断言；另有 hotel_smoke.js 30 项，见第六节）
+cd "D:\workby room\ai-trip-planner" && node tools/frontend_smoke.js
+cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 ```
 
 **关键路径与环境注意**：
 
 | 项 | 值 |
 |----|----|
-| Python（托管，优先） | `C:\Users\周周\.workbuddy\binaries\python\envs\default\Scripts\python.exe` |
-| Node（托管） | `C:\Users\周周\.workbuddy\binaries\node\versions\22.22.2-3\node.exe` |
-| jsdom 安装位置 | `C:\Users\周周\.workbuddy\binaries\node\workspace\node_modules`（用 `NODE_PATH` 引用） |
-| git | `C:\Users\周周\.workbuddy\binaries\PortableGit\versions\1.2.0\cmd\git.exe` |
-| 服务端口 | 8000，前端 `http://localhost:8000` |
+| Python（托管，优先） | `C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe`（**裸 `python` 没有 pytest，必须用这个绝对路径**） |
+| Node（托管） | `C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2-3\node.exe`（`node` 在 PATH 上可直接用） |
+| jsdom 安装位置 | `C:\Users\Administrator\.workbuddy\binaries\node\workspace\node_modules`（`tools/` 下亦可解析） |
+| git | `E:\安装软件\Git\cmd\git.exe`（`git version 2.55.0.windows.5`，能连通 GitHub） |
+| 服务端口 | 8000，前端 `http://127.0.0.1:8000/app`（`/` 是首页） |
+| ⚠️ 多会话共存 | 本仓库可能同时有**多个会话**在改（例：2026-09-24 有另一会话在做设计令牌）。**提交时必须显式 `git add <路径>`，禁止 `git add -A`**，否则会把别人的在途改动一起提交。 |
 
 ---
 
@@ -49,11 +53,13 @@ cd "C:\Users\周周\.workbuddy\binaries\node\workspace" && NODE_PATH="C:/Users/�
 | 求解耗时 | 均值 **501ms**（CP-SAT 均值 4.18s） | 同上 |
 | 实体对齐 F1 | **100%**（20 条标注，转人工率 15%；改进前 90%/20%） | `python eval_aligner.py` |
 | 三方对照（朴素 / 求解器 / LLM 直排） | 求解器 100% 无冲突、0 预算违规；LLM 直排质量分 0.921 但违规 8 次 | `backend/eval_results.json` |
-| 单元测试 | **84 个**全过 | `pytest tests/ -q` |
-| 前端静态检查 + 运行时冒烟 | 通过；冒烟 **12/12**（旧版 8 项失败，证明测试有效） | `tools/` |
-| 接口数 | 20 个（含 `/cities`、`/demo/spots?city=`） | `backend/main.py` |
+| 单元测试 | **266 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
+| 前端静态检查 + 运行时冒烟 | 静态 **7 项**全绿；冒烟 **14/14**（行程渲染）+ **30/30**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态） | `tools/` |
+| 接口数 | **26 个**（13 GET / 11 POST / 1 DELETE / 1 WS；含新增 `/hotel/recommend` 与 `/meta`） | `backend/main.py` |
 
-**产品功能**：**桌面网站形态**（顶部毛玻璃导航 + Hero + 左表单/右结果双栏，<1024px 自动降级单列；已去掉 460px 手机壳）、**桌宠式 AI 对话助手**（右下角常驻角色：眨眼/呼吸/光标跟随/四表情，点击展开气泡面板，消息气泡 + 动态快捷指令 + 思考动画；能改行程**也能回答行程问题**；对话操控走主模型，消息用 textContent 防 XSS）、**偏好选择**（均衡 / 少走路 / 省钱 / 多玩，权重经扫描标定）、**稳健性模拟**（1000 次抽样估"按时走完的概率"+ 给出"去掉哪个景点能提升多少"，一键执行；参数敏感性见实验七）、**多城市**（**25 城 254 个景点**预置 + 任意城市走「粘攻略→识别城市→对齐」，`build_demo_data.py --auto` 可继续扩容）、**粘贴攻略自动识别景点**（LLM 抽取 + 城市识别 + 低置信度条目自动跳过）、日历选期、地图按天分色 + 图例开关、景点详情卡（实景图灯箱 / AI 介绍 / 好评避雷双卡 / 地址一键导航）、酒店选择器（缩略图 + 就地小地图 + **快捷区域标签 / 搜索历史 / 输入防抖自动搜**）、**住宿锚点**（每天起点终点，往返通勤计入）、对话式修改（多轮记忆）、历史规划（预览 / 软删除 / 批量清理）、收藏、免费模型通道。
+**产品功能**：**桌面网站形态**（顶部毛玻璃导航 + Hero + 左表单/右结果双栏，<1024px 自动降级单列；已去掉 460px 手机壳）、**桌宠式 AI 对话助手**（右下角常驻角色：眨眼/呼吸/光标跟随/四表情，点击展开气泡面板，消息气泡 + 动态快捷指令 + 思考动画；能改行程**也能回答行程问题**；对话操控走主模型，消息用 textContent 防 XSS）、**偏好选择**（均衡 / 少走路 / 省钱 / 多玩，权重经扫描标定）、**稳健性模拟**（1000 次抽样估"按时走完的概率"+ 给出"去掉哪个景点能提升多少"，一键执行；参数敏感性见实验七）、**多城市**（**25 城 254 个景点**预置 + 任意城市走「粘攻略→识别城市→对齐」，`build_demo_data.py --auto` 可继续扩容）、**粘贴攻略自动识别景点**（LLM 抽取 + 城市识别 + 低置信度条目自动跳过）、日历选期、地图按天分色 + 图例开关、景点详情卡（实景图灯箱 / AI 介绍 / 好评避雷双卡 / 地址一键导航）、**酒店选择器（2026-09-24 重做：打开即推荐附近酒店，无需先搜索；关键词收窄；分页「加载更多」每页 25 条；卡片给出评分 / 归一化档位 / 区域 / 到行程中心的真实距离 / 地址 / 电话 / 多图画廊；三种排序 + 档位·评分筛选；一键更换；就地小地图；⚠️ 没有真实房价——高德免费接口不含房价，字段留空即不显示、绝不编造）**、**住宿锚点**（每天起点终点，往返通勤计入；支持「先选酒店再规划」，`PlanRequest.hotel` 透传并回显）、对话式修改（多轮记忆）、历史规划（预览 / 软删除 / 批量清理）、收藏、免费模型通道。
+
+**界面（2026-09-24 统一）**：全站（左栏表单 / 右栏结果 / 酒店弹层 / 我的页 / 日历 / 长图）统一到 **OpenDesign `modern-minimal`** 方向（发丝描边、除浮层外不用阴影、展示字号紧字距、数字等宽、字重收敛）；**全站图标由 emoji 换为线性 SVG**（16 视窗 / currentColor / 1.8px 描边；酒店图标用 Lucide `hotel`，保留桌宠 🐋）；**地图每日配色为 7 个不同色相**（明度压到 53~54% 以保证色块上白字 ≥4.5:1，算法与断言见 `docs/design/contrast-audit.py`）；**分享长图改为先弹预览再「下载 / 取消」**；**用户面文案去黑话**（hero、说明 chip、识别提示、规划进度条阶段名改白话，折叠日志仍留原始阶段）。
 
 ---
 
@@ -129,7 +135,12 @@ A3 标注集扩充（20 → 100~200 条）   ← 需要周周抽时间人工标�
                                     ⚠ A7/N1 的改动（LLM 仲裁、主名先验、城市参数）扩充标注集后必须复测
 B1/B2 数据库（SQLite + SQLAlchemy 三表）+ 用户体系  ← 工程完整度，工程量较大
 B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化刚补完）  ← 免费方案调研见 docs/deploy_freetier.md
-C3 CI 加 ruff / mypy；C2 接口级集成测试；C5 分享长图
+C3 CI 加 ruff / mypy；C2 接口级集成测试
+**C5 分享长图 ✅ 已完成**（2026-09-24）  ← 原来点一下静默下载、样式陈旧；现改为**先弹预览浮层再「下载 / 取消」**，
+                                        canvas 也重排为现代简洁版（去蓝色渐变头、细分隔线、字重层级）
+设计系统落地（批 1 令牌 / 批 2 可读性 / 批 3 暗色主题 + 界面稿）  ← 完整方案见 `docs/design/ui-design-system.html`
+                                  ⚠️ 2026-09-24 由**另一会话**并行推进（产物落 `tools/check_contrast.py`），
+                                  对接前先 `git status` 看清谁的文件，**提交只 add 自己的路径**
 ```
 
 已完成（不要再做）：A1 CP-SAT 对照、A2 复测、A4 README、A5 实验报告、A6 多起点、A7 对齐器三机制、**N1 多城市泛化**、**N2 地理聚类（负结果，已复测证伪）**、**N3 稳健性模拟**、**N3b 稳健排程**、**A8 对齐器子景点后缀**、**A2 偏好权重可调**、B3 任务淘汰、B4 XSS 与事件委托、B5 日志、B6 重试、B7 依赖锁定。
@@ -147,12 +158,14 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试；C5 分享长图
 
 | 工具 | 作用 | 命令 |
 |------|------|------|
-| `pytest` | 84 个单元测试 | `cd backend && python -m pytest tests/ -q` |
-| `tools/check_frontend.py` | 前端静态检查（语法门 + 遮蔽守卫 + 未转义字段提示） | `python tools/check_frontend.py` |
+| `pytest` | **266** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
+| `tools/check_frontend.py` | 前端静态检查 **7 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性） | `python tools/check_frontend.py` |
 | `tools/check_backend_health.py` | **五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本，静态检查、不需要密钥，已接入 CI） | `python tools/check_backend_health.py` |
 | `tools/verify_multicity.py` | **多城市端到端验证**（7 组断言：城市列表 / 各城景点数与坐标落城 / 未知城市不回落 / 成都攻略全链路 / 西安回归 / 同名 POI 不串味）。**需先起服务并把 `BASE` 端口对齐** | `python tools/verify_multicity.py` |
 | `tools/build_demo_data.py` | 抓取多城市 demo 景点（高德真实坐标，禁止手写坐标）+ 打印城市中心表 | `python tools/build_demo_data.py` |
-| `tools/frontend_smoke.js` | jsdom 运行时冒烟（12 项 DOM 断言） | 见"30 秒上手" |
+| `tools/frontend_smoke.js` | jsdom 运行时冒烟（**14 项**：行程渲染 / 事件委托 / 详情卡 / 转义） | `node tools/frontend_smoke.js` |
+| `tools/hotel_smoke.js` | jsdom 运行时冒烟（**30 项**：酒店弹层 推荐·筛选·分页·画廊·先选酒店 + 长图预览 + 地图视图 + 首屏空状态） | `node tools/hotel_smoke.js` |
+| `docs/design/contrast-audit.py` | **对比度门禁**（oklch→sRGB 换算 + WCAG 实测；浅/暗两套主题各 27 组断言） | `python docs/design/contrast-audit.py --check` |
 | `evaluation.py` | 三方对照实验（朴素 / 求解器 / LLM 直排） | `python evaluation.py --n 50 --seed 42 --with-llm` |
 | `eval_gap.py` | 启发式 vs CP-SAT 的 gap | `python eval_gap.py --n 50 --seed 42 --limit 8` |
 | `eval_aligner.py` | 实体对齐 P/R/F1/转人工率（仲裁缓存命中时离线可跑；`.align_arb_cache.json` 被清则需 LLM key + 网络） | `python eval_aligner.py` |
@@ -200,5 +213,7 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试；C5 分享长图
 | `README.md` / `README_en.md` | 项目说明、量化结果、快速开始、部署、合规 |
 | `docs/experiments.md` | **实验报告**：方法学 + 四个实验（三方对照 / 对齐 F1 / 模型选型 / CP-SAT gap）+ 失败案例 + 改进尝试（含负结果） |
 | `ROADMAP.md` | 项目复盘：事实基线、五维评估、A/B/C 问题清单、六批推进计划、**面试资产包**（简历草稿 + 3 个 debug 故事 + 8 个追问答案要点） |
+| `docs/design/ui-design-system.html` | **界面设计规范与高保真稿**：字号 7 档 / 字重 4 档 / 8pt 间距 / 圆角 4 档的令牌表 + 21 组对比度实测 + 3 批落地方案（批 1 令牌 / 批 2 可读性 / 批 3 暗色主题与界面稿） |
+| `docs/design/contrast-audit.py` | 对比度门禁脚本（零依赖，可离线跑） |
 | `HANDOFF.md`（本文） | 交接上下文 |
 | `~/.workbuddy/skills/frontend-runtime-verify/` | 前端运行时验证方法论（可复用技能） |
