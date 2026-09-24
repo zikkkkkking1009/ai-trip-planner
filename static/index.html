@@ -907,11 +907,11 @@
   <div class="page active" id="pagePlan">
     <header class="hero">
       <h1>把一篇游记，变成可执行的行程</h1>
-      <div class="meta">LLM 抽取 → 高德实体对齐 → OPTW 求解 → 独立约束校验</div>
+      <div class="meta">读懂攻略 · 对齐真实地点 · 自动排期 · 校验时间够不够</div>
       <div class="chips" id="chips">
-        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5h11"/><path d="M3.5 11.5V9.2l1.3-3.2h6.4l1.3 3.2v2.3"/><circle cx="5.5" cy="12" r="1.1"/><circle cx="10.5" cy="12" r="1.1"/></svg></span> 通勤矩阵（缓存优先）</span>
-        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M10.3 5.7 6.6 6.6 5.7 10.3 9.4 9.4z"/></svg></span> 三级缓存</span>
-        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg></span> 约束校验</span>
+        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5h11"/><path d="M3.5 11.5V9.2l1.3-3.2h6.4l1.3 3.2v2.3"/><circle cx="5.5" cy="12" r="1.1"/><circle cx="10.5" cy="12" r="1.1"/></svg></span> 按真实驾车时间排</span>
+        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M10.3 5.7 6.6 6.6 5.7 10.3 9.4 9.4z"/></svg></span> 少走回头路</span>
+        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg></span> 时间够不够会校验</span>
       </div>
     </header>
 
@@ -1435,7 +1435,7 @@ $('extractBtn').onclick = async () => {
   const msg = $('extractMsg');
   if (!text) { msg.textContent = '请先粘贴攻略文本'; return; }
   const btn = $('extractBtn'); btn.disabled = true;
-  msg.textContent = '识别中…（LLM 抽取 + 高德实体对齐，约 3~10 秒）';
+  msg.textContent = '识别中…（约 3~10 秒）';
   try {
     const res = await fetch(
       `/extract?text=${encodeURIComponent(text)}&city=${encodeURIComponent(currentCity)}`,
@@ -1510,6 +1510,12 @@ const GP_STAGE = {
   '通勤矩阵': [2, 45], '构造': [45, 88], '优化': [88, 94],
   '校验': [94, 99], '完成': [100, 100], '稳健化': [88, 94],
 };
+// 阶段名 → 用户能读懂的说法（内部术语只留在日志面板里，不摆在进度条上）
+const GP_LABEL = {
+  '通勤矩阵': '计算景点之间的车程', '构造': '安排每天的景点',
+  '优化': '调整顺序少走回头路', '校验': '检查时间够不够',
+  '稳健化': '按波动重排一次', '完成': '完成',
+};
 let gpPct = 0, gpCap = 2, gpTicker = null;
 
 function gpSet(pct, text) {
@@ -1539,7 +1545,10 @@ function gpUpdate(stage, msg) {
     const frac = Number(m[1]) / Math.max(1, Number(m[2]));
     pct = lo + (hi - lo) * Math.min(1, frac);
   }
-  gpSet(pct, msg || stage);
+  // 进度条文案换成用户看得懂的说法（阶段名是内部的：通勤矩阵/构造/优化/校验…）。
+  // 日志面板仍写原始 msg，排查时细节不丢。
+  const label = GP_LABEL[stage];
+  gpSet(pct, label ? label + (m ? ` ${m[1]}/${m[2]}` : '') : (msg || stage));
 }
 function gpDone(ok, text) {
   clearInterval(gpTicker); gpTicker = null;
@@ -1582,7 +1591,7 @@ function render() {
     `<span class="chip">${commuteChip}</span>` +
     (plan.hotel ? `<span class="chip">${HOTEL_ICON} ${esc(plan.hotel.name)}</span>` : '') +
     `<span class="chip">${c.passed ? ICON_CHECK + ' 校验通过' : ICON_CROSS + ' 校验未过'}</span>` +
-    `<span class="chip">${ICON_SATELLITE} API ${apiCalls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
+    `<span class="chip">${ICON_SATELLITE} 实查 ${apiCalls} 次 · 缓存命中 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('hotelText').textContent = plan.hotel ? plan.hotel.name : '未设置（点此搜索选择）';
   $('daytabs').style.display = 'flex';
   $('viewSeg').style.display = 'flex';
@@ -3526,7 +3535,7 @@ document.addEventListener('click', e => {
       if (!text) { if (msg) msg.textContent = '请先粘贴攻略文本'; return; }
       const btn = e.target.closest('[data-act]');
       if (btn) btn.disabled = true;
-      if (msg) msg.textContent = '识别中…（LLM 抽取 + 高德实体对齐，约 3~10 秒）';
+      if (msg) msg.textContent = '识别中…（约 3~10 秒）';
       fetch(`/extract?text=${encodeURIComponent(text)}&city=${encodeURIComponent(currentCity)}`,
             {method: 'POST'})
         .then(r => r.json())
