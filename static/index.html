@@ -739,6 +739,9 @@
   .datebox .dicon svg, .licon svg { width:16px; height:16px; display:block; }
   /* 地图标记里的图标要更大一点（原来 emoji 是 20px） */
   .licon-lg svg { width:22px; height:22px; }
+  /* 例外：这两处图标要跟按钮自身的文字色（删除=红、灯箱=白），
+     否则灰图标在深色浮层上对比度不够、在删除按钮上失去语义。 */
+  #lightbox .licon, .ucard .del .licon { color: inherit; }
   /* 偏好 chip：发丝描边、选中态用次级信号（主色留给 CTA） */
   #prefRow .pref { font-size:13px; padding:7px 13px; border-radius:8px;
                    border:1px solid var(--line); background:var(--surface); font-weight:500; }
@@ -949,8 +952,8 @@
       <span aria-hidden="true">🐋</span>
       <span class="pp-title">小舟 · 行程助手</span>
       <span class="pp-state" id="ppState">待命</span>
-      <button class="pp-x" id="ppMemBtn" title="小舟记住的事（跨会话）">🧠</button>
-      <button class="pp-x" id="ppClose" title="收起">✕</button>
+      <button class="pp-x" id="ppMemBtn" title="小舟记住的事（跨会话）"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.8a2.8 2.8 0 0 0-2.8 2.8c0 .8.3 1.5.9 2 .5.4.9 1 .9 1.6v1.8h6v-1.8c0-.6.4-1.2.9-1.6.6-.5.9-1.2.9-2A2.8 2.8 0 0 0 8 2.8z"/><path d="M6 12.4h4"/></svg></span></button>
+      <button class="pp-x" id="ppClose" title="收起"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></span></button>
     </div>
     <div id="ppMem"></div>
     <div id="ppMsgs"></div>
@@ -969,7 +972,7 @@
       <div class="meta">历史规划与收藏的景点</div>
     </header>
     <div class="usection">
-      <h2 style="display:flex;justify-content:space-between;align-items:center">🕘 历史规划
+      <h2 style="display:flex;justify-content:space-between;align-items:center"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.8V8l2.4 1.6"/></svg></span> 历史规划
         <button id="manageBtn" onclick="toggleManage()" style="display:none;background:none;
           border:none;color:var(--acc);font-size:13px;cursor:pointer;font-weight:600">管理</button></h2>
       <div id="plansList"><div class="uempty">加载中…</div></div>
@@ -986,7 +989,7 @@
       </div>
     </div>
     <div class="usection">
-      <h2>⭐ 收藏的景点</h2>
+      <h2><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l1.6 3.3 3.6.5-2.6 2.6.6 3.6L8 10.9l-3.2 1.7.6-3.6L2.8 6.4l3.6-.5z" fill="currentColor"/></svg></span> 收藏的景点</h2>
       <div id="favsList"><div class="uempty">加载中…</div></div>
     </div>
   </div>
@@ -1107,7 +1110,7 @@ fetch('/cities').then(r => r.json()).then(d => {
   const petEl = $('pet'), navPetEl = $('navPetBtn');
   if (petEl) petEl.style.display = 'none';
   if (navPetEl) navPetEl.style.display = 'none';
-  // ⚠️ 首次进入必须渲染一次：右栏的空状态引导卡是 renderItin() 里 `!plan` 分支画的，
+  // 注意：首次进入必须渲染一次：右栏的空状态引导卡是 renderItin() 里 `!plan` 分支画的，
   // 而其余 renderItin() 调用点全部带 `if (plan)` 守卫 —— 不在这里无条件调一次，
   // 首次打开右栏就是一片空白（用户报的「打开是空的」）。日期已在上层同步写入，
   // 所以这里 dayCount() 不会算出 NaN。
@@ -1171,6 +1174,23 @@ const ICON_SHIELD = _ic('<path d="M8 2.5 12.5 4v4c0 2.8-2.2 4.6-4.5 5.5C5.7 12.6
 const ICON_SATELLITE = _ic('<circle cx="8" cy="8" r="2.2"/><path d="M3 3.5l1.9 1.9M11.1 11.1 13 13M13 3.5l-1.9 1.9M4.9 11.1 3 13"/>');
 const ICON_TICKET = _ic('<rect x="2.5" y="4.5" width="11" height="7" rx="1.2"/>'
   + '<path d="M6.3 4.5v7" stroke-dasharray="1.5 1.5"/>');
+const ICON_WARN = _ic('<path d="M8 2.5 14.5 13.5h-13z"/><path d="M8 6.6v3"/><path d="M8 11.4v.1"/>');
+const ICON_X = _ic('<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>');
+// 五角星：实心版给「已收藏」，空心版给「未收藏」。path 级 fill="currentColor" 会覆盖 svg 的 fill="none"。
+const _STAR_P = 'M8 2.6l1.6 3.3 3.6.5-2.6 2.6.6 3.6L8 10.9l-3.2 1.7.6-3.6L2.8 6.4l3.6-.5z';
+const ICON_STAR = _ic('<path d="' + _STAR_P + '" fill="currentColor"/>');
+const ICON_STAR_O = _ic('<path d="' + _STAR_P + '"/>');
+const ICON_SPARKLE = _ic('<path d="M8 2.2l1.3 3.5L12.8 7 9.3 8.3 8 11.8 6.7 8.3 3.2 7l3.5-1.3z"/>');
+const ICON_CALENDAR = _ic('<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M5.5 2v2M10.5 2v2"/>');
+const ICON_CLOCK = _ic('<circle cx="8" cy="8" r="5.5"/><path d="M8 4.8V8l2.4 1.6"/>');
+const ICON_MONEY = _ic('<circle cx="8" cy="8" r="5.5"/><path d="M6.3 5.6 8 8l1.7-2.4M8 8v3M6 9.6h4M6 11h4"/>');
+const ICON_TARGET = _ic('<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.2"/>');
+const ICON_SLIDERS = _ic('<path d="M3 5h10M3 11h10"/><circle cx="6" cy="5" r="1.6"/><circle cx="10" cy="11" r="1.6"/>');
+const ICON_WEATHER = _ic('<circle cx="5.6" cy="5.6" r="2.3"/>'
+  + '<path d="M5.6 1.8v1M5.6 8.4v1M1.8 5.6h1M8.4 5.6h1"/>'
+  + '<path d="M9.6 12.8a2.3 2.3 0 0 1 2.3-2.3h1a1.9 1.9 0 0 1 0 3.8h-3.3a2.3 2.3 0 0 1-2.3-1.5z"/>');
+const ICON_BRAIN = _ic('<path d="M8 2.8a2.8 2.8 0 0 0-2.8 2.8c0 .8.3 1.5.9 2 .5.4.9 1 .9 1.6v1.8h6v-1.8c0-.6.4-1.2.9-1.6.6-.5.9-1.2.9-2A2.8 2.8 0 0 0 8 2.8z"/>'
+  + '<path d="M6 12.4h4"/>');
 const fmt = h => { const hh=Math.floor(h), mm=Math.round((h-hh)*60);
   return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); };
 const dateOf = i => { const d = new Date($('startDate').value || Date.now());
@@ -1197,7 +1217,7 @@ function openCalendar() {
   ov.innerHTML = `<div class="cal-sheet">
     <div class="cal-head"><b>选择行程日期</b>
       <button onclick="this.closest('.cal-overlay').remove()" style="background:var(--fill);border:none;
-        border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
+        border-radius:50%;width:30px;height:30px;cursor:pointer">${ICON_X}</button></div>
     <div class="cal-week">${['日','一','二','三','四','五','六'].map(w=>`<span>${w}</span>`).join('')}</div>
     <div class="cal-months" id="calMonths"></div>
     <div class="cal-foot"><button id="calDone" onclick="calApply()"></button></div>
@@ -1299,9 +1319,10 @@ $('extractBtn').onclick = async () => {
     const skipped = d.spots.filter(s => s.needs_review);
     spots = adopt;
     log('抽取', `识别 ${d.count} 个，采纳 ${adopt.length} 个，跳过待确认 ${skipped.length} 个`);
-    msg.textContent = `识别到 ${d.count} 个景点，采纳 ${adopt.length} 个`
-      + (skipped.length ? `；跳过 ${skipped.length} 个低置信度（${skipped.map(s => s.name).join('、')}）` : '')
-      + (d.needs_city ? ' ⚠️ 未能识别城市，请在上方「城市」填写后重试' : '')
+    // 这里改用 innerHTML 是因为消息里要插线性图标（svg 字符串）；景点名来自 LLM 抽取，必须 esc() 转义。
+    msg.innerHTML = esc(`识别到 ${d.count} 个景点，采纳 ${adopt.length} 个`)
+      + (skipped.length ? esc(`；跳过 ${skipped.length} 个低置信度（${skipped.map(s => s.name).join('、')}）`) : '')
+      + (d.needs_city ? ' ' + ICON_WARN + ' 未能识别城市，请在上方「城市」填写后重试' : '')
       + '。可直接点「开始规划」。';
   } catch (e) {
     msg.textContent = '识别失败：' + e.message;
@@ -1400,7 +1421,7 @@ function log(stage, msg) {
   // 是唯一的子节点，从它 closest('details') 反向定位就准了。
   $('log').closest('details').open = true;
   const div = document.createElement('div');
-  // ⚠️ stage / msg 不可信：WebSocket 把后端进度原样推来（`(d.progress||[]).forEach(p => log(p.stage, p.msg))`），
+  // 注意：stage / msg 不可信：WebSocket 把后端进度原样推来（`(d.progress||[]).forEach(p => log(p.stage, p.msg))`），
   // 而后端会把 **LLM 原始输出**写进「调试」阶段、把 `json.dumps(op)` 写进「理解」阶段。
   // 2026-09-23 修：原先两处都没转义，等于给了 LLM 输出一条直进 innerHTML 的通道。
   div.innerHTML = `<span class="st">[${esc(stage)}]</span>${esc(msg)}`;
@@ -1416,16 +1437,16 @@ function render() {
   const ca = (c.stats && c.stats.commute_api) || {};
   const fallbacks = ca.fallbacks || 0;
   const apiCalls = ca.api_calls || 0;
-  const commuteChip = fallbacks > 0 && !apiCalls ? '🚗 通勤：直线估算（降级）'
-                    : apiCalls > 0 ? '🚗 通勤：高德真实驾车'
-                    : '🚗 通勤：缓存命中';
+  const commuteChip = fallbacks > 0 && !apiCalls ? ICON_CAR + ' 通勤：直线估算（降级）'
+                    : apiCalls > 0 ? ICON_CAR + ' 通勤：高德真实驾车'
+                    : ICON_CAR + ' 通勤：缓存命中';
   $('chips').innerHTML =
-    `<span class="chip">🎫 总门票 ¥${plan.total_cost}</span>` +
-    `<span class="chip">📍 已排 ${c.stats.spots_planned} 个</span>` +
+    `<span class="chip">${ICON_TICKET} 总门票 ¥${plan.total_cost}</span>` +
+    `<span class="chip">${ICON_PIN} 已排 ${c.stats.spots_planned} 个</span>` +
     `<span class="chip">${commuteChip}</span>` +
     (plan.hotel ? `<span class="chip">${HOTEL_ICON} ${esc(plan.hotel.name)}</span>` : '') +
-    `<span class="chip">${c.passed ? '✅ 校验通过' : '❌ 校验未过'}</span>` +
-    `<span class="chip">🛰 API ${apiCalls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
+    `<span class="chip">${c.passed ? ICON_CHECK + ' 校验通过' : ICON_CROSS + ' 校验未过'}</span>` +
+    `<span class="chip">${ICON_SATELLITE} API ${apiCalls} 次 / 缓存 ${Math.round(c.stats.cache_hit_rate*100)}%</span>`;
   $('hotelText').textContent = plan.hotel ? plan.hotel.name : '未设置（点此搜索选择）';
   $('daytabs').style.display = 'flex';
   $('viewSeg').style.display = 'flex';
@@ -1499,7 +1520,7 @@ function renderItin() {
     const c = document.createElement('div');
     c.className = 'changes';
     c.style.background = 'var(--note-soft)'; c.style.borderColor = 'var(--note-line)'; c.style.color = 'var(--note-ink)';
-    c.textContent = `⚠️ 行程日期已改为 ${dayCount()} 天，与当前行程（${plan.days.length} 天）不一致——点「开始规划」按新日期重新生成`;
+    c.innerHTML = `${ICON_WARN} 行程日期已改为 ${dayCount()} 天，与当前行程（${plan.days.length} 天）不一致——点「开始规划」按新日期重新生成`;
     v.appendChild(c);
   }
   // 方向 C：day 0 = 横向总览时间线；day ≥ 1 = 当天竖向时间线 + 当天小地图
@@ -1544,7 +1565,7 @@ function renderOverview(plan) {
       const img = spotImage(v);
       return img
         ? `<img class="ov-photo" src="${esc(img)}" alt="${esc(v.name)}" loading="lazy" onerror="this.style.display='none'">`
-        : `<div class="ov-photo ov-photo-empty">📷</div>`;
+        : `<div class="ov-photo ov-photo-empty">${ICON_CAMERA}</div>`;
     }).join('');
     const names = d.spots.map(v =>
       `<span class="ov-spot" data-act="detail" data-name="${esc(v.name)}">${esc(v.name)}</span>`).join('');
@@ -1553,7 +1574,7 @@ function renderOverview(plan) {
       <div class="ov-card-top"><span class="ov-day">Day ${i + 1}</span>
         <span class="ov-date">${esc(dateOf(i))}</span></div>
       <div class="ov-meta">${d.spots.length} 个景点 · ${km} km</div>
-      <div class="ov-photos">${photos || '<div class="ov-photo ov-photo-empty">📷</div>'}</div>
+      <div class="ov-photos">${photos || `<div class="ov-photo ov-photo-empty">${ICON_CAMERA}</div>`}</div>
       <div class="ov-spots">${names}</div>
       <div class="ov-density"><div class="ov-density-bar" style="width:${density}%;background:${tint}"></div></div>
       <div class="ov-density-label">紧凑度 · ${d.spots.length} 个/天</div>
@@ -1591,7 +1612,7 @@ function renderDayTimeline(day, dayIdx) {
     let commute = '';
     if (k < spotsOfDay.length - 1) {
       const cm = legCommuteMin(v, spotsOfDay[k + 1]);   // 真坐标算出的驾车通勤（找不到坐标则隐藏）
-      if (cm != null) commute = `<div class="tl-commute">🚗 ${cm} 分钟</div>`;
+      if (cm != null) commute = `<div class="tl-commute">${ICON_CAR} ${cm} 分钟</div>`;
     }
     return card + commute;
   }).join('');
@@ -1600,8 +1621,8 @@ function renderDayTimeline(day, dayIdx) {
   return `<div class="daywrap">
       <div class="tl">${head}<div class="tl-track">${items}</div></div>
       <div class="daymap">
-        <div class="daymap-title">🗺 当天路线（真实地图）</div>
-        <button class="view-map-btn" data-act="view-map" data-day="${currentDay}">🗺 在地图查看 Day ${currentDay}</button>
+        <div class="daymap-title">${ICON_MAP} 当天路线（真实地图）</div>
+        <button class="view-map-btn" data-act="view-map" data-day="${currentDay}">${ICON_MAP} 在地图查看 Day ${currentDay}</button>
         <div id="dayMap"></div>
       </div>
     </div>`;
@@ -1690,7 +1711,7 @@ function initDayMap(day, dayIdx) {
 // 所以没有图的先放占位、渲染后按需从 /poi/detail 取。
 // 规划完成后后台 prefetch_media 已经在抓这些图，所以多数请求会直接命中服务端缓存。
 //
-// ⚠️ 必须**限流**：`/poi/detail` 缓存未命中时会真调高德，而高德是全局 QPS 限频（0.35s/次）；
+// 注意：必须**限流**：`/poi/detail` 缓存未命中时会真调高德，而高德是全局 QPS 限频（0.35s/次）；
 // 一次放开 8 个请求会把用户后续操作（点按钮、切换视图）一起拖慢——实测新行程渲染后页面明显变钝。
 const THUMB_CONCURRENCY = 3;
 
@@ -1735,12 +1756,12 @@ function loadFavorites() {
   fetch('/favorites').then(r => r.json()).then(d => {
     favSet = new Set(d.favorites.map(f => f.name));
     const el = $('favsList');
-    if (!d.favorites.length) { el.innerHTML = '<div class="uempty">还没有收藏 —— 在行程里点 ☆ 收藏景点</div>'; return; }
+    if (!d.favorites.length) { el.innerHTML = '<div class="uempty">还没有收藏 —— 在行程里点 ' + ICON_STAR_O + ' 收藏景点</div>'; return; }
     el.innerHTML = d.favorites.map(f =>
       `<div class="ucard" data-act="detail" data-name="${esc(f.name)}">${f.image ? `<img class="img" src="${esc(f.image)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover" onerror="this.style.display='none'">` : ''}
         <div class="info"><div class="t">${esc(f.name)}</div>
         <div class="s">${esc(f.intro || f.desc)}</div></div>
-        <button class="del" data-act="fav" data-name="${esc(f.name)}">✕</button></div>`).join('');
+        <button class="del" data-act="fav" data-name="${esc(f.name)}">${ICON_X}</button></div>`).join('');
     if (plan) renderItin();
   });
 }
@@ -1764,7 +1785,7 @@ function openLightbox(idx) {
   ov.innerHTML = `<img id="lbImg" style="max-width:94vw;max-height:80vh;border-radius:8px">
     <button onclick="document.getElementById('lightbox').remove()" style="position:absolute;top:16px;right:16px;
       background:rgba(255,255,255,.15);color:var(--surface);border:none;border-radius:50%;width:36px;height:36px;
-      cursor:pointer;font-size:16px">✕</button>
+      cursor:pointer;font-size:16px">${ICON_X}</button>
     <button id="lbPrev" style="position:absolute;left:10px;background:rgba(255,255,255,.12);color:var(--surface);
       border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:18px">‹</button>
     <button id="lbNext" style="position:absolute;right:10px;background:rgba(255,255,255,.12);color:var(--surface);
@@ -1789,7 +1810,7 @@ function openLightbox(idx) {
 function openSpotDetail(name) {
   const base = (plan ? [...plan.days.flatMap(d => d.spots)] : [])
     .find(s => s.name === name) || spots.find(s => s.name === name) || {name};
-  const fav = favSet.has(name) ? '⭐ 取消收藏' : '⭐ 收藏';
+  const fav = favSet.has(name) ? ICON_STAR + ' 取消收藏' : ICON_STAR + ' 收藏';
   const overlay = document.createElement('div');
   overlay.id = 'spotModal';
   overlay.innerHTML = `<div style="width:100%;max-width:460px;height:92vh;background:var(--surface);
@@ -1797,7 +1818,7 @@ function openSpotDetail(name) {
     <div style="padding:14px 16px 4px;display:flex;justify-content:space-between;gap:10px">
       <b style="font-size:18px;line-height:1.4">${name}</b>
       <button onclick="this.closest('#spotModal').remove()" style="background:var(--fill);border:none;
-        border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:15px;flex-shrink:0">✕</button></div>
+        border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:15px;flex-shrink:0">${ICON_X}</button></div>
     <div id="spotChips" style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 16px 10px">
       <span style="background:var(--warn-soft);color:var(--warn);font-size:11px;padding:3px 9px;border-radius:8px">${esc(base.intro) || '景点信息'}</span>
     </div>
@@ -1827,7 +1848,8 @@ function openSpotDetail(name) {
   document.body.appendChild(overlay);
   overlay.querySelector('#spotFavBtn').onclick = function () {
     toggleFav(name);
-    this.textContent = this.textContent.includes('取消') ? '⭐ 收藏' : '⭐ 取消收藏';
+    // 用 innerHTML（要插 svg 图标）；textContent 读出来是纯文字（" 取消收藏"/" 收藏"），判断逻辑不受影响。
+    this.innerHTML = this.textContent.includes('取消') ? ICON_STAR + ' 收藏' : ICON_STAR + ' 取消收藏';
   };
   fetch(`/poi/detail?name=${encodeURIComponent(name)}&city=${encodeURIComponent(currentCity)}`)
     .then(r => { if (!r.ok) throw 0; return r.json(); })
@@ -1877,11 +1899,11 @@ function openSpotDetail(name) {
       const rows = [];
       const qn = name.replace(/'/g, "\\'");
       const navLink = (d.lon && d.lat)
-        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" data-act="nav" data-lon="${esc(d.lon)}" data-lat="${esc(d.lat)}" data-name="${esc(name)}">🧭 导航</a>` : '';
+        ? ` <a style="color:var(--acc);cursor:pointer;font-weight:600" data-act="nav" data-lon="${esc(d.lon)}" data-lat="${esc(d.lat)}" data-name="${esc(name)}">${ICON_COMPASS} 导航</a>` : '';
       // opentime 来自高德接口，与下一行 address 一样要过 esc()
       // （2026-09-23 修：同一函数里 address 转义了、opentime 漏了）
-      if (d.opentime) rows.push(['🕘', '营业时间', esc(d.opentime)]);
-      if (d.address) rows.push(['📍', '地址', `${esc(d.address)}${navLink}`]);
+      if (d.opentime) rows.push([ICON_CLOCK, '营业时间', esc(d.opentime)]);
+      if (d.address) rows.push([ICON_PIN, '地址', `${esc(d.address)}${navLink}`]);
       $('spotRows').innerHTML = rows.map(([e, k, v]) =>
         `<div style="padding:9px 0;border-bottom:1px solid var(--line)">${e} <b>${k}</b>　${v}</div>`).join('');
     })
@@ -1989,7 +2011,7 @@ function openPlanModal(taskId) {
     ov.innerHTML = `<div class="cal-sheet">
       <div class="cal-head"><b>${esc(r0.city) || '行程'}规划预览</b>
         <button onclick="this.closest('.cal-overlay').remove()" style="background:var(--fill);border:none;
-          border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
+          border-radius:50%;width:30px;height:30px;cursor:pointer">${ICON_X}</button></div>
       <div style="padding:0 16px 10px;overflow-y:auto;flex:1">
         <div style="color:var(--muted-2);font-size:13px">门票 ¥${r0.total_cost}
           · ${r0.check_report.stats.spots_planned} 个景点
@@ -2037,10 +2059,10 @@ function openPlan(taskId) {
 function heroChipsFor(state) {
   if (state === 'empty' || state === 'reset') {
     return [
-      `<span class="chip">📅 ${dayCount()} 天</span>`,
-      `<span class="chip">⚖️ 偏好</span>`,
-      `<span class="chip">💰 预算</span>`,
-      `<span class="chip">🎯 点开始规划</span>`,
+      `<span class="chip">${ICON_CALENDAR} ${dayCount()} 天</span>`,
+      `<span class="chip">${ICON_SLIDERS} 偏好</span>`,
+      `<span class="chip">${ICON_MONEY} 预算</span>`,
+      `<span class="chip">${ICON_TARGET} 点开始规划</span>`,
     ];
   }
   // 未知 state 兜底：与 reset 一致，避免页面卡在裸 chips
@@ -2152,7 +2174,7 @@ function openHotelPicker() {
   ov.innerHTML = `<div class="cal-sheet" style="height:78vh">
     <div class="cal-head"><b>选择住宿酒店</b>
       <button onclick="closeHotelPicker()" style="background:var(--fill);border:none;
-        border-radius:50%;width:30px;height:30px;cursor:pointer">✕</button></div>
+        border-radius:50%;width:30px;height:30px;cursor:pointer">${ICON_X}</button></div>
     <div style="display:flex;gap:8px;padding:0 16px 6px">
       <input id="hotelQ" placeholder="酒店名 / 区域，如：未央区、钟楼">
       <button id="hotelSearchBtn" style="background:var(--acc);color:var(--surface);border:none;
@@ -2334,7 +2356,7 @@ function renderWeather(d) {
   box.classList.add('on');
   if (!d || !d.available) {
     box.innerHTML = `<div class="wx-card wx-na">
-      <div class="wx-head">🌤 出行天气 · ${esc((d && d.reason) || '暂不可用')}</div>
+      <div class="wx-head">${ICON_WEATHER} 出行天气 · ${esc((d && d.reason) || '暂不可用')}</div>
     </div>`;
     return;
   }
@@ -2359,10 +2381,10 @@ function renderWeather(d) {
   const wetN = d.days.filter(isWet).length;
   // 只给一句可执行的提示，不堆数据 —— 天气是注脚，不是新的叙事线
   const note = wetN
-    ? `⚠️ 有 ${wetN} 天可能有雨雪（已高亮），户外景点建议备伞或留出机动时间`
+    ? `${ICON_WARN} 有 ${wetN} 天可能有雨雪（已高亮），户外景点建议备伞或留出机动时间`
     : '这几天看起来没有明显降水，按计划走就行';
   box.innerHTML = `<div class="wx-card">
-    <div class="wx-head">🌤 出行天气 · 按天（${esc(d.source)}）</div>
+    <div class="wx-head">${ICON_WEATHER} 出行天气 · 按天（${esc(d.source)}）</div>
     <div class="wx-days">${days}</div>
     <div class="wx-note">${note}</div>
   </div>`;
@@ -2375,7 +2397,7 @@ async function loadReview() {
   if (reviewForTask === lastTaskId) return;
   reviewForTask = lastTaskId;
   box.classList.add('on');
-  box.innerHTML = '<div class="rv-card rv-loading">🤖 正在通读这份行程，写总评…（约 1~3 秒）</div>';
+  box.innerHTML = `<div class="rv-card rv-loading">${ICON_SPARKLE} 正在通读这份行程，写总评…（约 1~3 秒）</div>`;
   try {
     const r = await fetch('/plan/review', {method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -2397,16 +2419,16 @@ function renderReview(d) {
   const nDays = (plan?.days || []).length || 1;
   const commute = (plan?.days || []).reduce((s, x) => s + (x.commute_min || 0), 0);
   const money = `<div class="rv-money">
-      💰 总花费 <b>¥${ticket.toFixed(0)}</b><span>（门票，不含交通餐饮）</span>
+      ${ICON_MONEY} 总花费 <b>¥${ticket.toFixed(0)}</b><span>（门票，不含交通餐饮）</span>
       <span>· 每天约 ¥${(ticket / nDays).toFixed(0)}</span>
       <span>· 通勤合计 ${Math.round(commute)} 分钟</span>
     </div>`;
   const hl = (d.highlights || [])
-    .map(x => `<div class="rv-item"><b>✨</b><span>${esc(x)}</span></div>`).join('');
+    .map(x => `<div class="rv-item"><b>${ICON_SPARKLE}</b><span>${esc(x)}</span></div>`).join('');
   const wn = (d.warnings || [])
-    .map(x => `<div class="rv-item"><b>⚠️</b><span>${esc(x)}</span></div>`).join('');
+    .map(x => `<div class="rv-item"><b>${ICON_WARN}</b><span>${esc(x)}</span></div>`).join('');
   box.innerHTML = `<div class="rv-card">
-    <div class="rv-head">🤖 AI 总评 · 通读整份行程（${nDays} 天）</div>
+    <div class="rv-head">${ICON_SPARKLE} AI 总评 · 通读整份行程（${nDays} 天）</div>
     <div class="rv-top">${score}<div class="rv-summary">${esc(d.summary || '')}</div></div>
     ${money}
     ${(hl || wn) ? `<div class="rv-list">${hl}${wn}</div>` : ''}
@@ -2425,7 +2447,7 @@ async function loadRobustness() {
   if (simForTask === lastTaskId) return;      // 同一版本不重复模拟
   simForTask = lastTaskId;
   box.style.display = 'block';
-  box.innerHTML = '<div class="rb-card rb-loading">🛡 正在做 1000 次稳健性模拟…'
+  box.innerHTML = `<div class="rb-card rb-loading">${ICON_SHIELD} 正在做 1000 次稳健性模拟…`
     + '（给停留与通勤加波动，看有多少次能按时回到酒店）</div>';
   try {
     const r = await fetch('/plan/simulate', {method:'POST',
@@ -2449,12 +2471,12 @@ function renderRobustness(d) {
   // 开了稳妥度时，显示"目标 vs 达成"——用户要看的是"我要求的把握有没有被满足"
   const rb = plan && plan.robustness;
   const targetLine = rb ? `<div class="rb-days" style="margin-top:6px">
-      🎯 目标稳妥度 ${Math.round(rb.target * 100)}% → 实测 ${Math.round((rb.achieved || 0) * 100)}%
-      ${rb.reached ? '✅ 已达标' : '⚠️ 未达标'}
+      ${ICON_TARGET} 目标稳妥度 ${Math.round(rb.target * 100)}% → 实测 ${Math.round((rb.achieved || 0) * 100)}%
+      ${rb.reached ? ICON_CHECK + ' 已达标' : ICON_WARN + ' 未达标'}
       ${rb.rounds > 1 ? `（重排了 ${rb.rounds - 1} 轮，时间窗收到 ${rb.daily_end_h} 时）` : ''}
     </div>` : '';
   box.innerHTML = `<div class="rb-card rb-${tone}">
-    <div class="rb-head">🛡 稳健性模拟 · ${d.runs} 次抽样 · 给停留与通勤加了波动</div>
+    <div class="rb-head">${ICON_SHIELD} 稳健性模拟 · ${d.runs} 次抽样 · 给停留与通勤加了波动</div>
     <div class="rb-prob">${pct}%<span>的把握按时走完</span></div>
     <div class="rb-days">${esc(days)}</div>
     ${targetLine}
@@ -2466,7 +2488,7 @@ function renderRobustness(d) {
       —— 是估计值，可用真实打卡数据校准；风险点用共同随机数对比，排序比绝对数值更可信</div>
   </div>`;
   // 一键执行建议：复用对话链路（桌宠会真的去改并回复）
-  // ⚠️ 必须**先打开对话面板**：否则消息全写进隐藏面板，用户点了按钮看不到任何反应，
+  // 注意：必须**先打开对话面板**：否则消息全写进隐藏面板，用户点了按钮看不到任何反应，
   // 还以为卡死/没生效（实测就是这么被反馈"很卡有 bug"的）
   box.querySelectorAll('.rb-fix').forEach(btn => {
     btn.onclick = () => {
@@ -2503,7 +2525,8 @@ function saveMem(list) {
 function renderMemBtn() {
   const b = $('ppMemBtn'); if (!b) return;
   const n = loadMem().length;
-  b.textContent = n ? `🧠${n}` : '🧠';
+  // 用 innerHTML：按钮内容是「线性图标 + 条数」，textContent 会把 svg 当纯文本显示。
+  b.innerHTML = n ? ICON_BRAIN + ' ' + n : ICON_BRAIN;
 }
 function renderMemPanel() {
   const box = $('ppMem'); if (!box) return;
@@ -2578,7 +2601,7 @@ function renderMap() {
         <br><button data-act="detail" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:var(--accent-soft);
           color:var(--accent);border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">查看详情</button>
         <button data-act="nav" data-lon="${esc(plan.hotel.lon)}" data-lat="${esc(plan.hotel.lat)}" data-name="${esc(plan.hotel.name)}" style="margin-top:6px;background:var(--accent-soft);
-          color:var(--accent);border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">🧭 导航</button>`).addTo(map);
+          color:var(--accent);border:none;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:12px">${ICON_COMPASS} 导航</button>`).addTo(map);
       all.push(h);
     }
     if (latlngs.length < 1) return;
@@ -2594,7 +2617,7 @@ function renderMap() {
       L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:color, fillOpacity:1})
         .bindPopup(`<b>Day${i+1} ${fmt(v.arrive_h)}</b><br>${esc(v.name)}<br>
           <button data-act="detail" data-name="${esc(v.name)}" style="${btn}">详情</button>
-          <button data-act="nav-spot" data-name="${esc(v.name)}" style="${btn}">🧭 导航</button>`)
+          <button data-act="nav-spot" data-name="${esc(v.name)}" style="${btn}">${ICON_COMPASS} 导航</button>`)
         .addTo(layers[i]);
       all.push(ll);
     });
@@ -2790,7 +2813,8 @@ function drawPlanCanvas() {
       ctx.strokeStyle = '#d8e6ff'; ctx.lineWidth = 1; ctx.stroke();
       ctx.fillStyle = '#1677ff';
       ctx.font = `700 30px ${SHARE_FONT}`;
-      const scoreTxt = (b.score == null) ? '🤖 AI 总评' : `🤖 AI 总评  ${b.score}/10`;
+      // 长图是 canvas 绘制的，画不了 SVG 图标，这里直接去掉前缀符号（保留纯文字标题）
+      const scoreTxt = (b.score == null) ? 'AI 总评' : `AI 总评  ${b.score}/10`;
       ctx.fillText(scoreTxt, SHARE_PAD + 22, y + 18);
       ctx.fillStyle = '#344054';
       ctx.font = `400 25px ${SHARE_FONT}`;
@@ -2938,7 +2962,7 @@ async function sendEdit() {
     input.value = '';
     petSay('user', text);
     petSay('bot', `好，我记住了：${fact}`
-      + `（共 ${l.length} 条，点上面的 🧠 可以查看或删）`);
+      + `（共 ${l.length} 条，点面板顶部的「记忆」按钮可以查看或删）`);
     petMood('jumping'); petState('记住了'); renderMemBtn();
     setTimeout(() => petMood('idle'), 1800);
     return;
