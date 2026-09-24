@@ -2569,7 +2569,11 @@ function openHotelPicker() {
       });
   };
 
-  const doSearch = (page = 1) => {
+  const doSearch = (page) => {
+    // ⚠️ 防御：本函数也被当事件处理器用，此时第一个参数是 click 事件对象而不是 page。
+    // 曾经直接 `onclick = doSearch` → 事件对象被当成 page 发给后端（int({}) 直接 500），
+    // 于是「搜索」整个坏掉。这里统一收敛：非正整数的 page 一律当第 1 页。
+    if (typeof page !== 'number' || !(page >= 1)) page = 1;
     // 翻页必须复用**产生当前列表的那个词**，而不是输入框里的实时值
     // （否则用户改了词没回车、直接点加载更多，就会用新词翻旧列表的第 2 页）
     const q = page === 1 ? $('hotelQ').value.trim()
@@ -2602,8 +2606,8 @@ function openHotelPicker() {
         else setMoreLoading(false);
       });
   };
-  $('hotelSearchBtn').onclick = doSearch;
-  $('hotelQ').onkeydown = e => { if (e.key === 'Enter') doSearch(); };
+  $('hotelSearchBtn').onclick = () => doSearch(1);   // 显式传 1：不要把事件对象当 page
+  $('hotelQ').onkeydown = e => { if (e.key === 'Enter') doSearch(1); };
 
   // 「加载更多」的点击入口（走中央委托）：按**当前模式**拉下一页再追加
   hotelMoreHandler = () => {

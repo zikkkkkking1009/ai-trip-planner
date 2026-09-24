@@ -482,7 +482,10 @@ def hotel_search(body: dict) -> dict:
     # extensions=all 才能拿到 biz_ext.rating（评分）与多张图
     # 分页取满 25 条/页（高德单页上限）：西安这类城市实测有 600+ 家，
     # 一次只给 12 家会让用户以为"就这么多"（用户原话）。
-    page = max(1, int(body.get("page") or 1))
+    try:                                   # 客户端可能传来非数字 page（曾把事件对象发上来）
+        page = max(1, int(body.get("page") or 1))
+    except (TypeError, ValueError):
+        page = 1
     cands = text_search(query, city, types=HOTEL_TYPES, extensions="all",
                         offset=25, page=page)
     if not cands:
@@ -518,7 +521,10 @@ def hotel_recommend(body: dict) -> dict:
     HOTEL_TYPES = "100000"          # 住宿服务
     # 只给 types、不给 keywords = "附近这类 POI"，正是推荐想要的效果；
     # extensions=all 拿到评分与多图。
-    page = max(1, int(body.get("page") or 1))
+    try:                                   # 客户端可能传来非数字 page（曾把事件对象发上来）
+        page = max(1, int(body.get("page") or 1))
+    except (TypeError, ValueError):
+        page = 1
     cands = poi_search("", center[0], center[1], radius=5000, types=HOTEL_TYPES,
                        extensions="all", offset=25, page=page) or []
     if not cands:                   # 兜底：附近实在没有住宿大类
