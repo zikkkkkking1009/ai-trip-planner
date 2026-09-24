@@ -739,6 +739,43 @@
   .datebox .dicon svg, .licon svg { width:16px; height:16px; display:block; }
   /* 地图标记里的图标要更大一点（原来 emoji 是 20px） */
   .licon-lg svg { width:22px; height:22px; }
+
+  /* ===== 酒店选择器：携程列表页骨架 + OpenDesign「human-approachable」姿态 =====
+     学携程：搜索条件回显 / 结果计数 / 排序工具条 / 方形封面卡片 / 独立行动列。
+     **抄不了的**：携程的评分、点评数、会员价 —— 我们走高德 POI，只有
+     name / intro / image / 坐标。所以改用「到行程中心的真实距离」当决策信号，
+     这既是我们给得出的，也更贴合"住哪儿方便"这个真实问题。 */
+  .hpk { display:flex; flex-direction:column; }
+  .hpk-ctx { padding:0 16px 10px; font-size:12.5px; font-weight:600; color:var(--muted-2); }
+  .hpk-search { display:flex; gap:8px; padding:0 16px 10px; }
+  .hpk-search input { flex:1; border-radius:12px; padding:11px 13px; font-size:14px; }
+  .hpk-search button { background:var(--acc); color:var(--surface); border:none;
+    border-radius:12px; padding:11px 22px; font-size:14px; font-weight:700; cursor:pointer; }
+  .hpk-bar { display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:9px 16px; border-top:1px solid var(--border);
+    border-bottom:1px solid var(--border); font-size:12.5px; color:var(--muted-2); }
+  .hpk-sorts { display:flex; gap:6px; }
+  .hpk-sort { padding:5px 12px; border-radius:999px; cursor:pointer; font-size:12px;
+    border:1px solid var(--line); background:var(--surface); color:var(--muted-2); }
+  .hpk-sort.on { background:var(--accent-soft); color:var(--accent-deep);
+    border-color:var(--accent-line); font-weight:700; }
+  .hpk-list { overflow-y:auto; flex:1; padding:12px 16px 14px;
+    display:flex; flex-direction:column; gap:10px; }
+  .hpk-card { background:var(--surface); border:1px solid var(--border);
+    border-radius:16px; padding:10px; box-shadow:var(--sh-1); }
+  .hpk-main { display:flex; gap:12px; align-items:center; }
+  .hpk-img { width:88px; height:88px; border-radius:13px; object-fit:cover;
+    flex-shrink:0; background:var(--fill); display:block; }
+  .hpk-img-ph { display:flex; align-items:center; justify-content:center; color:var(--muted-2); }
+  .hpk-info { flex:1; min-width:0; cursor:pointer; }
+  .hpk-name { font-size:15px; font-weight:700; line-height:1.35; letter-spacing:-.01em; }
+  .hpk-sub { font-size:12px; color:var(--muted-2); margin-top:3px; line-height:1.5; }
+  .hpk-meta { display:flex; align-items:center; gap:10px; margin-top:7px; flex-wrap:wrap; }
+  .hpk-dist { font-size:11.5px; color:var(--muted-2); display:inline-flex;
+    align-items:center; gap:4px; background:var(--fill); border-radius:999px; padding:4px 10px; }
+  .hpk-look { font-size:11.5px; color:var(--acc); font-weight:700; }
+  .hpk-pick { background:var(--acc); color:var(--surface); border:none; border-radius:12px;
+    padding:10px 15px; font-size:13.5px; font-weight:700; cursor:pointer; flex-shrink:0; }
   /* 例外：这两处图标要跟按钮自身的文字色（删除=红、灯箱=白），
      否则灰图标在深色浮层上对比度不够、在删除按钮上失去语义。 */
   #lightbox .licon, .ucard .del .licon { color: inherit; }
@@ -2174,6 +2211,31 @@ function hotelQuickTags() {
   return tags.slice(0, 4);
 }
 
+// ---- 酒店距离参照点 ----
+// 学携程"近南京路步行街"这种 proximity 表达，但我们只有坐标、没有 POI 地名，
+// 所以算真实距离：有行程时以行程景点中心为参照（更贴近"住哪儿方便"），否则城市中心。
+function hotelRefPoint() {
+  const pts = [];
+  if (plan && plan.days) plan.days.forEach(d => (d.spots || []).forEach(v => {
+    const s = spots.find(x => x.name === v.name);
+    if (s && s.lat != null) pts.push([s.lat, s.lon]);
+  }));
+  if (pts.length) return { lat: pts.reduce((a, p) => a + p[0], 0) / pts.length,
+                           lon: pts.reduce((a, p) => a + p[1], 0) / pts.length,
+                           label: '距行程中心' };
+  const c = cityCenters[currentCity];
+  return c ? { lat: c[0], lon: c[1], label: '距市中心' } : null;
+}
+function hotelDistText(lat, lon) {
+  const ref = hotelRefPoint();
+  if (!ref || lat == null || lon == null) return '';
+  const km = gcDistKm({ lat: Number(lat), lon: Number(lon) }, ref);
+  return `${ref.label} ${km < 1 ? Math.round(km * 1000) + ' m' : km.toFixed(1) + ' km'}`;
+}
+function hotelDistKm(lat, lon, ref) {
+  return gcDistKm({ lat: Number(lat), lon: Number(lon) }, ref);
+}
+
 function openHotelPicker() {
   // 不再要求"先规划一次再选酒店"：酒店是行程的**输入**而不是产物
   // （后端 PlanRequest.hotel 支持），先选好再规划完全合理。
@@ -2181,24 +2243,75 @@ function openHotelPicker() {
   hotelMaps = {}; openMiniIdx = null;
   const ov = document.createElement('div');
   ov.className = 'cal-overlay'; ov.id = 'hotelModal';
-  ov.innerHTML = `<div class="cal-sheet" style="height:78vh">
+  // 搜索条件回显（携程顶部那一条）：让用户随时知道在给哪座城市、哪段行程挑酒店
+  const dt = $('dateText') ? $('dateText').textContent : '';
+  const ctx = esc(currentCity) + (dt && dt !== '--' ? ' · ' + esc(dt) : '');
+  ov.innerHTML = `<div class="cal-sheet hpk" style="height:82vh">
     <div class="cal-head"><b>选择住宿酒店</b>
       <button onclick="closeHotelPicker()" style="background:var(--fill);border:none;
         border-radius:50%;width:30px;height:30px;cursor:pointer">${ICON_X}</button></div>
-    <div style="display:flex;gap:8px;padding:0 16px 6px">
-      <input id="hotelQ" placeholder="酒店名 / 区域，如：未央区、钟楼">
-      <button id="hotelSearchBtn" style="background:var(--acc);color:var(--surface);border:none;
-        border-radius:9px;padding:8px 18px;cursor:pointer;font-weight:600">搜索</button></div>
+    <div class="hpk-ctx">${ctx}</div>
+    <div class="hpk-search">
+      <input id="hotelQ" placeholder="酒店名 / 区域，如：钟楼、未央区">
+      <button id="hotelSearchBtn">搜索</button></div>
     <div class="hotel-quick" id="hotelQuick"></div>
-    <div style="padding:0 16px 8px;font-size:11.5px;color:var(--muted-3)">
-      ${lastTaskId
-        ? '点酒店名就地看位置（橙点=酒店，彩点=当前行程景点）· 输入停顿会自动搜索'
-        : '选好后作为每天出发 / 返回的锚点，点「开始规划」时生效 · 输入停顿会自动搜索'}</div>
-    <div id="hotelResults" style="overflow-y:auto;flex:1;padding:0 16px 12px">
-      <div class="uempty">输入关键词搜索高德酒店</div></div>
+    <div class="hpk-bar">
+      <span id="hotelCount">输入关键词开始搜索</span>
+      <span class="hpk-sorts">
+        <span class="hpk-sort on" data-sort="reco">推荐</span>
+        <span class="hpk-sort" data-sort="dist">距离近→远</span>
+      </span></div>
+    <div id="hotelResults" class="hpk-list">
+      <div class="uempty">输入关键词搜索酒店</div></div>
   </div>`;
   ov.onclick = e => { if (e.target === ov) closeHotelPicker(); };
   document.body.appendChild(ov);
+  // 酒店列表状态与渲染（携程卡片骨架：方形封面 + 名称层级 + 距离 + 独立行动列）
+  let hotelLast = [], hotelSort = 'reco';
+  const renderHotelList = () => {
+    const ref = hotelRefPoint();
+    const rows = (hotelSort === 'dist' && ref)
+      ? [...hotelLast].sort((a, b) =>
+          hotelDistKm(a.lat, a.lon, ref) - hotelDistKm(b.lat, b.lon, ref))
+      : hotelLast;
+    if (!rows.length) {
+      $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>';
+      return;
+    }
+    $('hotelResults').innerHTML = rows.map((h, i) => {
+      const img = h.image
+        ? `<img class="hpk-img" src="${esc(h.image)}" alt="${esc(h.name)}" loading="lazy"
+             onerror="this.style.display='none'">`
+        : `<div class="hpk-img hpk-img-ph"><span class="licon-lg">${HOTEL_SVG}</span></div>`;
+      const dist = hotelDistText(h.lat, h.lon);
+      return `<div class="hpk-card">
+        <div class="hpk-main">
+          ${img}
+          <div class="hpk-info" data-act="hotel-map" data-idx="${i}"
+               data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" data-name="${esc(h.name)}">
+            <div class="hpk-name">${esc(h.name)}</div>
+            <div class="hpk-sub">${esc(h.intro || '住宿')}</div>
+            <div class="hpk-meta">
+              ${dist ? `<span class="hpk-dist">${ICON_PIN} ${esc(dist)}</span>` : ''}
+              <span class="hpk-look">看位置</span></div>
+          </div>
+          <button class="hpk-pick" data-act="hotel-pick" data-name="${esc(h.name)}"
+            data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}">选这家</button>
+        </div>
+        <div id="hmap-${i}" style="display:none;margin-top:9px;height:180px;
+          border-radius:12px;overflow:hidden"></div>
+      </div>`;
+    }).join('');
+  };
+  // 排序切换（携程的"距离近→远"）：用 data-sort + 绑定，不内联 onclick 拼字符串
+  ov.querySelectorAll('.hpk-sort').forEach(el => {
+    el.onclick = () => {
+      hotelSort = el.dataset.sort;
+      ov.querySelectorAll('.hpk-sort').forEach(x => x.classList.toggle('on', x === el));
+      renderHotelList();
+    };
+  });
+
   const doSearch = () => {
     const q = $('hotelQ').value.trim(); if (!q) return;
     pushHotelHistory(q);                       // 记住搜过的词，下次直接点
@@ -2208,25 +2321,9 @@ function openHotelPicker() {
     fetch('/hotel/search', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({query: q, city: currentCity})})
       .then(r => r.json()).then(d => {
-        if (!d.results.length) { $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>'; return; }
-        $('hotelResults').innerHTML = d.results.map((h, i) => {
-          const qn = h.name.replace(/'/g, "\\'");
-          const img = h.image
-            ? `<img src="${esc(h.image)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover;flex-shrink:0" loading="lazy" onerror="this.style.display='none'">`
-            : `<div style="width:56px;height:56px;border-radius:9px;background:var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0"><span class="licon-lg">${HOTEL_SVG}</span></div>`;
-          return `<div style="border-top:1px dashed var(--border);padding:10px 0">
-            <div style="display:flex;gap:12px;align-items:center">
-              ${img}
-              <div class="info" style="flex:1;min-width:0" data-act="hotel-map" data-idx="${i}" data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" data-name="${esc(h.name)}">
-                <div class="t" style="cursor:pointer">${esc(h.name)}
-                  <span style="color:var(--acc);font-size:11px;font-weight:600">看位置</span></div>
-                <div class="s">${esc(h.intro)}</div></div>
-              <button data-act="hotel-pick" data-name="${esc(h.name)}" data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" style="background:var(--acc);
-                color:var(--surface);border:none;border-radius:9px;padding:7px 12px;cursor:pointer;
-                font-size:13px;font-weight:600;flex-shrink:0">选择</button></div>
-            <div id="hmap-${i}" style="display:none;margin-top:8px;height:180px;border-radius:12px;overflow:hidden"></div>
-          </div>`;
-        }).join('');
+        hotelLast = d.results || [];
+        if ($('hotelCount')) $('hotelCount').textContent = `找到 ${hotelLast.length} 家`;
+        renderHotelList();
       });
   };
   $('hotelSearchBtn').onclick = doSearch;

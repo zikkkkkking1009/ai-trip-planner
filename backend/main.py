@@ -441,7 +441,19 @@ def hotel_search(body: dict) -> dict:
     center = city_center(city) or city_center(DEFAULT_CITY)
     if center is None:
         raise HTTPException(500, f"城市表缺少 {DEFAULT_CITY}，请检查 backend/cities.py")
-    cands = text_search(query, city) or poi_search(query, center[0], center[1], radius=10000)
+    # 酒店必须是「住宿服务」类别：不加过滤时搜「钟楼」会返回风景名胜 / 地铁站，
+    # 界面上看着像酒店，用户一点就把景点当成住宿选走了。
+    HOTEL_TYPES = "100000"          # 高德 POI 分类：住宿服务
+    cands = text_search(query, city, types=HOTEL_TYPES)
+    if not cands:
+        # 关键词多半是地标/景点：先定位它，再搜它附近的住宿（携程的做法）
+        for m in (text_search(query, city) or [])[:1]:
+            if m.get("lat") is not None:
+                cands = poi_search("", m["lat"], m["lon"], radius=3000,
+                                   types=HOTEL_TYPES) or []
+    if not cands:                   # 最后才退回原来的不限制类别，保证有结果
+        cands = (text_search(query, city)
+                 or poi_search(query, center[0], center[1], radius=10000))
     return {"results": [{"name": c["name"], "lat": c["lat"], "lon": c["lon"],
                          "intro": c.get("type_str", "").split(";")[0],
                          "image": c.get("image", "")}

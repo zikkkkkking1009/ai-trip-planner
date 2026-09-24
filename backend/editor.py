@@ -132,17 +132,22 @@ def parse_instruction(instruction: str, plan_summary: str,
 
 # ---- 高德周边搜索（加点用）----
 def poi_search(query: str, lat: float, lon: float,
-               radius: int = 5000) -> list[dict]:
-    """高德周边搜索 POI，返回 [{name, lat, lon, type_str}]。失败返回空列表。"""
+               radius: int = 5000, types: str | None = None) -> list[dict]:
+    """高德周边搜索 POI，返回 [{name, lat, lon, type_str}]。失败返回空列表。
+
+    types：可选 POI 类别过滤（如住宿服务 "100000"）。keywords 与 types 至少要有一个，
+    只给 types 时等价于"附近某类 POI"。
+    """
     env = load_env_file()
     key = env.get("AMAP_KEY") or os.environ.get("AMAP_KEY")
     if not key:
         return []
-    params = urllib.parse.urlencode({
-        "location": f"{lon},{lat}", "keywords": query,
-        "radius": radius, "offset": 5, "page": 1, "key": key,
-        "sortrule": "distance",
-    })
+    p = {"location": f"{lon},{lat}", "keywords": query,
+         "radius": radius, "offset": 5, "page": 1, "key": key,
+         "sortrule": "distance"}
+    if types:
+        p["types"] = types
+    params = urllib.parse.urlencode(p)
     url = f"https://restapi.amap.com/v3/place/around?{params}"
 
     def once() -> dict:
@@ -174,16 +179,22 @@ def poi_search(query: str, lat: float, lon: float,
     return out
 
 
-def text_search(query: str, city: str = DEFAULT_CITY) -> list[dict]:
-    """高德全城文本搜索（周边搜不到时的降级），返回结构与 poi_search 一致。"""
+def text_search(query: str, city: str = DEFAULT_CITY,
+                types: str | None = None) -> list[dict]:
+    """高德全城文本搜索（周边搜不到时的降级），返回结构与 poi_search 一致。
+
+    types：可选 POI 类别过滤（如住宿服务 "100000"）。不传则不限制类别 ——
+    酒店搜索必须传，否则搜「钟楼」会返回景点/地铁站而不是酒店。
+    """
     env = load_env_file()
     key = env.get("AMAP_KEY") or os.environ.get("AMAP_KEY")
     if not key:
         return []
-    params = urllib.parse.urlencode({
-        "keywords": query, "city": city, "citylimit": "true",
-        "offset": 5, "page": 1, "key": key,
-    })
+    p = {"keywords": query, "city": city, "citylimit": "true",
+         "offset": 5, "page": 1, "key": key}
+    if types:
+        p["types"] = types
+    params = urllib.parse.urlencode(p)
     url = f"https://restapi.amap.com/v3/place/text?{params}"
 
     def once() -> dict:
