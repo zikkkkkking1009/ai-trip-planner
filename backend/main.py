@@ -445,6 +445,7 @@ def _hotel_card(c: dict) -> dict:
         "adname": c.get("adname", ""),        # 所在区（碑林区）≈ 携程"外滩核心区"
         "address": c.get("address", ""),
         "tel": c.get("tel", ""),
+        "photos": c.get("photos", []),        # 多图画廊要用（高德最多给 3 张）
     }
 
 
@@ -464,18 +465,19 @@ def hotel_search(body: dict) -> dict:
     # 界面上看着像酒店，用户一点就把景点当成住宿选走了。
     HOTEL_TYPES = "100000"          # 高德 POI 分类：住宿服务
     # extensions=all 才能拿到 biz_ext.rating（评分）与多张图
-    cands = text_search(query, city, types=HOTEL_TYPES, extensions="all")
+    # 取 20 条：前端还要按档次/评分筛选，取太少筛完就没了
+    cands = text_search(query, city, types=HOTEL_TYPES, extensions="all", offset=20)
     if not cands:
         # 关键词多半是地标/景点：先定位它，再搜它附近的住宿（携程的做法）
-        for m in (text_search(query, city, extensions="all") or [])[:1]:
+        for m in (text_search(query, city, extensions="all", offset=20) or [])[:1]:
             if m.get("lat") is not None:
                 cands = poi_search("", m["lat"], m["lon"], radius=3000,
-                                   types=HOTEL_TYPES, extensions="all") or []
+                                   types=HOTEL_TYPES, extensions="all", offset=20) or []
     if not cands:                   # 最后才退回原来的不限制类别，保证有结果
-        cands = (text_search(query, city, extensions="all")
+        cands = (text_search(query, city, extensions="all", offset=20)
                  or poi_search(query, center[0], center[1], radius=10000,
-                               extensions="all"))
-    return {"results": [_hotel_card(c) for c in cands[:8]], "city": city}
+                               extensions="all", offset=20))
+    return {"results": [_hotel_card(c) for c in cands[:12]], "city": city}
 
 
 @app.post("/hotel/recommend")
@@ -497,11 +499,11 @@ def hotel_recommend(body: dict) -> dict:
     # 只给 types、不给 keywords = "附近这类 POI"，正是推荐想要的效果；
     # extensions=all 拿到评分与多图。
     cands = poi_search("", center[0], center[1], radius=5000, types=HOTEL_TYPES,
-                       extensions="all") or []
+                       extensions="all", offset=20) or []
     if not cands:                   # 兜底：附近实在没有住宿大类
         cands = poi_search("酒店", center[0], center[1], radius=5000,
-                           types=HOTEL_TYPES, extensions="all") or []
-    return {"results": [_hotel_card(c) for c in cands[:8]], "city": city}
+                           types=HOTEL_TYPES, extensions="all", offset=20) or []
+    return {"results": [_hotel_card(c) for c in cands[:12]], "city": city}
 
 
 @app.post("/hotel/set")

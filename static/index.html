@@ -786,6 +786,38 @@
   .hpk-look { font-size:11.5px; color:var(--acc); font-weight:700; }
   .hpk-pick { background:var(--acc); color:var(--surface); border:none; border-radius:12px;
     padding:10px 15px; font-size:13.5px; font-weight:700; cursor:pointer; flex-shrink:0; }
+  .hpk-pick.ghost { background:var(--fill); color:var(--muted-2); }
+
+  /* 筛选条：档次 + 评分（纯前端过滤） */
+  .hpk-filters { display:flex; flex-wrap:wrap; gap:6px; padding:9px 16px;
+    border-bottom:1px solid var(--border); }
+  .hpk-fchip { font-size:12px; padding:5px 11px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--line); background:var(--surface); color:var(--muted-2); }
+  .hpk-fchip.on { background:var(--accent-soft); color:var(--accent-deep);
+    border-color:var(--accent-line); font-weight:700; }
+  .hpk-fsep { width:1px; align-self:stretch; background:var(--border); margin:0 3px; }
+
+  /* 封面容器 + 多图角标 */
+  .hpk-imgwrap { position:relative; flex-shrink:0; display:block; line-height:0; }
+  .hpk-picnum { position:absolute; right:5px; bottom:5px; font-size:10.5px; line-height:1;
+    background:rgba(0,0,0,.55); color:#fff; border-radius:999px; padding:3px 7px; }
+
+  /* 当前已选酒店：高亮这张卡 */
+  .hpk-card.on { border-color:var(--accent-line); background:var(--accent-soft); }
+  .hpk-cur { font-size:10.5px; font-weight:700; color:var(--accent-deep);
+    background:var(--surface); border:1px solid var(--accent-line); border-radius:999px;
+    padding:2px 7px; margin-left:6px; vertical-align:1px; }
+
+  /* 多图画廊浮层 */
+  .hg-box { background:var(--surface); border-radius:16px; padding:12px; max-width:min(560px, 90vw);
+    box-shadow:var(--sh-2); animation:odPopIn var(--t) var(--e-out) both; }
+  .hg-big { width:100%; max-height:64vh; object-fit:contain; border-radius:12px;
+    background:var(--fill); display:block; }
+  .hg-thumbs { display:flex; gap:8px; margin-top:10px; }
+  .hg-thumb { width:64px; height:64px; object-fit:cover; border-radius:10px; cursor:pointer;
+    border:2px solid transparent; background:var(--fill); }
+  .hg-thumb.on { border-color:var(--accent); }
+  .hg-name { font-size:13px; font-weight:600; color:var(--muted-2); margin-top:10px; }
   /* 例外：这两处图标要跟按钮自身的文字色（删除=红、灯箱=白），
      否则灰图标在深色浮层上对比度不够、在删除按钮上失去语义。 */
   #lightbox .licon, .ucard .del .licon { color: inherit; }
@@ -2143,6 +2175,31 @@ function resetPlanView() {
 
 // ---- 酒店搜索选择器（缩略图 + 点名称就地展开位置小地图，同时只开一个）----
 let hotelMaps = {}, openMiniIdx = null;
+let hotelRowsCache = [];   // 当前列表（含 photos），供画廊按索引取图
+// 酒店多图画廊：点封面看大图 + 缩略图切换（高德每家最多给 3 张）
+function openHotelGallery(i) {
+  const h = hotelRowsCache[i]; if (!h) return;
+  const pics = (h.photos && h.photos.length) ? h.photos : (h.image ? [h.image] : []);
+  if (!pics.length) return;
+  const ov = document.createElement('div');
+  ov.className = 'cal-overlay'; ov.id = 'hgOverlay';
+  ov.innerHTML = `<div class="hg-box" onclick="event.stopPropagation()">
+    <img class="hg-big" id="hgBig" src="${esc(pics[0])}" alt="${esc(h.name)}">
+    ${pics.length > 1 ? `<div class="hg-thumbs">${pics.map((p, k) =>
+      `<img class="hg-thumb${k === 0 ? ' on' : ''}" data-k="${k}"
+         src="${esc(p)}" alt="" loading="lazy">`).join('')}</div>` : ''}
+    <div class="hg-name">${esc(h.name)}</div>
+  </div>`;
+  ov.onclick = () => ov.remove();
+  ov.querySelectorAll('.hg-thumb').forEach(t => {
+    t.onclick = e => {
+      e.stopPropagation();
+      $('hgBig').src = pics[Number(t.dataset.k)];
+      ov.querySelectorAll('.hg-thumb').forEach(x => x.classList.toggle('on', x === t));
+    };
+  });
+  document.body.appendChild(ov);
+}
 // 还没规划时先选好的酒店：后端 PlanRequest.hotel 支持把酒店作为规划入参
 // （每天从这里出发、回到这里），所以"先选酒店再规划"是合法路径，不该被前端拦住。
 let pendingHotel = null;
@@ -2255,7 +2312,10 @@ function openHotelPicker() {
   ov.className = 'cal-overlay'; ov.id = 'hotelModal';
   // 搜索条件回显（携程顶部那一条）：让用户随时知道在给哪座城市、哪段行程挑酒店
   const dt = $('dateText') ? $('dateText').textContent : '';
-  const ctx = esc(currentCity) + (dt && dt !== '--' ? ' · ' + esc(dt) : '');
+  const curName = (plan && plan.hotel && plan.hotel.name)
+    || (pendingHotel && pendingHotel.name) || '';
+  const ctx = esc(currentCity) + (dt && dt !== '--' ? ' · ' + esc(dt) : '')
+    + (curName ? ' · 当前：' + esc(curName) : '');
   ov.innerHTML = `<div class="cal-sheet hpk" style="height:82vh">
     <div class="cal-head"><b>选择住宿酒店</b>
       <button onclick="closeHotelPicker()" style="background:var(--fill);border:none;
@@ -2272,34 +2332,79 @@ function openHotelPicker() {
         <span class="hpk-sort" data-sort="dist">距离近→远</span>
         <span class="hpk-sort" data-sort="score">评分优先</span>
       </span></div>
+    <div class="hpk-filters" id="hotelFilters"></div>
     <div id="hotelResults" class="hpk-list">
       <div class="uempty">正在找附近的酒店…</div></div>
   </div>`;
   ov.onclick = e => { if (e.target === ov) closeHotelPicker(); };
   document.body.appendChild(ov);
-  // 酒店列表状态与渲染（携程卡片骨架：方形封面 + 名称层级 + 距离 + 独立行动列）
+  // 酒店列表状态与渲染（携程卡片骨架：方形封面 + 名称层级 + 评分/档次/距离 + 独立行动列）
   let hotelLast = [], hotelSort = 'reco';
+  let hotelFilter = { keytag: '', minScore: 0 };
+  const currentHotelName = () =>
+    (plan && plan.hotel && plan.hotel.name) || (pendingHotel && pendingHotel.name) || '';
+
+  // 筛选条：档次（取自返回数据的 keytag）+ 评分档。纯前端过滤，不额外请求。
+  const renderHotelFilters = () => {
+    const box = $('hotelFilters'); if (!box) return;
+    const tags = [...new Set(hotelLast.map(h => h.keytag).filter(Boolean))];
+    const chip = (f, v, label, on) =>
+      `<span class="hpk-fchip${on ? ' on' : ''}" data-f="${f}" data-v="${esc(v)}">${esc(label)}</span>`;
+    let html = chip('keytag', '', '全部档次', !hotelFilter.keytag)
+      + tags.map(t => chip('keytag', t, t, hotelFilter.keytag === t)).join('')
+      + '<span class="hpk-fsep"></span>'
+      + chip('score', '0', '全部评分', !hotelFilter.minScore)
+      + chip('score', '4.5', '4.5分以上', hotelFilter.minScore === 4.5)
+      + chip('score', '4.0', '4.0分以上', hotelFilter.minScore === 4.0);
+    box.innerHTML = html;
+    box.querySelectorAll('.hpk-fchip').forEach(el => {
+      el.onclick = () => {
+        if (el.dataset.f === 'keytag') hotelFilter.keytag = el.dataset.v;
+        else hotelFilter.minScore = Number(el.dataset.v) || 0;
+        renderHotelFilters(); renderHotelList();
+      };
+    });
+  };
+
   const renderHotelList = () => {
     const ref = hotelRefPoint();
-    let rows = hotelLast;
+    const cur = currentHotelName();
+    let rows = hotelLast.filter(h =>
+      (!hotelFilter.keytag || (h.keytag || '') === hotelFilter.keytag) &&
+      (!hotelFilter.minScore || Number(h.rating || 0) >= hotelFilter.minScore));
     if (hotelSort === 'dist' && ref) {
-      rows = [...hotelLast].sort((a, b) =>
+      rows = [...rows].sort((a, b) =>
         hotelDistKm(a.lat, a.lon, ref) - hotelDistKm(b.lat, b.lon, ref));
     } else if (hotelSort === 'score') {          // 携程「好评优先」
-      rows = [...hotelLast].sort((a, b) =>
+      rows = [...rows].sort((a, b) =>
         Number(b.rating || 0) - Number(a.rating || 0));
     }
+    if ($('hotelCount')) {
+      const total = hotelLast.length, n = rows.length;
+      $('hotelCount').textContent = !total ? '附近没找到酒店'
+        : (n === total ? `附近 ${total} 家酒店` : `筛选后 ${n} / ${total} 家`);
+    }
     if (!rows.length) {
-      $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>';
+      $('hotelResults').innerHTML = hotelLast.length
+        ? '<div class="uempty">没有符合筛选条件的酒店，放宽一下试试</div>'
+        : '<div class="uempty">没搜到，换个关键词试试</div>';
       return;
     }
+    hotelRowsCache = rows;                       // 供画廊按索引取图
     $('hotelResults').innerHTML = rows.map((h, i) => {
-      const img = h.image
-        ? `<img class="hpk-img" src="${esc(h.image)}" alt="${esc(h.name)}" loading="lazy"
+      const pics = (h.photos && h.photos.length) ? h.photos
+                 : (h.image ? [h.image] : []);
+      const img = pics.length
+        ? `<img class="hpk-img" src="${esc(pics[0])}" alt="${esc(h.name)}" loading="lazy"
              onerror="this.style.display='none'">`
         : `<div class="hpk-img hpk-img-ph"><span class="licon-lg">${HOTEL_SVG}</span></div>`;
+      // 多图：角标「N 图」，点封面看画廊（单图不挂点击，避免误导）
+      const imgWrap = pics.length > 1
+        ? `<span class="hpk-imgwrap" data-act="hotel-gallery" data-hi="${i}">${img}
+             <span class="hpk-picnum">${pics.length} 图</span></span>`
+        : `<span class="hpk-imgwrap">${img}</span>`;
       const dist = hotelDistText(h.lat, h.lon);
-      // 携程把评分做成最强信号（4.8 高亮）；档次/区域同理做成轻量 chip。
+      // 携程把评分做成最强信号；档次/区域同理做成轻量 chip。
       // ⚠️ 价格：高德没有房价，字段为空就**整块不显示** —— 绝不编造价格。
       const score = Number(h.rating || 0);
       const scoreHtml = score ? `<span class="hpk-score">${score.toFixed(1)}</span>` : '';
@@ -2308,12 +2413,13 @@ function openHotelPicker() {
       const priceHtml = h.price ? `<span class="hpk-price">¥${esc(h.price)}</span>` : '';
       const addr = h.address || h.intro || '';
       const tel = (h.tel || '').split(';')[0] || '';
-      return `<div class="hpk-card">
+      const isCur = !!cur && h.name === cur;
+      return `<div class="hpk-card${isCur ? ' on' : ''}">
         <div class="hpk-main">
-          ${img}
+          ${imgWrap}
           <div class="hpk-info" data-act="hotel-map" data-idx="${i}"
                data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" data-name="${esc(h.name)}">
-            <div class="hpk-name">${esc(h.name)}</div>
+            <div class="hpk-name">${esc(h.name)}${isCur ? '<span class="hpk-cur">当前</span>' : ''}</div>
             <div class="hpk-line">${scoreHtml}${tagHtml}${areaHtml}
               ${dist ? `<span class="hpk-dist">${ICON_PIN} ${esc(dist)}</span>` : ''}
               ${priceHtml}</div>
@@ -2321,8 +2427,9 @@ function openHotelPicker() {
             ${tel ? `<div class="hpk-tel">${esc(tel)}</div>` : ''}
             <span class="hpk-look">看位置</span>
           </div>
-          <button class="hpk-pick" data-act="hotel-pick" data-name="${esc(h.name)}"
-            data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}">选这家</button>
+          <button class="hpk-pick${isCur ? ' ghost' : ''}" data-act="hotel-pick"
+            data-name="${esc(h.name)}" data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}"
+            >${isCur ? '当前' : (cur ? '更换' : '选这家')}</button>
         </div>
         <div id="hmap-${i}" style="display:none;margin-top:9px;height:180px;
           border-radius:12px;overflow:hidden"></div>
@@ -2355,9 +2462,7 @@ function openHotelPicker() {
         hotelSort = 'dist';                    // 推荐默认按距离：离行程近的先给
         ov.querySelectorAll('.hpk-sort').forEach(x =>
           x.classList.toggle('on', x.dataset.sort === 'dist'));
-        if ($('hotelCount')) $('hotelCount').textContent =
-          hotelLast.length ? `附近 ${hotelLast.length} 家酒店` : '附近没找到酒店';
-        renderHotelList();
+        renderHotelFilters(); renderHotelList();
       }).catch(() => {
         $('hotelResults').innerHTML = '<div class="uempty">暂时取不到推荐，输入关键词试试</div>';
       });
@@ -2374,8 +2479,8 @@ function openHotelPicker() {
       body: JSON.stringify({query: q, city: currentCity})})
       .then(r => r.json()).then(d => {
         hotelLast = d.results || [];
-        if ($('hotelCount')) $('hotelCount').textContent = `找到 ${hotelLast.length} 家`;
-        renderHotelList();
+        hotelFilter = { keytag: '', minScore: 0 };   // 新搜索重置筛选
+        renderHotelFilters(); renderHotelList();
       });
   };
   $('hotelSearchBtn').onclick = doSearch;
@@ -3219,6 +3324,7 @@ document.addEventListener('click', e => {
     case 'plan-sel':   togglePlanSel(d.plan); break;
     case 'hotel-map':  toggleHotelMap(Number(d.idx), Number(d.lat), Number(d.lon), d.name); break;
     case 'hotel-pick': pickHotel(d.name, Number(d.lat), Number(d.lon)); break;
+    case 'hotel-gallery': openHotelGallery(Number(d.hi)); break;
     case 'day':        toggleDay(Number(d.idx)); break;
     case 'view-map':   currentDay = Number(d.day); switchView('map'); break;  // 移动端：跳到已有地图视图看当天路线
     // ---- 空状态引导 ----

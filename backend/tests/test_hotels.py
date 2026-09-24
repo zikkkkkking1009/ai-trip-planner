@@ -50,6 +50,20 @@ def test_hotel_recommend_returns_lodging_only():
         assert "住宿" in (h.get("intro") or ""), f"非住宿结果混进来了：{h.get('name')}"
 
 
+def test_hotel_card_forwards_photos():
+    """卡片数据必须带上多图，否则前端画廊永远是空的。
+
+    回归点：_hotel_card 一开始漏了转发 photos —— 接口看起来正常（有名字有评分），
+    但画廊一张图都没有，只有直接调 poi_search 才看得到 photos 其实是有的。
+    """
+    client = TestClient(app)
+    r = client.post("/hotel/recommend", json={"city": "西安"})
+    assert r.status_code == 200, r.text
+    results = r.json()["results"]
+    assert any(len(h.get("photos") or []) > 1 for h in results), \
+        "没有任何酒店带多图 —— photos 没有从 _poi_row 透传到卡片"
+
+
 def test_hotel_search_landmark_returns_lodging():
     """搜地标（钟楼）应当返回住宿，而不是地标本身。"""
     client = TestClient(app)

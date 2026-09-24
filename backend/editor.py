@@ -167,7 +167,7 @@ def _poi_row(p: dict) -> dict:
 
 def poi_search(query: str, lat: float, lon: float,
                radius: int = 5000, types: str | None = None,
-               extensions: str = "base") -> list[dict]:
+               extensions: str = "base", offset: int = 5) -> list[dict]:
     """高德周边搜索 POI，返回 [{name, lat, lon, type_str}]。失败返回空列表。
 
     types：可选 POI 类别过滤（如住宿服务 "100000"）。keywords 与 types 至少要有一个，
@@ -178,7 +178,7 @@ def poi_search(query: str, lat: float, lon: float,
     if not key:
         return []
     p = {"location": f"{lon},{lat}", "keywords": query,
-         "radius": radius, "offset": 5, "page": 1, "key": key,
+         "radius": radius, "offset": offset, "page": 1, "key": key,
          "sortrule": "distance", "extensions": extensions}
     if types:
         p["types"] = types
@@ -211,7 +211,7 @@ def poi_search(query: str, lat: float, lon: float,
 
 def text_search(query: str, city: str = DEFAULT_CITY,
                 types: str | None = None,
-                extensions: str = "base") -> list[dict]:
+                extensions: str = "base", offset: int = 5) -> list[dict]:
     """高德全城文本搜索（周边搜不到时的降级），返回结构与 poi_search 一致。
 
     types：可选 POI 类别过滤（如住宿服务 "100000"）。不传则不限制类别 ——
@@ -222,7 +222,7 @@ def text_search(query: str, city: str = DEFAULT_CITY,
     if not key:
         return []
     p = {"keywords": query, "city": city, "citylimit": "true",
-         "offset": 5, "page": 1, "key": key, "extensions": extensions}
+         "offset": offset, "page": 1, "key": key, "extensions": extensions}
     if types:
         p["types"] = types
     params = urllib.parse.urlencode(p)
