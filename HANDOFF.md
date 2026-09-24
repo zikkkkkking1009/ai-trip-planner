@@ -20,9 +20,13 @@ cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Sc
 # 单元测试（286 个）
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
-# 前端静态检查（语法 + 命名遮蔽 + 属性转义 + CSS 变量 + 文档完整性，共 7 项）——在项目根目录跑
+# 前端静态检查（共 10 项：语法 / 遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义变量 / 文档完整性 + 对比度达标 + 无容器级硬编码颜色）——在项目根目录跑
 cd "D:\workby room\ai-trip-planner"
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" tools/check_frontend.py
+
+# 对比度双门禁：页面级（读真实 :root）+ 浏览器运行时实测（真渲染）
+"C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" tools/check_contrast.py
+node tools/contrast_runtime.js static/index.html static/home.html --all
 
 # 前端运行时冒烟（jsdom，14 项断言；另有 hotel_smoke.js 30 项，见第六节）
 cd "D:\workby room\ai-trip-planner" && node tools/frontend_smoke.js
@@ -60,6 +64,8 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 **产品功能**：**桌面网站形态**（顶部毛玻璃导航 + Hero + 左表单/右结果双栏，<1024px 自动降级单列；已去掉 460px 手机壳）、**桌宠式 AI 对话助手**（右下角常驻角色：眨眼/呼吸/光标跟随/四表情，点击展开气泡面板，消息气泡 + 动态快捷指令 + 思考动画；能改行程**也能回答行程问题**；对话操控走主模型，消息用 textContent 防 XSS）、**偏好选择**（均衡 / 少走路 / 省钱 / 多玩，权重经扫描标定）、**稳健性模拟**（1000 次抽样估"按时走完的概率"+ 给出"去掉哪个景点能提升多少"，一键执行；参数敏感性见实验七）、**多城市**（**25 城 254 个景点**预置 + 任意城市走「粘攻略→识别城市→对齐」，`build_demo_data.py --auto` 可继续扩容）、**粘贴攻略自动识别景点**（LLM 抽取 + 城市识别 + 低置信度条目自动跳过）、日历选期、地图按天分色 + 图例开关、景点详情卡（实景图灯箱 / AI 介绍 / 好评避雷双卡 / 地址一键导航）、**酒店选择器（2026-09-24 重做：打开即推荐附近酒店，无需先搜索；关键词收窄；分页「加载更多」每页 25 条；卡片给出评分 / 归一化档位 / 区域 / 到行程中心的真实距离 / 地址 / 电话 / 多图画廊；三种排序 + 档位·评分筛选；一键更换；就地小地图；⚠️ 没有真实房价——高德免费接口不含房价，字段留空即不显示、绝不编造）**、**住宿锚点**（每天起点终点，往返通勤计入；支持「先选酒店再规划」，`PlanRequest.hotel` 透传并回显）、对话式修改（多轮记忆）、历史规划（预览 / 软删除 / 批量清理）、收藏、免费模型通道。
 
 **界面（2026-09-24 统一）**：全站（左栏表单 / 右栏结果 / 酒店弹层 / 我的页 / 日历 / 长图）统一到 **OpenDesign `modern-minimal`** 方向（发丝描边、除浮层外不用阴影、展示字号紧字距、数字等宽、字重收敛）；**全站图标由 emoji 换为线性 SVG**（16 视窗 / currentColor / 1.8px 描边；酒店图标用 Lucide `hotel`，保留桌宠 🐋）；**地图每日配色为 7 个不同色相**（明度压到 53~54% 以保证色块上白字 ≥4.5:1，算法与断言见 `docs/design/contrast-audit.py`）；**分享长图改为先弹预览再「下载 / 取消」**；**用户面文案去黑话**（hero、说明 chip、识别提示、规划进度条阶段名改白话，折叠日志仍留原始阶段）。
+
+**令牌层与暗色主题（2026-09-24 批 2/3/4 落地，详见 `docs/design/`）**：字号 7 档 / 字重 4 档（**800 全并入 700**）/ 间距 8pt 网格 / 圆角 4 档；`--accent` 拆成「作底 `--accent-solid`」与「作正文 `--accent-deep`」，压在其上的字用成对的 `--on-accent`；**新增暗色主题，跟随系统 `prefers-color-scheme`（没有手动开关）**。独立复核：浏览器运行时实测明暗两套**全部达标**（规划页 36 个文字元素、首页 216 个）。
 
 ---
 
@@ -159,7 +165,9 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试
 | 工具 | 作用 | 命令 |
 |------|------|------|
 | `pytest` | **286** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
-| `tools/check_frontend.py` | 前端静态检查 **7 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性） | `python tools/check_frontend.py` |
+| `tools/check_frontend.py` | 前端静态检查 **10 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / **对比度达标** / **无容器级硬编码颜色**）；设计稿 HTML 也一并检查配色 | `python tools/check_frontend.py` |
+| `tools/check_contrast.py` | **页面级对比度门禁**（读 static/ 里真实的 `:root` / 暗色块，按「角色 × 参照底」断言 WCAG） | `python tools/check_contrast.py` |
+| `tools/contrast_runtime.js` | **浏览器运行时对比度实测**（真渲染，非推算）；`--all` 跑明暗两套 | `node tools/contrast_runtime.js static/index.html static/home.html --all` |
 | `tools/check_backend_health.py` | **五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本，静态检查、不需要密钥，已接入 CI） | `python tools/check_backend_health.py` |
 | `tools/verify_multicity.py` | **多城市端到端验证**（7 组断言：城市列表 / 各城景点数与坐标落城 / 未知城市不回落 / 成都攻略全链路 / 西安回归 / 同名 POI 不串味）。**需先起服务并把 `BASE` 端口对齐** | `python tools/verify_multicity.py` |
 | `tools/build_demo_data.py` | 抓取多城市 demo 景点（高德真实坐标，禁止手写坐标）+ 打印城市中心表 | `python tools/build_demo_data.py` |
@@ -215,5 +223,7 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试
 | `ROADMAP.md` | 项目复盘：事实基线、五维评估、A/B/C 问题清单、六批推进计划、**面试资产包**（简历草稿 + 3 个 debug 故事 + 8 个追问答案要点） |
 | `docs/design/ui-design-system.html` | **界面设计规范与高保真稿**：字号 7 档 / 字重 4 档 / 8pt 间距 / 圆角 4 档的令牌表 + 21 组对比度实测 + 3 批落地方案（批 1 令牌 / 批 2 可读性 / 批 3 暗色主题与界面稿） |
 | `docs/design/contrast-audit.py` | 对比度门禁脚本（零依赖，可离线跑） |
+| `docs/design/solve-tokens.py` | 令牌求解/交叉校验（与两页 `:root` 比对，当前 0 项不一致） |
+| `docs/design/home-redesign.html` | 首页改版稿 |
 | `HANDOFF.md`（本文） | 交接上下文 |
 | `~/.workbuddy/skills/frontend-runtime-verify/` | 前端运行时验证方法论（可复用技能） |
