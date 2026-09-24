@@ -771,6 +771,16 @@
   .hpk-name { font-size:15px; font-weight:700; line-height:1.35; letter-spacing:-.01em; }
   .hpk-sub { font-size:12px; color:var(--muted-2); margin-top:3px; line-height:1.5; }
   .hpk-meta { display:flex; align-items:center; gap:10px; margin-top:7px; flex-wrap:wrap; }
+  /* 携程的信号行：评分(重) → 档次 → 区域 → 距离 → 价格 */
+  .hpk-line { display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .hpk-score { font-size:13px; font-weight:800; color:var(--warn);
+    background:var(--warn-soft, var(--fill)); border-radius:7px; padding:2px 7px;
+    font-variant-numeric:tabular-nums; }
+  .hpk-tag, .hpk-area { font-size:11.5px; color:var(--muted-2); background:var(--fill);
+    border-radius:999px; padding:3px 9px; }
+  .hpk-price { font-size:13px; font-weight:800; color:var(--fg); font-variant-numeric:tabular-nums; }
+  .hpk-addr { font-size:11.5px; color:var(--muted-3); margin-top:5px; line-height:1.5; }
+  .hpk-tel { font-size:11.5px; color:var(--muted-3); margin-top:2px; font-variant-numeric:tabular-nums; }
   .hpk-dist { font-size:11.5px; color:var(--muted-2); display:inline-flex;
     align-items:center; gap:4px; background:var(--fill); border-radius:999px; padding:4px 10px; }
   .hpk-look { font-size:11.5px; color:var(--acc); font-weight:700; }
@@ -2260,6 +2270,7 @@ function openHotelPicker() {
       <span class="hpk-sorts">
         <span class="hpk-sort on" data-sort="reco">推荐</span>
         <span class="hpk-sort" data-sort="dist">距离近→远</span>
+        <span class="hpk-sort" data-sort="score">评分优先</span>
       </span></div>
     <div id="hotelResults" class="hpk-list">
       <div class="uempty">正在找附近的酒店…</div></div>
@@ -2270,10 +2281,14 @@ function openHotelPicker() {
   let hotelLast = [], hotelSort = 'reco';
   const renderHotelList = () => {
     const ref = hotelRefPoint();
-    const rows = (hotelSort === 'dist' && ref)
-      ? [...hotelLast].sort((a, b) =>
-          hotelDistKm(a.lat, a.lon, ref) - hotelDistKm(b.lat, b.lon, ref))
-      : hotelLast;
+    let rows = hotelLast;
+    if (hotelSort === 'dist' && ref) {
+      rows = [...hotelLast].sort((a, b) =>
+        hotelDistKm(a.lat, a.lon, ref) - hotelDistKm(b.lat, b.lon, ref));
+    } else if (hotelSort === 'score') {          // 携程「好评优先」
+      rows = [...hotelLast].sort((a, b) =>
+        Number(b.rating || 0) - Number(a.rating || 0));
+    }
     if (!rows.length) {
       $('hotelResults').innerHTML = '<div class="uempty">没搜到，换个关键词试试</div>';
       return;
@@ -2284,16 +2299,27 @@ function openHotelPicker() {
              onerror="this.style.display='none'">`
         : `<div class="hpk-img hpk-img-ph"><span class="licon-lg">${HOTEL_SVG}</span></div>`;
       const dist = hotelDistText(h.lat, h.lon);
+      // 携程把评分做成最强信号（4.8 高亮）；档次/区域同理做成轻量 chip。
+      // ⚠️ 价格：高德没有房价，字段为空就**整块不显示** —— 绝不编造价格。
+      const score = Number(h.rating || 0);
+      const scoreHtml = score ? `<span class="hpk-score">${score.toFixed(1)}</span>` : '';
+      const tagHtml = h.keytag ? `<span class="hpk-tag">${esc(h.keytag)}</span>` : '';
+      const areaHtml = h.adname ? `<span class="hpk-area">${esc(h.adname)}</span>` : '';
+      const priceHtml = h.price ? `<span class="hpk-price">¥${esc(h.price)}</span>` : '';
+      const addr = h.address || h.intro || '';
+      const tel = (h.tel || '').split(';')[0] || '';
       return `<div class="hpk-card">
         <div class="hpk-main">
           ${img}
           <div class="hpk-info" data-act="hotel-map" data-idx="${i}"
                data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}" data-name="${esc(h.name)}">
             <div class="hpk-name">${esc(h.name)}</div>
-            <div class="hpk-sub">${esc(h.intro || '住宿')}</div>
-            <div class="hpk-meta">
+            <div class="hpk-line">${scoreHtml}${tagHtml}${areaHtml}
               ${dist ? `<span class="hpk-dist">${ICON_PIN} ${esc(dist)}</span>` : ''}
-              <span class="hpk-look">看位置</span></div>
+              ${priceHtml}</div>
+            ${addr ? `<div class="hpk-addr">${esc(addr)}</div>` : ''}
+            ${tel ? `<div class="hpk-tel">${esc(tel)}</div>` : ''}
+            <span class="hpk-look">看位置</span>
           </div>
           <button class="hpk-pick" data-act="hotel-pick" data-name="${esc(h.name)}"
             data-lat="${esc(h.lat)}" data-lon="${esc(h.lon)}">选这家</button>

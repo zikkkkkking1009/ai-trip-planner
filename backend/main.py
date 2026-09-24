@@ -429,6 +429,25 @@ def poi_reviews(name: str, city: str = "") -> dict:
     return {"reviews": m.get("reviews"), "reviews_ai": m.get("reviews_ai", False)}
 
 
+def _hotel_card(c: dict) -> dict:
+    """酒店卡片数据：基础信息 + 能拿到的富信息（携程式卡片用）。
+
+    ⚠️ price 大多为空：高德免费接口没有房价（biz_ext.lowest_price/cost 基本是空的），
+    我们也没有 OTA 数据源 —— 拿不到就留空，由前端决定不显示，**绝不编造价格**。
+    """
+    return {
+        "name": c.get("name", ""), "lat": c.get("lat"), "lon": c.get("lon"),
+        "intro": (c.get("type_str") or "").split(";")[0],
+        "image": c.get("image", ""),
+        "rating": c.get("rating", ""),        # 高德评分（extensions=all 才有）
+        "price": c.get("price", ""),          # 房价：拿不到就是空
+        "keytag": c.get("keytag", ""),        # 经济型/舒适型/高档型/豪华型 ≈ 携程钻级
+        "adname": c.get("adname", ""),        # 所在区（碑林区）≈ 携程"外滩核心区"
+        "address": c.get("address", ""),
+        "tel": c.get("tel", ""),
+    }
+
+
 @app.post("/hotel/search")
 def hotel_search(body: dict) -> dict:
     """酒店搜索（携程式选择器用）：名称/区域均可。"""
@@ -444,21 +463,19 @@ def hotel_search(body: dict) -> dict:
     # 酒店必须是「住宿服务」类别：不加过滤时搜「钟楼」会返回风景名胜 / 地铁站，
     # 界面上看着像酒店，用户一点就把景点当成住宿选走了。
     HOTEL_TYPES = "100000"          # 高德 POI 分类：住宿服务
-    cands = text_search(query, city, types=HOTEL_TYPES)
+    # extensions=all 才能拿到 biz_ext.rating（评分）与多张图
+    cands = text_search(query, city, types=HOTEL_TYPES, extensions="all")
     if not cands:
         # 关键词多半是地标/景点：先定位它，再搜它附近的住宿（携程的做法）
-        for m in (text_search(query, city) or [])[:1]:
+        for m in (text_search(query, city, extensions="all") or [])[:1]:
             if m.get("lat") is not None:
                 cands = poi_search("", m["lat"], m["lon"], radius=3000,
-                                   types=HOTEL_TYPES) or []
+                                   types=HOTEL_TYPES, extensions="all") or []
     if not cands:                   # 最后才退回原来的不限制类别，保证有结果
-        cands = (text_search(query, city)
-                 or poi_search(query, center[0], center[1], radius=10000))
-    return {"results": [{"name": c["name"], "lat": c["lat"], "lon": c["lon"],
-                         "intro": c.get("type_str", "").split(";")[0],
-                         "image": c.get("image", "")}
-                        for c in cands[:8]],
-            "city": city}
+        cands = (text_search(query, city, extensions="all")
+                 or poi_search(query, center[0], center[1], radius=10000,
+                               extensions="all"))
+    return {"results": [_hotel_card(c) for c in cands[:8]], "city": city}
 
 
 @app.post("/hotel/recommend")
@@ -477,16 +494,14 @@ def hotel_recommend(body: dict) -> dict:
     if center is None:
         raise HTTPException(500, f"城市表缺少 {DEFAULT_CITY}，请检查 backend/cities.py")
     HOTEL_TYPES = "100000"          # 住宿服务
-    # 只给 types、不给 keywords = "附近这类 POI"，正是推荐想要的效果
-    cands = poi_search("", center[0], center[1], radius=5000, types=HOTEL_TYPES) or []
+    # 只给 types、不给 keywords = "附近这类 POI"，正是推荐想要的效果；
+    # extensions=all 拿到评分与多图。
+    cands = poi_search("", center[0], center[1], radius=5000, types=HOTEL_TYPES,
+                       extensions="all") or []
     if not cands:                   # 兜底：附近实在没有住宿大类
         cands = poi_search("酒店", center[0], center[1], radius=5000,
-                           types=HOTEL_TYPES) or []
-    return {"results": [{"name": c["name"], "lat": c["lat"], "lon": c["lon"],
-                         "intro": c.get("type_str", "").split(";")[0],
-                         "image": c.get("image", "")}
-                        for c in cands[:8]],
-            "city": city}
+                           types=HOTEL_TYPES, extensions="all") or []
+    return {"results": [_hotel_card(c) for c in cands[:8]], "city": city}
 
 
 @app.post("/hotel/set")

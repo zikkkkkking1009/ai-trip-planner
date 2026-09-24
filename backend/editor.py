@@ -131,8 +131,43 @@ def parse_instruction(instruction: str, plan_summary: str,
 
 
 # ---- 高德周边搜索（加点用）----
+def _poi_row(p: dict) -> dict:
+    """把高德 POI 原始条目规整成我们内部用的结构。
+
+    除基础 name/坐标/类别/首图外，还带上酒店选择器需要的富信息（携程式卡片）：
+      rating   评分（只有 extensions=all 时才有）
+      keytag   档次：经济型 / 舒适型 / 高档型 / 豪华型 / 民宿 —— 等价于携程的钻级
+      adname   所在区（碑林区），等价于携程的"外滩核心区"
+      address  详细地址、tel 电话、photos 多图
+    ⚠️ price：高德免费接口的 biz_ext.lowest_price / cost 基本都是空的，拿不到真实房价。
+      宁可留空也不能编数字 —— 房价必须来自 OTA 数据源，我们没有。
+    """
+    try:
+        lon, lat = map(float, p["location"].split(","))
+    except (KeyError, ValueError):
+        return {}
+    photos = [ph.get("url", "") for ph in (p.get("photos") or [])
+              if isinstance(ph, dict)]
+    biz = p.get("biz_ext") or {}
+    if isinstance(biz, list):        # 高德在无数据时给的是 [] 而不是 {}
+        biz = {}
+    return {
+        "name": p.get("name", ""), "lat": lat, "lon": lon,
+        "type_str": p.get("type", ""),
+        "image": photos[0] if photos else "",
+        "rating": str(biz.get("rating") or ""),
+        "price": str(biz.get("lowest_price") or biz.get("cost") or ""),
+        "keytag": p.get("keytag") or "",
+        "adname": p.get("adname") or "",
+        "address": p.get("address") or "",
+        "tel": p.get("tel") or "",
+        "photos": photos[:3],
+    }
+
+
 def poi_search(query: str, lat: float, lon: float,
-               radius: int = 5000, types: str | None = None) -> list[dict]:
+               radius: int = 5000, types: str | None = None,
+               extensions: str = "base") -> list[dict]:
     """高德周边搜索 POI，返回 [{name, lat, lon, type_str}]。失败返回空列表。
 
     types：可选 POI 类别过滤（如住宿服务 "100000"）。keywords 与 types 至少要有一个，
@@ -144,7 +179,7 @@ def poi_search(query: str, lat: float, lon: float,
         return []
     p = {"location": f"{lon},{lat}", "keywords": query,
          "radius": radius, "offset": 5, "page": 1, "key": key,
-         "sortrule": "distance"}
+         "sortrule": "distance", "extensions": extensions}
     if types:
         p["types"] = types
     params = urllib.parse.urlencode(p)
@@ -168,19 +203,15 @@ def poi_search(query: str, lat: float, lon: float,
         return []
     out = []
     for p in data.get("pois", []):
-        try:
-            lon, lat2 = map(float, p["location"].split(","))
-        except (KeyError, ValueError):
-            continue
-        photos = p.get("photos") or []
-        out.append({"name": p.get("name", ""), "lat": lat2, "lon": lon,
-                    "type_str": p.get("type", ""),
-                    "image": (photos[0].get("url", "") if photos else "")})
+        row = _poi_row(p)          # 规整（含评分/档次/区域/地址/电话/多图）
+        if row:
+            out.append(row)
     return out
 
 
 def text_search(query: str, city: str = DEFAULT_CITY,
-                types: str | None = None) -> list[dict]:
+                types: str | None = None,
+                extensions: str = "base") -> list[dict]:
     """高德全城文本搜索（周边搜不到时的降级），返回结构与 poi_search 一致。
 
     types：可选 POI 类别过滤（如住宿服务 "100000"）。不传则不限制类别 ——
@@ -191,7 +222,7 @@ def text_search(query: str, city: str = DEFAULT_CITY,
     if not key:
         return []
     p = {"keywords": query, "city": city, "citylimit": "true",
-         "offset": 5, "page": 1, "key": key}
+         "offset": 5, "page": 1, "key": key, "extensions": extensions}
     if types:
         p["types"] = types
     params = urllib.parse.urlencode(p)
@@ -215,14 +246,9 @@ def text_search(query: str, city: str = DEFAULT_CITY,
         return []
     out = []
     for p in data.get("pois", []):
-        try:
-            lon, lat2 = map(float, p["location"].split(","))
-        except (KeyError, ValueError):
-            continue
-        photos = p.get("photos") or []
-        out.append({"name": p.get("name", ""), "lat": lat2, "lon": lon,
-                    "type_str": p.get("type", ""),
-                    "image": (photos[0].get("url", "") if photos else "")})
+        row = _poi_row(p)          # 规整（含评分/档次/区域/地址/电话/多图）
+        if row:
+            out.append(row)
     return out
 
 
