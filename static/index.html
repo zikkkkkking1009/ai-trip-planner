@@ -735,6 +735,7 @@
      细描边（<2px）在小尺寸下用浅灰压在浅底上几乎隐形 —— 用户实测反馈"看不见图标"。
      同时描边加粗到 1.8px、尺寸 16px，保证小尺寸下依然清晰。 */
   .datebox .dicon, .licon { display:inline-flex; align-items:center; color:var(--muted-2); }
+  .licon { vertical-align:-2px; }   /* 行内图标与文字视觉对齐 */
   .datebox .dicon svg, .licon svg { width:16px; height:16px; display:block; }
   /* 地图标记里的图标要更大一点（原来 emoji 是 20px） */
   .licon-lg svg { width:22px; height:22px; }
@@ -769,7 +770,7 @@
         <path d="M9.5 3.5 5 8l4.5 4.5"/></svg>
     </a>
     <button class="navpet" id="navPetBtn" title="AI 助手 · 小舟"
-            data-act="nav-pet" style="display:none" aria-label="打开 AI 行程助手">🤖</button>
+            data-act="nav-pet" style="display:none" aria-label="打开 AI 行程助手"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2l1.3 3.5L12.8 7 9.3 8.3 8 11.8 6.7 8.3 3.2 7l3.5-1.3z"/></svg></span></button>
     <a class="brand" href="/" title="返回首页"><i></i>路书 · AI 行程规划</a>
     <span class="links">
       <a id="navPlan" class="on" onclick="switchPage('plan')">规划</a>
@@ -777,7 +778,7 @@
     </span>
     <span class="spacer"></span>
     <span class="navtag navcity" id="navCity" role="button" tabindex="0"
-          title="点击切换城市">📍 选择城市</span>
+          title="点击切换城市"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14z"/><circle cx="8" cy="6.5" r="1.6"/></svg></span> 选择城市</span>
   </nav>
   <!-- 右上角城市下拉（点 navCity 展开） -->
   <div id="cityMenu" class="city-menu"></div>
@@ -788,9 +789,9 @@
       <h1>把一篇游记，变成可执行的行程</h1>
       <div class="meta">LLM 抽取 → 高德实体对齐 → OPTW 求解 → 独立约束校验</div>
       <div class="chips" id="chips">
-        <span class="chip">🚗 通勤矩阵（缓存优先）</span>
-        <span class="chip">🧭 三级缓存</span>
-        <span class="chip">✅ 约束校验</span>
+        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 11.5h11"/><path d="M3.5 11.5V9.2l1.3-3.2h6.4l1.3 3.2v2.3"/><circle cx="5.5" cy="12" r="1.1"/><circle cx="10.5" cy="12" r="1.1"/></svg></span> 通勤矩阵（缓存优先）</span>
+        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M10.3 5.7 6.6 6.6 5.7 10.3 9.4 9.4z"/></svg></span> 三级缓存</span>
+        <span class="chip"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg></span> 约束校验</span>
       </div>
     </header>
 
@@ -843,6 +844,10 @@
           <label>酒店</label>
           <div class="datebox">
             <b id="hotelText">未设置（点此搜索选择）</b>
+            <span class="dicon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"
+              fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round"><path d="M2.5 11.5V6"/><path d="M2.5 9h11"/>
+              <path d="M13.5 11.5V9"/><path d="M5 9V7h3.5v2"/></svg></span>
           </div>
         </div>
         <div class="grid3">
@@ -879,7 +884,10 @@
       </div>
       <!-- 攻略识别：批次 1 已提升为右栏常驻卡，这里保留折叠版（高级用户）兜底 -->
       <details class="adv" id="guideBox">
-        <summary>📋 粘贴攻略自动识别景点（需配置 LLM Key）</summary>
+        <summary><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"
+          fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+          stroke-linejoin="round"><rect x="4" y="3" width="8" height="10.5" rx="1.2"/>
+          <path d="M6 3V1.8h4V3"/><path d="M6.5 7h3M6.5 9.5h2.5"/></svg></span> 粘贴攻略自动识别景点（需配置 LLM Key）</summary>
         <textarea id="guideText" rows="4" placeholder="粘贴一段攻略，例如：第一天去了宽窄巷子，中午在锦里吃小吃，下午去大熊猫基地…"
           style="width:100%;margin-top:8px;padding:8px;border-radius:10px;border:1px solid var(--border);
                  font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
@@ -898,10 +906,10 @@
          用户第一眼看到的是自己点的行程，AI 评不抢戏但仍是显眼模块。 -->
     <div class="daytabs" id="daytabs" style="display:none"></div>
     <div class="seg" id="viewSeg" style="display:none">
-      <div class="s active" onclick="switchView('itin')">📋 行程</div>
-      <div class="s" onclick="switchView('map')">🗺 地图</div>
+      <div class="s active" onclick="switchView('itin')"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="8" height="10.5" rx="1.2"/><path d="M6 3V1.8h4V3"/><path d="M6.5 7h3M6.5 9.5h2.5"/></svg></span> 行程</div>
+      <div class="s" onclick="switchView('map')"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5 6 3l4 1.5 3.5-1.5v9L10 13.5 6 12l-3.5 1.5z"/><path d="M6 3v9M10 4.5v9"/></svg></span> 地图</div>
       <div class="s s-share" onclick="shareImage()"
-           title="导出竖版长图（含 AI 总评与每天安排），可发朋友圈或当简历附件">📷 长图</div>
+           title="导出竖版长图（含 AI 总评与每天安排），可发朋友圈或当简历附件"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h2.7l1-1.6h3.6l1 1.6h2.7v7h-11z"/><circle cx="8" cy="9" r="2.4"/></svg></span> 长图</div>
     </div>
     <div id="view"></div>
 
@@ -913,7 +921,7 @@
 
     <!-- N3 稳健性模拟（按时概率 + 风险点），由 loadRobustness() 填充；默认折叠 -->
     <details class="robust-details" id="robustDetails" style="display:none">
-      <summary>🛡 稳健性模拟（点开看按时概率与风险点）</summary>
+      <summary><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5 12.5 4v4c0 2.8-2.2 4.6-4.5 5.5C5.7 12.6 3.5 10.8 3.5 8V4z"/></svg></span> 稳健性模拟（点开看按时概率与风险点）</summary>
       <div id="robustBox"></div>
     </details>
 
@@ -1055,7 +1063,7 @@ function onCityChange() {
 // 右上角城市标记（网站形态下取代了原来的页内提示）+ 下拉切换
 function syncNavCity() {
   const el = $('navCity');
-  if (el) el.textContent = '📍 ' + currentCity;
+  if (el) el.innerHTML = ICON_PIN + ' ' + esc(currentCity);
 }
 
 function renderCityMenu() {
@@ -1144,6 +1152,25 @@ const HOTEL_SVG = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none"'
   + '<path d="M2.5 11.5V6"/><path d="M2.5 9h11"/><path d="M13.5 11.5V9"/>'
   + '<path d="M5 9V7h3.5v2"/></svg>';
 const HOTEL_ICON = '<span class="licon">' + HOTEL_SVG + '</span>';
+
+// 线性图标库（统一规格：16 视窗 / currentColor / 1.8px 圆头描边）—— 全站替代 emoji。
+// 用 _svg 包裹 path，避免在几十处重复粘贴整段 svg 字符串。静态 HTML 里的同类图标直接内联同一份。
+const _svg = inner => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"'
+  + ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+const _ic = inner => '<span class="licon">' + _svg(inner) + '</span>';
+const ICON_CAR = _ic('<path d="M2.5 11.5h11"/><path d="M3.5 11.5V9.2l1.3-3.2h6.4l1.3 3.2v2.3"/>'
+  + '<circle cx="5.5" cy="12" r="1.1"/><circle cx="10.5" cy="12" r="1.1"/>');
+const ICON_COMPASS = _ic('<circle cx="8" cy="8" r="5.5"/><path d="M10.3 5.7 6.6 6.6 5.7 10.3 9.4 9.4z"/>');
+const ICON_CHECK = _ic('<path d="M3.5 8.5 6.5 11.5 12.5 4.5"/>');
+const ICON_CROSS = _ic('<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>');
+const ICON_PIN = _ic('<path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14z"/>'
+  + '<circle cx="8" cy="6.5" r="1.6"/>');
+const ICON_MAP = _ic('<path d="M2.5 4.5 6 3l4 1.5 3.5-1.5v9L10 13.5 6 12l-3.5 1.5z"/><path d="M6 3v9M10 4.5v9"/>');
+const ICON_CAMERA = _ic('<path d="M2.5 5.5h2.7l1-1.6h3.6l1 1.6h2.7v7h-11z"/><circle cx="8" cy="9" r="2.4"/>');
+const ICON_SHIELD = _ic('<path d="M8 2.5 12.5 4v4c0 2.8-2.2 4.6-4.5 5.5C5.7 12.6 3.5 10.8 3.5 8V4z"/>');
+const ICON_SATELLITE = _ic('<circle cx="8" cy="8" r="2.2"/><path d="M3 3.5l1.9 1.9M11.1 11.1 13 13M13 3.5l-1.9 1.9M4.9 11.1 3 13"/>');
+const ICON_TICKET = _ic('<rect x="2.5" y="4.5" width="11" height="7" rx="1.2"/>'
+  + '<path d="M6.3 4.5v7" stroke-dasharray="1.5 1.5"/>');
 const fmt = h => { const hh=Math.floor(h), mm=Math.round((h-hh)*60);
   return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'); };
 const dateOf = i => { const d = new Date($('startDate').value || Date.now());
@@ -1446,7 +1473,7 @@ function renderEmpty() {
     </ul>
     <button class="empty-go" data-act="empty-go">开始规划 ${n} 天行程</button>
     <div class="empty-divider">或者</div>
-    <button class="empty-secondary" data-act="empty-extract">🤖 粘攻略让 AI 自动识别</button>
+    <button class="empty-secondary" data-act="empty-extract"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2l1.3 3.5L12.8 7 9.3 8.3 8 11.8 6.7 8.3 3.2 7l3.5-1.3z"/></svg></span> 粘攻略让 AI 自动识别</button>
     ${fillBtn}
     <div class="quick-extract-area">
       <textarea id="quickGuideText" rows="3"
