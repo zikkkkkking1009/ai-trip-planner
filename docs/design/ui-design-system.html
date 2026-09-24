@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 行程规划 · 界面设计规范与高保真稿</title>
+<style>
+/* ============================================================================
+   这份文档本身就用「它规定的令牌」渲染 —— 规范即样张，改一处这里立刻可见。
+   零依赖、零外链、可离线打开。所有对比度数字来自 docs/design/contrast-audit.py 实测。
+   ========================================================================== */
+
+/* ---------- 令牌：尺度 ---------- */
+:root{
+  /* 字号 7 档（原 11 档 → 收敛） */
+  --fs-1:11px; --fs-2:12px; --fs-3:14px; --fs-4:16px;
+  --fs-5:20px; --fs-6:24px; --fs-7:30px;
+  /* 行高配对 */
+  --lh-1:16px; --lh-2:18px; --lh-3:22px; --lh-4:24px;
+  --lh-5:28px; --lh-6:32px; --lh-7:38px;
+  /* 字重 4 档（原 700 通胀 → 收敛） */
+  --fw-4:400; --fw-5:500; --fw-6:600; --fw-7:700;
+  /* 间距 8pt 网格（原 12 档散值 → 收敛） */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+  /* 圆角 4 档（原 9 档 → 收敛） */
+  --r-ctl:8px; --r-card:12px; --r-layer:16px; --r-pill:999px;
+  /* 阴影 3 档 —— 沿用现有，已达标，不动 */
+  --sh-1:0 1px 2px oklch(28% 0.03 255 / .05);
+  --sh-2:0 6px 20px oklch(28% 0.03 255 / .07);
+  --sh-3:0 18px 48px oklch(28% 0.03 255 / .18);
+  /* 动效 —— 沿用现有，已经是 easeOutExpo 系，不动 */
+  --e:cubic-bezier(.22,.61,.36,1);
+  --e-out:cubic-bezier(.16,1,.3,1);
+  --t-fast:.14s; --t:.22s; --t-slow:.38s;
+
+  --font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+
+/* ---------- 令牌：浅色（实测达标） ---------- */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#fbfcfd; --surface:#ffffff; --fill:#f3f5f8; --fill-2:#eaedf1;
+  --fg:#0e1217;          /* 18.80:1 */
+  --text-2:#4d535a;      /*  7.75:1 */
+  --text-3:#6f757e;      /*  4.63:1  ← 修复，原 --muted-3 2.88:1 */
+  --icon:#8c939c;        /*  3.10:1  仅图形 */
+  --placeholder:#6b7179; /*  4.91:1  ← 修复，原 2.64:1 */
+  --border:#e2e5e8;      /*  1.27:1  装饰，豁免 */
+  --border-strong:#8f9397;/* 3.10:1 */
+  --focus:#1779e1;
+  --accent:#1779e1; --accent-solid:#0871d9; --accent-deep:#0065d2;
+  --accent-ink:#f7fcff; --accent-soft:#e9f3ff; --accent-line:#c2daf9;
+  --ok:#00a865; --ok-ink:#2b6e34; --ok-soft:#eef6ee; --ok-line:#cde8cf;
+  --warn:#e8590c; --warn-ink:#bc4c00; --warn-soft:#fff4e6;
+  --bad:#e03131; --bad-ink:#b42318; --bad-soft:#fef2f2; --bad-line:#fee4e2;
+  --stay:#7048e8;
+  --note-ink:#b55600; --note-soft:#fff8e6; --note-line:#ffe58f;
+  --on-accent:#f7fcff;
+  /* 三天配色：暗到「块内亮字 ≥4.5:1」，且块色压白 ≥3:1（实测 9.81 / 6.97 / 4.93） */
+  --day1:#064180; --day2:#1b589e; --day3:#3a70b3;
+  --shadow:rgba(20,30,50,.10);
+}
+
+/* ---------- 令牌：暗色（本项目原本没有，整套新增） ---------- */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0c0f12; --surface:#14171b; --fill:#1e2124; --fill-2:#262b2f;
+  --fg:#dee0e2;          /* 14.52:1 压页面底 */
+  --text-2:#adb2b6;      /*  8.35:1 */
+  --text-3:#7e848a;      /*  4.72:1 */
+  --icon:#616870;        /*  3.16:1 */
+  --placeholder:#868b92; /*  4.72:1 压输入底 */
+  --border:#292e34;      /*  1.25:1  装饰，豁免 */
+  --border-strong:#63676d;/* 3.16:1 */
+  --focus:#5fa7ff;       /*  7.19:1 */
+  --accent:#539af2;      /*  6.19:1  图形/大字 */
+  --accent-solid:#2c7bd7; --accent-deep:#539af2;
+  --accent-ink:#060c13; --accent-soft:#102034; --accent-line:#1d395b;
+  --ok:#4ed589; --ok-ink:#009f57; --ok-soft:#0e2517; --ok-line:#1c4430;
+  --warn:#f78955; --warn-ink:#da672c; --warn-soft:#2f190f;
+  --bad:#f3625d; --bad-ink:#e85854; --bad-soft:#301715; --bad-line:#5b2724;
+  --stay:#8a82e9;
+  --note-ink:#cc7200; --note-soft:#2d1a0a; --note-line:#5a3f14;
+  --on-accent:#060c13;
+  --day1:#3d7ece; --day2:#5e9ae7; --day3:#8cbaf7;
+  --shadow:rgba(0,0,0,.45);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--font-body); font-size:var(--fs-3); line-height:var(--lh-3);
+  -webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+}
+h1,h2,h3,h4{font-family:var(--font-display);letter-spacing:-.022em;line-height:1.25}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- 文档骨架 ---------- */
+.bar{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:var(--sp-4);
+  padding:0 var(--sp-6);height:56px;
+  background:color-mix(in oklab,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid var(--border);
+}
+.bar__id{display:flex;align-items:center;gap:var(--sp-2);font-weight:var(--fw-6);font-size:var(--fs-3)}
+.bar__dot{width:8px;height:8px;border-radius:var(--r-pill);background:var(--accent-solid)}
+.bar__meta{font-size:var(--fs-2);color:var(--text-3);margin-left:var(--sp-1);font-weight:var(--fw-4)}
+.bar__nav{display:flex;gap:var(--sp-1);margin-left:auto;flex-wrap:wrap}
+.bar__nav a{
+  font-size:var(--fs-2);color:var(--text-2);text-decoration:none;
+  padding:5px 9px;border-radius:var(--r-pill);transition:background var(--t-fast) var(--e),color var(--t-fast) var(--e);
+}
+.bar__nav a:hover{background:var(--fill);color:var(--fg)}
+@media (max-width:1000px){.bar__nav{display:none}}
+
+.wrap{max-width:1120px;margin:0 auto;padding:0 var(--sp-6)}
+@media (max-width:720px){.wrap{padding:0 var(--sp-4)} .bar{padding:0 var(--sp-4)}}
+
+section{padding:var(--sp-8) 0;border-top:1px solid var(--border)}
+section:first-of-type{border-top:none}
+.eyebrow{
+  font-size:var(--fs-1);letter-spacing:.10em;text-transform:uppercase;
+  color:var(--text-3);font-weight:var(--fw-5);margin-bottom:var(--sp-3);
+  display:flex;align-items:center;gap:var(--sp-2);
+}
+.eyebrow::after{content:"";height:1px;flex:1;background:var(--border)}
+h2.sec{font-size:var(--fs-6);font-weight:var(--fw-6);margin-bottom:var(--sp-2)}
+p.sec-sub{font-size:var(--fs-3);color:var(--text-2);max-width:76ch;margin-bottom:var(--sp-6)}
+h3.sub{font-size:var(--fs-4);font-weight:var(--fw-6);margin:var(--sp-7) 0 var(--sp-3)}
+h3.sub:first-of-type{margin-top:var(--sp-6)}
+p{margin-bottom:var(--sp-3);color:var(--text-2);max-width:80ch}
+strong{color:var(--fg);font-weight:var(--fw-6)}
+code{
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  font-size:.88em;background:var(--fill);border:1px solid var(--border);
+  padding:1px 5px;border-radius:5px;color:var(--fg);
+}
+
+/* ---------- 封面 ---------- */
+.hero{padding:var(--sp-8) 0 var(--sp-7)}
+.hero h1{font-size:clamp(30px,4.4vw,44px);font-weight:var(--fw-7);letter-spacing:-.03em;margin-bottom:var(--sp-3)}
+.hero .lede{font-size:var(--fs-5);line-height:1.62;color:var(--text-2);max-width:62ch;font-weight:var(--fw-4)}
+.hero__tags{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-5)}
+.hero__stat{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--border);border:1px solid var(--border);
+  border-radius:var(--r-card);overflow:hidden;margin-top:var(--sp-6);
+}
+.hero__stat>div{background:var(--surface);padding:var(--sp-4)}
+.hero__stat b{display:block;font-family:var(--font-display);font-size:var(--fs-6);font-weight:var(--fw-6);letter-spacing:-.02em}
+.hero__stat span{font-size:var(--fs-2);color:var(--text-3);display:block;margin-top:2px}
+.hero__stat .is-bad b{color:var(--bad-ink)}
+.hero__stat .is-ok b{color:var(--ok-ink)}
+
+/* ---------- 结论条 ---------- */
+.verdicts{display:flex;flex-direction:column;gap:0;border-top:1px solid var(--border)}
+.verdict{
+  display:grid;grid-template-columns:34px 1fr;gap:var(--sp-4);
+  padding:var(--sp-4) 0;border-bottom:1px solid var(--border);
+}
+.verdict__n{
+  font-family:var(--font-display);font-size:var(--fs-4);font-weight:var(--fw-6);
+  color:var(--accent);letter-spacing:-.02em;padding-top:1px;
+}
+.verdict__t{font-size:var(--fs-4);font-weight:var(--fw-6);color:var(--fg);margin-bottom:var(--sp-1)}
+.verdict__d{font-size:var(--fs-3);color:var(--text-2);max-width:82ch}
+@media (max-width:620px){.verdict{grid-template-columns:26px 1fr;gap:var(--sp-3)}}
+
+/* ---------- 表格 ---------- */
+.tbl{width:100%;border-collapse:collapse;margin:var(--sp-3) 0 var(--sp-4)}
+.tbl th{
+  text-align:left;font-size:var(--fs-1);font-weight:var(--fw-5);color:var(--text-3);
+  letter-spacing:.07em;text-transform:uppercase;padding:0 var(--sp-3) var(--sp-2);
+  border-bottom:1px solid var(--border-strong);
+}
+.tbl td{padding:10px var(--sp-3);border-bottom:1px solid var(--border);font-size:var(--fs-3);vertical-align:top}
+.tbl tr:hover td{background:var(--fill)}
+.tbl--num td:not(:first-child){font-variant-numeric:tabular-nums}
+.tbl .muted{color:var(--text-3)}
+.tbl .num{color:var(--fg);font-weight:var(--fw-5)}
+.tbl-scroll{overflow-x:auto}
+@media (max-width:820px){.tbl-scroll .tbl{min-width:640px}}
+
+/* 判定标签 */
+.tag{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:var(--fs-1);font-weight:var(--fw-5);line-height:1;
+  padding:3px 7px;border-radius:var(--r-pill);border:1px solid transparent;white-space:nowrap;
+}
+.tag--bad{background:var(--bad-soft);color:var(--bad-ink);border-color:var(--bad-line)}
+.tag--ok{background:var(--ok-soft);color:var(--ok-ink);border-color:var(--ok-line)}
+.tag--warn{background:var(--warn-soft);color:var(--warn-ink)}
+.tag--n{background:var(--fill);color:var(--text-2);border-color:var(--border)}
+
+/* 条形刻度（可视化散值收敛） */
+.rail{display:flex;align-items:center;gap:var(--sp-3);padding:6px 0}
+.rail__lb{width:96px;font-size:var(--fs-2);color:var(--text-2);flex:none}
+.rail__tr{position:relative;flex:1;height:22px;background:var(--fill);border-radius:var(--r-pill)}
+.rail__tr i{
+  position:absolute;top:4px;width:3px;height:14px;border-radius:2px;
+  background:var(--bad);opacity:.9;
+}
+.rail__tr.is-fix i{background:var(--ok)}
+.rail__ct{width:64px;text-align:right;font-size:var(--fs-2);color:var(--text-3);flex:none}
+.rail__ct b{color:var(--fg);font-weight:var(--fw-6)}
+@media (max-width:620px){.rail__lb{width:64px}.rail__ct{width:52px}}
+
+/* ---------- 字号样张 ---------- */
+.spec-fs{display:flex;flex-direction:column;border-top:1px solid var(--border)}
+.spec-fs__row{
+  display:grid;grid-template-columns:104px 1fr 92px;gap:var(--sp-4);
+  align-items:baseline;padding:var(--sp-3) 0;border-bottom:1px solid var(--border);
+}
+.spec-fs__k{font-size:var(--fs-2);color:var(--text-3);font-weight:var(--fw-5)}
+.spec-fs__k em{display:block;font-style:normal;color:var(--text-2);font-size:var(--fs-1);letter-spacing:.04em}
+.spec-fs__v{color:var(--fg)}
+.spec-fs__u{font-size:var(--fs-1);color:var(--text-3);text-align:right}
+@media (max-width:720px){.spec-fs__row{grid-template-columns:88px 1fr}.spec-fs__u{display:none}}
+
+/* ---------- 色卡 ---------- */
+.sw-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));
+  gap:1px;background:var(--border);border:1px solid var(--border);
+  border-radius:var(--r-card);overflow:hidden;margin:var(--sp-3) 0 var(--sp-5);
+}
+.sw{background:var(--surface);padding:var(--sp-3)}
+.sw__chip{height:46px;border-radius:var(--r-ctl);border:1px solid var(--border);margin-bottom:var(--sp-2)}
+.sw__nm{font-size:var(--fs-2);font-weight:var(--fw-6);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.sw__v{font-size:var(--fs-1);color:var(--text-3);margin-top:2px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.sw__r{display:flex;align-items:center;justify-content:space-between;margin-top:6px;gap:4px}
+
+/* ---------- 组件库 ---------- */
+.cmp{border:1px solid var(--border);border-radius:var(--r-card);background:var(--surface);overflow:hidden;margin-bottom:var(--sp-4)}
+.cmp__hd{padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--border);font-size:var(--fs-2);font-weight:var(--fw-6);color:var(--text-2)}
+.cmp__bd{padding:var(--sp-4);display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center}
+.cmp__bd--col{flex-direction:column;align-items:stretch}
+.cmp__note{padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border);font-size:var(--fs-2);color:var(--text-3);background:var(--fill)}
+
+/* 按钮 */
+.b{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-family:var(--font-body);font-size:var(--fs-3);font-weight:var(--fw-5);
+  height:40px;padding:0 var(--sp-4);border-radius:var(--r-ctl);
+  border:1px solid transparent;cursor:pointer;text-decoration:none;
+  transition:background var(--t-fast) var(--e),border-color var(--t-fast) var(--e),
+             color var(--t-fast) var(--e),transform var(--t-fast) var(--e);
+  user-select:none;
+}
+.b:active{transform:translateY(1px)}
+.b--pri{background:var(--accent-solid);color:var(--on-accent)}
+.b--pri:hover{background:var(--accent-deep)}
+.b--sec{background:var(--surface);color:var(--fg);border-color:var(--border-strong)}
+.b--sec:hover{background:var(--fill);border-color:var(--text-3)}
+.b--ghost{background:transparent;color:var(--accent)}
+.b--ghost:hover{background:var(--accent-soft)}
+.b--danger{background:var(--surface);color:var(--bad-ink);border-color:var(--bad-line)}
+.b--danger:hover{background:var(--bad-soft)}
+.b[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+.b--sm{height:32px;padding:0 var(--sp-3);font-size:var(--fs-2)}
+.b--lg{height:48px;padding:0 var(--sp-5);font-size:var(--fs-4)}
+.b--block{width:100%}
+.b--icon{width:40px;height:40px;padding:0}
+.b svg{width:16px;height:16px;flex:none}
+@media (pointer:coarse){.b--sm{height:40px}}
+
+/* 输入 */
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld__lb{font-size:var(--fs-2);color:var(--text-2);font-weight:var(--fw-5)}
+.inp{
+  height:40px;padding:0 var(--sp-3);font-size:var(--fs-3);font-family:var(--font-body);
+  color:var(--fg);background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--r-ctl);
+  transition:border-color var(--t-fast) var(--e),box-shadow var(--t-fast) var(--e);
+  width:100%;
+}
+.inp::placeholder{color:var(--placeholder)}
+.inp:hover{border-color:var(--text-3)}
+.inp:focus{outline:none;border-color:var(--accent-solid);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea.inp{height:auto;padding:var(--sp-2) var(--sp-3);line-height:var(--lh-3);resize:vertical;min-height:72px}
+.fld__hint{font-size:var(--fs-2);color:var(--text-3)}
+.fld__err{font-size:var(--fs-2);color:var(--bad-ink);display:flex;align-items:center;gap:5px}
+
+/* chip */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 var(--sp-3);
+  font-size:var(--fs-2);font-weight:var(--fw-5);color:var(--text-2);
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:var(--r-pill);cursor:pointer;
+  transition:all var(--t-fast) var(--e);
+}
+.chip:hover{background:var(--fill);color:var(--fg)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent-solid);color:var(--accent-deep)}
+:root[data-theme="dark"] .chip[aria-pressed="true"]{color:var(--accent)}
+.chip--quiet{background:var(--fill);border-color:transparent;color:var(--text-2)}
+
+/* 徽标 / 卡片 / 提示 */
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-1);font-weight:var(--fw-5);padding:2px 7px;border-radius:var(--r-pill);background:var(--fill);color:var(--text-2)}
+.badge--accent{background:var(--accent-soft);color:var(--accent-deep)}
+:root[data-theme="dark"] .badge--accent{color:var(--accent)}
+.badge--stay{background:color-mix(in oklab,var(--stay) 14%,transparent);color:var(--stay)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);padding:var(--sp-4)}
+.alert{display:flex;gap:10px;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-ctl);font-size:var(--fs-3);border:1px solid}
+.alert--note{background:var(--note-soft);border-color:var(--note-line);color:var(--note-ink)}
+.alert--bad{background:var(--bad-soft);border-color:var(--bad-line);color:var(--bad-ink)}
+.alert--ok{background:var(--ok-soft);border-color:var(--ok-line);color:var(--ok-ink)}
+.skel{background:var(--fill);border-radius:6px;animation:sk 1.4s var(--e) infinite}
+@keyframes sk{0%,100%{opacity:1}50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+
+/* ---------- 高保真稿框架 ---------- */
+.shot{margin:var(--sp-5) 0 var(--sp-7)}
+.shot__hd{display:flex;align-items:baseline;gap:var(--sp-3);margin-bottom:var(--sp-2);flex-wrap:wrap}
+.shot__id{
+  font-size:var(--fs-1);font-weight:var(--fw-6);letter-spacing:.06em;
+  color:var(--accent);background:var(--accent-soft);
+  border-radius:var(--r-pill);padding:3px 9px;
+}
+:root[data-theme="dark"] .shot__id{color:var(--accent)}
+.shot__tt{font-size:var(--fs-4);font-weight:var(--fw-6)}
+.shot__ds{font-size:var(--fs-2);color:var(--text-3);width:100%}
+.frame{border:1px solid var(--border-strong);border-radius:var(--r-layer);overflow:hidden;background:var(--bg);box-shadow:var(--sh-2)}
+.frame__bar{display:flex;align-items:center;gap:7px;padding:9px var(--sp-4);background:var(--fill);border-bottom:1px solid var(--border)}
+.frame__dot{width:9px;height:9px;border-radius:var(--r-pill);background:var(--border-strong);flex:none}
+.frame__url{font-size:var(--fs-1);color:var(--text-3);margin-left:var(--sp-2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* 应用内骨架（桌面双栏） */
+.app{display:grid;grid-template-columns:330px 1fr;min-height:480px}
+.app__side{background:var(--surface);border-right:1px solid var(--border);padding:var(--sp-5) var(--sp-4)}
+.app__main{background:var(--bg);padding:var(--sp-5)}
+.app__ttl{font-size:var(--fs-4);font-weight:var(--fw-6);margin-bottom:2px}
+.app__sub{font-size:var(--fs-2);color:var(--text-3);margin-bottom:var(--sp-5)}
+.app__grp{margin-bottom:var(--sp-4)}
+.app__lb{font-size:var(--fs-1);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:var(--fw-5);margin-bottom:6px}
+.app__chips{display:flex;flex-wrap:wrap;gap:6px}
+details.adv{border-top:1px solid var(--border);padding-top:var(--sp-3);margin-top:var(--sp-2)}
+details.adv>summary{
+  font-size:var(--fs-2);color:var(--text-2);cursor:pointer;list-style:none;
+  display:flex;align-items:center;gap:6px;padding:2px 0;
+}
+details.adv>summary::-webkit-details-marker{display:none}
+details.adv>summary::before{content:"›";display:inline-block;transition:transform var(--t-fast) var(--e);color:var(--text-3);font-size:15px;line-height:1}
+details.adv[open]>summary::before{transform:rotate(90deg)}
+@media (max-width:860px){.app{grid-template-columns:1fr}.app__side{border-right:none;border-bottom:1px solid var(--border)}}
+
+/* 空状态引导卡 */
+.hero-card{max-width:520px;margin:var(--sp-6) auto;text-align:left}
+.hero-card h4{font-size:var(--fs-7);font-weight:var(--fw-6);letter-spacing:-.03em;margin-bottom:var(--sp-3);line-height:1.25}
+.hero-card .steps{display:flex;flex-direction:column;gap:10px;margin:var(--sp-4) 0 var(--sp-5)}
+.hero-card .step{display:flex;gap:10px;align-items:flex-start;font-size:var(--fs-3);color:var(--text-2)}
+.hero-card .step i{
+  flex:none;width:20px;height:20px;border-radius:var(--r-pill);
+  background:var(--accent-soft);color:var(--accent-deep);
+  font-style:normal;font-size:var(--fs-1);font-weight:var(--fw-6);
+  display:grid;place-items:center;margin-top:1px;
+}
+:root[data-theme="dark"] .hero-card .step i{color:var(--accent)}
+.hero-card .step b{color:var(--fg);font-weight:var(--fw-6)}
+.or{display:flex;align-items:center;gap:var(--sp-3);margin:var(--sp-4) 0;color:var(--text-3);font-size:var(--fs-2)}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--border)}
+
+/* 结果区（右栏顺序对照） */
+.stack{display:flex;flex-direction:column;gap:var(--sp-2)}
+.blk{border:1px solid var(--border);border-radius:var(--r-ctl);padding:10px var(--sp-3);background:var(--surface);display:flex;align-items:center;gap:10px}
+.blk__n{width:20px;height:20px;border-radius:var(--r-pill);background:var(--fill);color:var(--text-3);font-size:var(--fs-1);font-weight:var(--fw-6);display:grid;place-items:center;flex:none}
+.blk__t{font-size:var(--fs-3);font-weight:var(--fw-5)}
+.blk__d{font-size:var(--fs-2);color:var(--text-3);margin-left:auto;text-align:right}
+.blk.is-pri{border-color:var(--accent-line);background:var(--accent-soft)}
+.blk.is-pri .blk__n{background:var(--accent-solid);color:var(--on-accent)}
+.blk.is-dim{opacity:.62;border-style:dashed}
+.col2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-5)}
+@media (max-width:720px){.col2{grid-template-columns:1fr}}
+.col2 h5{font-size:var(--fs-2);font-weight:var(--fw-6);color:var(--text-3);margin-bottom:var(--sp-2);letter-spacing:.04em;text-transform:uppercase}
+
+/* 时间线 */
+.day-tabs{display:flex;gap:6px;align-items:center;margin-bottom:var(--sp-4);flex-wrap:wrap}
+.day-tab{height:32px;padding:0 var(--sp-3);border-radius:var(--r-pill);border:1px solid var(--border-strong);background:var(--surface);color:var(--text-2);font-size:var(--fs-2);font-weight:var(--fw-5);cursor:pointer}
+.day-tab[aria-selected="true"]{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.tl-grid{display:grid;grid-template-columns:1fr 250px;gap:var(--sp-5)}
+@media (max-width:820px){.tl-grid{grid-template-columns:1fr}.tl-map{display:none}}
+.tl{position:relative;padding-left:52px}
+.tl__axis{position:absolute;left:0;top:0;width:52px;height:100%}
+.tl__h{position:absolute;left:0;width:44px;text-align:right;font-size:var(--fs-1);color:var(--text-3);transform:translateY(-50%);font-variant-numeric:tabular-nums}
+.tl__line{position:absolute;left:46px;right:0;height:1px;background:var(--border)}
+.tl__flow{position:relative}
+.tl__lead{height:calc(var(--m) * .85px)}
+.tl__sp{
+  position:relative;border-radius:var(--r-ctl);overflow:hidden;
+  height:calc(var(--m) * .85px);min-height:34px;
+  background:color-mix(in oklab,var(--c) 12%,var(--surface));
+  border-left:3px solid var(--c);
+  padding:5px 10px;display:flex;flex-direction:column;justify-content:center;
+  transition:background var(--t-fast) var(--e);
+}
+.tl__sp:hover{background:color-mix(in oklab,var(--c) 18%,var(--surface))}
+.tl__nm{font-size:var(--fs-3);font-weight:var(--fw-6);color:var(--fg);line-height:1.35}
+.tl__mt{font-size:var(--fs-2);color:var(--text-3);display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.tl__cm{
+  height:calc(var(--m) * .85px);min-height:16px;display:flex;align-items:center;gap:6px;
+  padding-left:2px;position:relative;
+}
+.tl__cm::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:repeating-linear-gradient(to bottom,var(--icon) 0 3px,transparent 3px 6px)}
+.tl__cm span{font-size:var(--fs-1);color:var(--text-3);margin-left:8px}
+.tl__brk{height:calc(var(--m) * .85px);display:flex;align-items:center;padding-left:2px;position:relative}
+.tl__brk::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--border)}
+.tl__brk span{font-size:var(--fs-1);color:var(--text-3);margin-left:8px}
+.tl__end{height:calc(var(--m) * .85px);position:relative}
+.tl__end::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--border)}
+.tl__mark{position:absolute;left:0;display:flex;align-items:center;gap:6px;transform:translateY(-50%)}
+.tl__mark i{width:9px;height:9px;border-radius:var(--r-pill);background:var(--c,var(--accent-solid));border:2px solid var(--surface);flex:none}
+.tl__mark span{font-size:var(--fs-1);font-weight:var(--fw-5);color:var(--text-2);background:var(--surface);padding:1px 6px;border-radius:var(--r-pill);border:1px solid var(--border)}
+
+/* 总览轨道 */
+.ov{display:flex;flex-direction:column;gap:var(--sp-3)}
+.ov__row{display:grid;grid-template-columns:46px 1fr;gap:var(--sp-3);align-items:center}
+.ov__lb{font-size:var(--fs-2);font-weight:var(--fw-6);color:var(--text-2);font-variant-numeric:tabular-nums}
+.ov__tr{position:relative;height:36px;background:var(--fill);border-radius:var(--r-ctl)}
+.ov__blk{position:absolute;top:5px;height:26px;border-radius:6px;background:var(--c);display:flex;align-items:center;padding:0 7px;overflow:hidden}
+.ov__blk span{font-size:var(--fs-1);color:var(--on-accent);font-weight:var(--fw-5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov__scale{display:grid;grid-template-columns:46px 1fr;gap:var(--sp-3);margin-top:2px}
+.ov__ticks{display:flex;justify-content:space-between;font-size:var(--fs-1);color:var(--text-3);font-variant-numeric:tabular-nums}
+.ov__gap{border-top:1px dashed var(--icon);position:absolute;top:5px;height:26px;display:flex;align-items:center;justify-content:center}
+.ov__gap span{font-size:var(--fs-1);color:var(--text-3)}
+
+/* 小地图 */
+.mini{border:1px solid var(--border);border-radius:var(--r-card);overflow:hidden;background:var(--fill)}
+.mini__hd{padding:8px var(--sp-3);font-size:var(--fs-1);color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface)}
+.mini__list{padding:var(--sp-2) 0}
+.mini__it{display:flex;gap:8px;align-items:center;padding:6px var(--sp-3);font-size:var(--fs-2)}
+.mini__it i{width:8px;height:8px;border-radius:2px;flex:none}
+.mini__it b{font-weight:var(--fw-5);color:var(--fg)}
+.mini__it span{margin-left:auto;color:var(--text-3);font-variant-numeric:tabular-nums}
+
+/* 桌宠延迟说明 */
+.pet-note{
+  display:flex;gap:10px;align-items:flex-start;margin-top:var(--sp-3);
+  padding:10px var(--sp-3);border-radius:var(--r-ctl);
+  background:var(--note-soft);border:1px solid var(--note-line);color:var(--note-ink);
+  font-size:var(--fs-2);
+}
+.pet-note b{font-weight:var(--fw-6)}
+
+/* 规格标注 */
+.spec-note{
+  margin-top:var(--sp-3);padding:var(--sp-3) var(--sp-4);
+  border-left:2px solid var(--accent-line);background:var(--fill);
+  border-radius:0 var(--r-ctl) var(--r-ctl) 0;
+  font-size:var(--fs-2);color:var(--text-2);
+}
+.spec-note b{color:var(--fg);font-weight:var(--fw-6)}
+
+/* 决策点 */
+.dec{border-top:1px solid var(--border);padding:var(--sp-5) 0}
+.dec__q{display:flex;gap:10px;align-items:baseline;margin-bottom:var(--sp-3)}
+.dec__n{font-family:var(--font-display);font-size:var(--fs-4);font-weight:var(--fw-6);color:var(--text-3)}
+.dec__t{font-size:var(--fs-4);font-weight:var(--fw-6)}
+.dec__opts{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);margin-bottom:var(--sp-3)}
+@media (max-width:720px){.dec__opts{grid-template-columns:1fr}}
+.opt{border:1px solid var(--border);border-radius:var(--r-ctl);padding:var(--sp-3) var(--sp-4);background:var(--surface)}
+.opt.is-pick{border-color:var(--accent-solid);background:var(--accent-soft)}
+.opt__h{font-size:var(--fs-2);font-weight:var(--fw-6);display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.opt__d{font-size:var(--fs-2);color:var(--text-3)}
+.dec__why{font-size:var(--fs-3);color:var(--text-2)}
+.dec__why b{color:var(--fg)}
+
+footer{padding:var(--sp-7) 0 var(--sp-8);border-top:1px solid var(--border);color:var(--text-3);font-size:var(--fs-2)}
+
+/* 主题切换 */
+.sw-t{display:inline-flex;align-items:center;gap:7px;background:none;border:1px solid var(--border-strong);border-radius:var(--r-pill);padding:5px 11px 5px 7px;cursor:pointer;color:var(--text-2);font-size:var(--fs-2);font-weight:var(--fw-5);font-family:inherit}
+.sw-t:hover{background:var(--fill);color:var(--fg)}
+.sw-t svg{width:15px;height:15px}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar__id"><span class="bar__dot"></span>AI 行程规划 · 界面设计规范</div>
+  <span class="bar__meta">v1.0 · 2026-09-24</span>
+  <nav class="bar__nav">
+    <a href="#diagnosis">诊断</a>
+    <a href="#scale">尺度</a>
+    <a href="#color">色彩</a>
+    <a href="#screens">界面稿</a>
+    <a href="#kit">组件</a>
+    <a href="#a11y">无障碍</a>
+    <a href="#decide">决策</a>
+  </nav>
+  <button class="sw-t" id="themeBtn" aria-label="切换明暗主题">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+      <path d="M12 3v2M12 19v2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4L7 17M17 7l1.4-1.4"/>
+      <circle cx="12" cy="12" r="3.6"/>
+    </svg>
+    <span id="themeTxt">浅色</span>
+  </button>
+</div>
+
+<div class="wrap">
+
+<!-- ============ 封面 ============ -->
+<header class="hero">
+  <div class="eyebrow">ai-trip-planner · 规划页 static/index.html（3,556 行）</div>
+  <h1>把界面从「靠手感」<br>变成「有刻度」</h1>
+  <p class="lede">
+    这份文件不是配色灵感，是一套可执行的尺度体系：7 档字号、4 档字重、8pt 间距、4 档圆角，
+    外加全项目 <strong>21 组对比度的实测结果</strong>，以及一套本项目原本完全没有的暗色主题。
+    文档本身就用它规定的令牌渲染 —— 切右上角的明暗按钮，你会同时看到规范与界面稿一起换肤。
+  </p>
+  <div class="hero__tags">
+    <span class="tag tag--n">零依赖单文件</span>
+    <span class="tag tag--n">可离线评审</span>
+    <span class="tag tag--n">WCAG AA 实测</span>
+    <span class="tag tag--n">不动后端契约</span>
+    <span class="tag tag--n">不加任何库</span>
+  </div>
+  <div class="hero__stat">
+    <div class="is-bad"><b>2.88:1</b><span>元信息色实测（用了 50 处）· 需 4.5:1</span></div>
+    <div class="is-bad"><b>6 处</b><span>对比度不达标</span></div>
+    <div class="is-bad"><b>11 档</b><span>字号散值 · 应收敛到 7</span></div>
+    <div class="is-bad"><b>9 档</b><span>圆角散值 · 应收敛到 4</span></div>
+    <div class="is-ok"><b>0 处</b><span>暗色主题支持</span></div>
+    <div class="is-ok"><b>21 组</b><span>本轮实测样本量</span></div>
+  </div>
+</header>
+
+<!-- ============ 结论 ============ -->
+<section id="conclusion">
+  <div class="eyebrow">先给结论</div>
+  <h2 class="sec">6 条判断，每条都有实测数字</h2>
+  <p class="sec-sub">如果只看一屏，看这里。下面每个数字都能在本文档后续章节里找到对应表格与复现脚本。</p>
+
+  <div class="verdicts">
+    <div class="verdict">
+      <div class="verdict__n">01</div>
+      <div>
+        <div class="verdict__t">问题不是「不好看」，是没有刻度</div>
+        <div class="verdict__d">
+          实测 <code>static/index.html</code>：字号 <strong>11 档</strong>（10/11/12/13/14/15/16/18/19/20/28）、
+          padding <strong>12 档</strong>（2~14 奇数散值）、gap <strong>10 档</strong>、圆角 <strong>9 档</strong>（7/8/9/10/12/14/16/18/999）。
+          其中 13/14/15px 三档贴在一起、8/9/10px 三个圆角肉眼不可分辨 —— 视觉随机性来自<strong>没有刻度</strong>，不是配色。
+          这也是「改一处崩三处」的工程根因。
+        </div>
+      </div>
+    </div>
+    <div class="verdict">
+      <div class="verdict__n">02</div>
+      <div>
+        <div class="verdict__t">色彩方向是对的，不要换</div>
+        <div class="verdict__d">
+          oklch 中性色阶 + 语义色保留十六进制（红=危险/绿=成功/橙=注意）—— 这是整套 UI 最扎实的部分，
+          连注释都写清了「为了统一色空间而改动语义色不划算」。换配色是负收益。本方案只补两件事：
+          <strong>把每档色绑定到唯一职责</strong>，以及<strong>补暗色</strong>。
+        </div>
+      </div>
+    </div>
+    <div class="verdict">
+      <div class="verdict__n">03</div>
+      <div>
+        <div class="verdict__t">6 处对比度不达标，其中 3 处用户每天都在摸</div>
+        <div class="verdict__d">
+          <code>--muted-3</code> = <strong>2.88:1</strong>（低于 4.5:1，却被引用 <strong>50 次</strong>）；
+          输入框占位符 <strong>2.64:1</strong>；实心主按钮白字 <strong>4.21:1</strong>（差 0.29）；
+          <code>--warn</code> 作正文 3.58:1；<code>--note-ink</code> 4.41:1；
+          <code>--ok</code> 作<strong>图形</strong> 2.62:1（它的 ink 档达标，所以只看文字会漏掉这一处）。
+          <strong>注意</strong>：上一个 commit「线性图标太淡看不见」修的是描边粗细（1.6→1.8px），
+          但根因是颜色只有 2.88:1 —— 描边加粗并没有解决达标问题。
+        </div>
+      </div>
+    </div>
+    <div class="verdict">
+      <div class="verdict__n">04</div>
+      <div>
+        <div class="verdict__t">项目没有暗色主题，这是唯一的真空白</div>
+        <div class="verdict__d">
+          全文件 <strong>0 处</strong> <code>data-theme</code> / <code>prefers-color-scheme</code>。
+          本方案给出一整套暗色令牌，并且逐档实测达标（主文字 14.52:1、元信息 4.72:1、图形边界 3.16:1）。
+          暗色不是锦上添花 —— 它是「这套令牌能不能脱离浅色独立成立」的证明。
+        </div>
+      </div>
+    </div>
+    <div class="verdict">
+      <div class="verdict__n">05</div>
+      <div>
+        <div class="verdict__t">建议做「收敛 + 补暗色 + 补实测」，不建议重做</div>
+        <div class="verdict__d">
+          ROADMAP 已认定产品体验达标且不该再加 UI，你自己的判断也是「UI 已超标」。
+          重做一遍界面只会把已有成果归零，对简历是负收益。
+          真正稀缺、能在面试里扛住追问的是：<strong>怎么定 token、怎么用实测证明达标、怎么让收敛不引入回归</strong>。
+          本方案就只给这三样。
+        </div>
+      </div>
+    </div>
+    <div class="verdict">
+      <div class="verdict__n">06</div>
+      <div>
+        <div class="verdict__t">交付物落地成本：改的是令牌与取值，不是结构</div>
+        <div class="verdict__d">
+          收起散值属于<strong>低风险批量替换</strong>（字号/间距/圆角各一张映射表，见 §2），
+          不改 HTML 结构、不加依赖、不动 API、不影响 <code>tools/check_frontend.py</code> 的 9 项门禁。
+          暗色主题是唯一的净新增，用 <code>[data-theme]</code> 挂载，浅色零改动。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ §1 诊断 ============ -->
+<section id="diagnosis">
+  <div class="eyebrow">§1 · 实测诊断</div>
+  <h2 class="sec">先量，再改</h2>
+  <p class="sec-sub">
+    下面所有数字都是本轮从 <code>static/index.html</code> 现网代码里统计/换算得到的，
+    不是估计值。复现脚本：<code>docs/design/contrast-audit.py</code>。
+    配色换算路径为 oklch → OKLab → 线性 sRGB → WCAG 相对亮度，与浏览器渲染一致。
+  </p>
+
+  <h3 class="sub">1.1 尺度散值实测</h3>
+  <p>同一个维度上存在的独立取值个数，就是「没有刻度」的直接证据。条形越密，观感越随机。</p>
+
+  <div class="rail"><div class="rail__lb">字号</div>
+    <div class="rail__tr"><i style="left:0%"></i><i style="left:4%"></i><i style="left:8%"></i><i style="left:12%"></i><i style="left:16%"></i><i style="left:20%"></i><i style="left:24%"></i><i style="left:32%"></i><i style="left:36%"></i><i style="left:40%"></i><i style="left:72%"></i></div>
+    <div class="rail__ct"><b>11</b> 档</div></div>
+  <div class="rail"><div class="rail__lb">padding</div>
+    <div class="rail__tr"><i style="left:0%"></i><i style="left:8%"></i><i style="left:16%"></i><i style="left:24%"></i><i style="left:32%"></i><i style="left:40%"></i><i style="left:48%"></i><i style="left:56%"></i><i style="left:64%"></i><i style="left:72%"></i><i style="left:80%"></i><i style="left:96%"></i></div>
+    <div class="rail__ct"><b>12</b> 档</div></div>
+  <div class="rail"><div class="rail__lb">gap</div>
+    <div class="rail__tr"><i style="left:0%"></i><i style="left:10%"></i><i style="left:20%"></i><i style="left:25%"></i><i style="left:30%"></i><i style="left:35%"></i><i style="left:40%"></i><i style="left:50%"></i><i style="left:60%"></i><i style="left:100%"></i></div>
+    <div class="rail__ct"><b>10</b> 档</div></div>
+  <div class="rail"><div class="rail__lb">圆角</div>
+    <div class="rail__tr"><i style="left:0%"></i><i style="left:11%"></i><i style="left:22%"></i><i style="left:33%"></i><i style="left:55%"></i><i style="left:77%"></i><i style="left:88%"></i><i style="left:99%"></i><i style="left:100%"></i></div>
+    <div class="rail__ct"><b>9</b> 档</div></div>
+  <div class="rail"><div class="rail__lb">字重</div>
+    <div class="rail__tr"><i style="left:0%"></i><i style="left:33%"></i><i style="left:66%"></i><i style="left:100%"></i></div>
+    <div class="rail__ct"><b>5</b> 档</div></div>
+
+  <div class="tbl-scroll">
+  <table class="tbl tbl--num">
+    <thead><tr><th>维度</th><th>实测取值</th><th>分布（高频在前）</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>字号</strong></td>
+        <td class="num">10,11,12,13,14,15,16,18,19,20,28</td>
+        <td class="muted">12px×69 · 14px×28 · 13px×22 · 16px×17 · 15px×10 · 20px×5 · 11px×5 · 18px×4 · 28px×2 · 19px×1 · 10px×1</td>
+        <td><span class="tag tag--bad">无阶梯</span> 13/14/15 三个相邻字号同时使用，阶梯失效</td>
+      </tr>
+      <tr>
+        <td><strong>padding</strong></td>
+        <td class="num">2,3,4,5,6,7,8,9,10,11,12,14</td>
+        <td class="muted">10px×19 · 8px×15 · 14px×11 · 12px×11 · 6px×9 · 9px×7 · 4px×7 · 3px×7 …</td>
+        <td><span class="tag tag--bad">无网格</span> 奇数散值主导，不存在 4/8pt 基准</td>
+      </tr>
+      <tr>
+        <td><strong>gap</strong></td>
+        <td class="num">2,4,6,7,8,9,10,12,14,22</td>
+        <td class="muted">8px×16 · 6px×12 · 10px×8 · 4px×5 · 14px×4 · 12px×2 · 9px×2 · 7px×1 · 2px×1 · 22px×1</td>
+        <td><span class="tag tag--bad">无节奏</span> 6/7/8/9/10 五档连续，实际不可辨</td>
+      </tr>
+      <tr>
+        <td><strong>圆角</strong></td>
+        <td class="num">7,8,9,10,12,14,16,18,999</td>
+        <td class="muted">10px×20 · 999px×18 · 12px×14 · 9px×13 · 14px×12 · 8px×10 · 16px×5 …</td>
+        <td><span class="tag tag--bad">无体系</span> 8/9/10 三档并存，纯属同义反复</td>
+      </tr>
+      <tr>
+        <td><strong>字重</strong></td>
+        <td class="num">400,500,600,700,800</td>
+        <td class="muted">700×34 · 600×24 · 800×7 · 500×6 · 400×2</td>
+        <td><span class="tag tag--bad">700 通胀</span> 靠字重硬撑层级；500/400 几乎不用</td>
+      </tr>
+      <tr>
+        <td><strong>死令牌</strong></td>
+        <td class="num">--muted 引用 0 次</td>
+        <td class="muted">--muted-2×43 · --muted-3×50 · <strong>--muted×0</strong></td>
+        <td><span class="tag tag--warn">名实不符</span> 定义了没人用，顶班的两个名字与实际语义脱节</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="sub">1.2 对比度实测（21 组）</h3>
+  <p>阈值依据 WCAG 2.2：正文文本 4.5:1、大字号（≥24px 或 ≥18.66px 粗体）3:1、图形与交互边界 3:1。</p>
+
+  <div class="tbl-scroll">
+  <table class="tbl tbl--num">
+    <thead><tr><th>令牌</th><th>oklch 源码值</th><th>sRGB</th><th>压 --bg</th><th>压 --surface</th><th>判定</th></tr></thead>
+    <tbody>
+      <tr><td>--fg</td><td class="muted">18% .012 250</td><td class="num">#0e1217</td><td class="num">18.27:1</td><td class="num">18.80:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--muted-2</td><td class="muted">44% .014 250</td><td class="num">#4d535a</td><td class="num">7.54:1</td><td class="num">7.75:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--muted</td><td class="muted">54% .012 250</td><td class="num">#6a6f76</td><td class="num">4.91:1</td><td class="num">5.05:1</td><td><span class="tag tag--n">达标但零引用</span></td></tr>
+      <tr><td><strong>--muted-3</strong></td><td class="muted">68% .016 255</td><td class="num">#9299a2</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.80:1</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.88:1</td><td><span class="tag tag--bad">不达标 · 用了 50 处</span></td></tr>
+      <tr><td>--accent</td><td class="muted">58% .18 255</td><td class="num">#1779e1</td><td class="num">4.22:1</td><td class="num">4.34:1</td><td><span class="tag tag--warn">仅图形/大字</span></td></tr>
+      <tr><td>--accent-deep</td><td class="muted">52% .19 255</td><td class="num">#0065d2</td><td class="num">5.40:1</td><td class="num">5.56:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--ok-ink</td><td class="muted">#2b6e34</td><td class="num">#2b6e34</td><td class="num">6.03:1</td><td class="num">6.21:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--warn</td><td class="muted">#e8590c</td><td class="num">#e8590c</td><td class="num">3.48:1</td><td class="num">3.58:1</td><td><span class="tag tag--warn">仅图形</span></td></tr>
+      <tr><td>--bad</td><td class="muted">#e03131</td><td class="num">#e03131</td><td class="num">4.39:1</td><td class="num">4.51:1</td><td><span class="tag tag--warn">仅图形</span></td></tr>
+      <tr><td>--bad-ink</td><td class="muted">#b42318</td><td class="num">#b42318</td><td class="num">6.39:1</td><td class="num">6.57:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--stay</td><td class="muted">#7048e8</td><td class="num">#7048e8</td><td class="num">5.40:1</td><td class="num">5.55:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td><strong>--note-ink</strong></td><td class="muted">#ad6800</td><td class="num">#ad6800</td><td class="num" style="color:var(--warn-ink);font-weight:600">4.29:1</td><td class="num" style="color:var(--warn-ink);font-weight:600">4.41:1</td><td><span class="tag tag--warn">差一点点</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p style="margin-top:var(--sp-4)"><strong>关键组合</strong>（这是用户实际会看到的东西）：</p>
+  <div class="tbl-scroll">
+  <table class="tbl tbl--num">
+    <thead><tr><th>组合</th><th>实测</th><th>目标</th><th>判定</th></tr></thead>
+    <tbody>
+      <tr><td>实心主按钮：白字 / --accent 底</td><td class="num" style="color:var(--bad-ink);font-weight:600">4.21:1</td><td class="num">4.5:1</td><td><span class="tag tag--bad">差 0.29 · 高频入口</span></td></tr>
+      <tr><td>输入框占位符 / --fill 底</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.64:1</td><td class="num">4.5:1</td><td><span class="tag tag--bad">不达标 · 表单填不下去</span></td></tr>
+      <tr><td>线性图标 / --surface</td><td class="num" style="color:var(--warn-ink);font-weight:600">2.88:1</td><td class="num">3.0:1</td><td><span class="tag tag--bad">不达标 · 就是「太淡」的根因</span></td></tr>
+      <tr><td>警告态文字 / --warn-soft</td><td class="num" style="color:var(--warn-ink);font-weight:600">3.30:1</td><td class="num">4.5:1</td><td><span class="tag tag--warn">需换 --warn-ink</span></td></tr>
+      <tr><td>提示态文字 / --note-soft</td><td class="num" style="color:var(--warn-ink);font-weight:600">4.17:1</td><td class="num">4.5:1</td><td><span class="tag tag--warn">需加深</span></td></tr>
+      <tr><td>chip 文字 / --accent-soft 底</td><td class="num">3.87:1</td><td class="num">4.5:1</td><td><span class="tag tag--warn">改用 --accent-deep 即达标 4.95:1</span></td></tr>
+      <tr><td>次级正文 / --surface</td><td class="num" style="color:var(--ok-ink);font-weight:600">7.75:1</td><td class="num">4.5:1</td><td><span class="tag tag--ok">达标</span></td></tr>
+      <tr><td>--border 发丝线 / --surface</td><td class="num">1.27:1</td><td class="num">—</td><td><span class="tag tag--n">纯装饰，豁免</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="sub">1.3 一句话根因</h3>
+  <p style="font-size:var(--fs-4);color:var(--fg);max-width:74ch">
+    颜色系统是好的，尺度系统是不存在的。于是所有「层级」只能靠字重（700 用了 34 次）和颜色加深来硬撑，
+    而撑层级用的那档颜色恰好只有 2.88:1 —— <strong>视觉层级与可读性被同一根绳子拽着，一拉就断</strong>。
+  </p>
+</section>
+
+<!-- ============ §2 尺度 ============ -->
+<section id="scale">
+  <div class="eyebrow">§2 · 尺度体系定稿</div>
+  <h2 class="sec">把 11/12/10/9 档，钉成 7/4/8/4</h2>
+  <p class="sec-sub">
+    收敛的原则只有一条：<strong>每一档必须能被眼睛分辨，且只承担一个职责</strong>。
+    下面每张表都给出「现有值 → 归到哪一档」的映射，落地时是可批量替换的机械操作。
+  </p>
+
+  <h3 class="sub">2.1 字号 · 7 档</h3>
+  <p>模数约 1.2。删掉 10/13/15/18/19px 五个「差了 1px 但没人看得出来」的中间档。</p>
+  <div class="spec-fs">
+    <div class="spec-fs__row"><div class="spec-fs__k">--fs-7 <em>30px / 38</em></div><div class="spec-fs__v" style="font-size:30px;line-height:38px;font-weight:600;letter-spacing:-.03em">把一段攻略，变成走得完的行程</div><div class="spec-fs__u">空状态主标题</div></div>
+    <div class="spec-fs__row"><div class="spec-fs__k">--fs-6 <em>24px / 32</em></div><div class="spec-fs__v" style="font-size:24px;line-height:32px;font-weight:600;letter-spacing:-.022em">成都 · 3 天行程</div><div class="spec-fs__u">页面标题</div></div>
+    <div class="spec-fs__row"><div class="spec-fs__k">--fs-5 <em>20px / 28</em></div><div class="spec-fs__v" style="font-size:20px;line-height:28px;font-weight:600;letter-spacing:-.018em">第 1 天 · 宽窄巷子一线</div><div class="spec-fs__u">区块标题</div></div>
+    <div class="spec-fs__row"><div class="spec-fs__k">--fs-4 <em>16px / 24</em></div><div class="spec-fs__v" style="font-size:16px;line-height:24px;font-weight:600">成都武侯祠博物馆</div><div class="spec-fs__u">卡片标题 / 强调正文</div></div>
+    <div class="spec-fs__row"><div class="spec-fs__k">--fs-3 <em>14px / 22</em></div><div class="spec-fs__v" style="font-size:14px;line-height:22px;font-weight:400">上午从宽窄巷子出发，通勤约 14 分钟到武侯祠。当天步行约 2.1 公里。</div><div class="spec-fs__u">正文（默认）</div></div>
+    <div class="spec-fs__row"><div class="spec-fs__k">--fs-2 <em>12px / 18</em></div><div class="spec-fs__v" style="font-size:12px;line-height:18px;font-weight:400;color:var(--text-2)">门票 ¥50 · 建议停留 150 分钟 · 09:18 到达</div><div class="spec-fs__u">元信息 / 标签</div></div>
+    <div class="spec-fs__row"><div class="spec-fs__k">--fs-1 <em>11px / 16</em></div><div class="spec-fs__v" style="font-size:11px;line-height:16px;font-weight:500;letter-spacing:.06em;color:var(--text-3)">共 3 个景点 · 通勤 59 分钟</div><div class="spec-fs__u">角标 / 极次要</div></div>
+  </div>
+  <div class="tbl-scroll" style="margin-top:var(--sp-4)">
+  <table class="tbl">
+    <thead><tr><th>现有字号</th><th>出现次数</th><th>归到</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td>12px</td><td class="num">69</td><td><span class="tag tag--ok">--fs-2</span></td><td>保留为元信息主力档，这是站内最高频字号</td></tr>
+      <tr><td>14px</td><td class="num">28</td><td><span class="tag tag--ok">--fs-3</span></td><td>正文基准，保留</td></tr>
+      <tr><td>13px</td><td class="num">22</td><td><span class="tag tag--warn">拆到 12 / 14</span></td><td>与 12、14 各差 1px，无独立职责</td></tr>
+      <tr><td>16px</td><td class="num">17</td><td><span class="tag tag--ok">--fs-4</span></td><td>保留为卡片标题</td></tr>
+      <tr><td>15px</td><td class="num">10</td><td><span class="tag tag--warn">并入 14</span></td><td>与 14、16 各差 1px</td></tr>
+      <tr><td>20px</td><td class="num">5</td><td><span class="tag tag--ok">--fs-5</span></td><td>保留为区块标题</td></tr>
+      <tr><td>11px</td><td class="num">5</td><td><span class="tag tag--ok">--fs-1</span></td><td>保留为角标</td></tr>
+      <tr><td>18px / 19px</td><td class="num">4 / 1</td><td><span class="tag tag--warn">并入 16 或 20</span></td><td>19px 全站只出现 1 次，是最典型的散值</td></tr>
+      <tr><td>28px</td><td class="num">2</td><td><span class="tag tag--warn">提到 30</span></td><td>与 24 只差 4px，撑不起「主标题」</td></tr>
+      <tr><td>10px</td><td class="num">1</td><td><span class="tag tag--bad">删除</span></td><td>低于 11px 在中文下不可读</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="sub">2.2 字重 · 4 档</h3>
+  <p>现有 700 用了 34 次，与 600 的区别在 macOS 上几乎看不出来 —— 层级是靠<strong>字号 + 颜色</strong>建立的，不是靠字重。</p>
+  <div class="cmp">
+    <div class="cmp__bd" style="gap:var(--sp-5)">
+      <div><div style="font-size:24px;font-weight:700;letter-spacing:-.02em">700 · 页面主标题</div><div style="font-size:11px;color:var(--text-3);margin-top:4px">全站建议 ≤3 处</div></div>
+      <div><div style="font-size:16px;font-weight:600">600 · 标题默认档</div><div style="font-size:11px;color:var(--text-3);margin-top:4px">承接原 700 的 34 处中约 26 处</div></div>
+      <div><div style="font-size:14px;font-weight:500">500 · 强调与标签</div><div style="font-size:11px;color:var(--text-3);margin-top:4px">从现有 6 处扩到主用档</div></div>
+      <div><div style="font-size:14px;font-weight:400">400 · 正文</div><div style="font-size:11px;color:var(--text-3);margin-top:4px">现有仅 2 处，应成为默认</div></div>
+    </div>
+    <div class="cmp__note">800（7 处）全部并入 700。禁止用 800。</div>
+  </div>
+
+  <h3 class="sub">2.3 间距 · 8pt 网格（唯一例外 4px）</h3>
+  <p>把现有 12 档 padding 与 10 档 gap 全部 snap 到最近一档，最大偏差不超过 2px。</p>
+  <div class="tbl-scroll">
+  <table class="tbl tbl--num">
+    <thead><tr><th>档位</th><th>值</th><th>用途</th><th>现有散值归并</th></tr></thead>
+    <tbody>
+      <tr><td>--sp-1</td><td class="num">4px</td><td>图标与文字之间、徽标内边距</td><td class="muted">2 · 3 · 4 · 5</td></tr>
+      <tr><td>--sp-2</td><td class="num">8px</td><td>同组元素间距（chip 之间、行内）</td><td class="muted">6 · 7 · 8 · 9</td></tr>
+      <tr><td>--sp-3</td><td class="num">12px</td><td>卡片内边距（小）、列表项纵向</td><td class="muted">10 · 11 · 12</td></tr>
+      <tr><td>--sp-4</td><td class="num">16px</td><td>卡片内边距（默认）、表单字段之间</td><td class="muted">14 · 15</td></tr>
+      <tr><td>--sp-5</td><td class="num">24px</td><td>区块内分组之间</td><td class="muted">22</td></tr>
+      <tr><td>--sp-6</td><td class="num">32px</td><td>区块之间（页内）</td><td class="muted">—</td></tr>
+      <tr><td>--sp-7</td><td class="num">48px</td><td>大区块之间</td><td class="muted">—</td></tr>
+      <tr><td>--sp-8</td><td class="num">64px</td><td>页面级留白（对应现有 --sp-sec-sm 64px）</td><td class="muted">96 / 128 保留给跨页节奏</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="sub">2.4 圆角 · 4 档</h3>
+  <p>这是收敛收益最大的一项：9 档 → 4 档，且每档对应一个明确的「物体类别」。</p>
+  <div class="cmp">
+    <div class="cmp__bd">
+      <div style="text-align:center"><div style="width:104px;height:56px;border:1px solid var(--border-strong);border-radius:8px;background:var(--fill)"></div><div style="font-size:12px;color:var(--text-3);margin-top:6px">8px 控件</div></div>
+      <div style="text-align:center"><div style="width:104px;height:56px;border:1px solid var(--border-strong);border-radius:12px;background:var(--fill)"></div><div style="font-size:12px;color:var(--text-3);margin-top:6px">12px 卡片</div></div>
+      <div style="text-align:center"><div style="width:104px;height:56px;border:1px solid var(--border-strong);border-radius:16px;background:var(--fill)"></div><div style="font-size:12px;color:var(--text-3);margin-top:6px">16px 浮层</div></div>
+      <div style="text-align:center"><div style="width:104px;height:56px;border:1px solid var(--border-strong);border-radius:999px;background:var(--fill)"></div><div style="font-size:12px;color:var(--text-3);margin-top:6px">999px 药丸</div></div>
+    </div>
+    <div class="cmp__note">
+      归并映射：<strong>7/8/9/10 → 8px</strong>（控件）·&nbsp;
+      <strong>12/14 → 12px</strong>（卡片）·&nbsp;
+      <strong>16/18 → 16px</strong>（浮层/弹层）·&nbsp;
+      <strong>999 保留</strong>（chip / 圆形按钮）
+    </div>
+  </div>
+
+  <h3 class="sub">2.5 阴影与动效 · 不动</h3>
+  <p>
+    三级阴影（<code>--sh-1/2/3</code>）与缓动体系（<code>--e</code> / <code>--e-out</code> / 三档时长）
+    在实测中没有问题：<code>--e-out</code> = <code>cubic-bezier(.16,1,.3,1)</code> 是指数缓出，
+    正是动效该有的做法；阴影只在表达「浮起」时使用，层级与高度语义一致。
+    <strong>这两项是这套 UI 里做得对的部分，收敛时不要动它们</strong> —— 这是本方案唯一「不改」的章节。
+  </p>
+</section>
+
+<!-- ============ §3 色彩 ============ -->
+<section id="color">
+  <div class="eyebrow">§3 · 色彩令牌</div>
+  <h2 class="sec">保留方向，修掉 5 处不达标，补一整套暗色</h2>
+  <p class="sec-sub">
+    浅色令牌是在现有基础上<strong>只改取值、不改色相</strong>；暗色是净新增。
+    每张色卡右下角是实测对比度与它的达标判定 —— 没有「看起来还行」，只有数字。
+  </p>
+
+  <h3 class="sub">3.1 浅色主题 · 修复后定稿</h3>
+  <div class="sw-grid">
+    <div class="sw"><div class="sw__chip" style="background:var(--bg)"></div><div class="sw__nm">--bg</div><div class="sw__v">#fbfcfd</div><div class="sw__r"><span class="tag tag--n">页面底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--surface)"></div><div class="sw__nm">--surface</div><div class="sw__v">#ffffff</div><div class="sw__r"><span class="tag tag--n">卡片面</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--fill)"></div><div class="sw__nm">--fill</div><div class="sw__v">#f3f5f8</div><div class="sw__r"><span class="tag tag--n">输入底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--fg)"></div><div class="sw__nm">--fg</div><div class="sw__v">#0e1217 · 18.80:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--text-2)"></div><div class="sw__nm">--text-2</div><div class="sw__v">#4d535a · 7.75:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--text-3)"></div><div class="sw__nm">--text-3</div><div class="sw__v">#6f757e · 4.64:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--icon)"></div><div class="sw__nm">--icon</div><div class="sw__v">#8c939c · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--placeholder)"></div><div class="sw__nm">--placeholder</div><div class="sw__v">#6b7179 · 4.93:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--border-strong)"></div><div class="sw__nm">--border-strong</div><div class="sw__v">#8f9397 · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">边界</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--border)"></div><div class="sw__nm">--border</div><div class="sw__v">#e2e5e8 · 1.27:1</div><div class="sw__r"><span class="tag tag--n">装饰豁免</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--accent-solid)"></div><div class="sw__nm">--accent-solid</div><div class="sw__v">#0871d9 · 白字 4.62:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--accent)"></div><div class="sw__nm">--accent</div><div class="sw__v">#1779e1 · 4.22:1</div><div class="sw__r"><span class="tag tag--warn">仅图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--accent-soft)"></div><div class="sw__nm">--accent-soft</div><div class="sw__v">#e9f3ff</div><div class="sw__r"><span class="tag tag--n">选中底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--ok)"></div><div class="sw__nm">--ok</div><div class="sw__v">#00a865 · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--ok-ink)"></div><div class="sw__nm">--ok-ink</div><div class="sw__v">#2b6e34 · 6.03:1</div><div class="sw__r"><span class="tag tag--ok">沿用</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--warn-ink)"></div><div class="sw__nm">--warn-ink</div><div class="sw__v">#bc4c00 · 4.62:1</div><div class="sw__r"><span class="tag tag--ok">新增</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--bad-ink)"></div><div class="sw__nm">--bad-ink</div><div class="sw__v">#b42318 · 6.39:1</div><div class="sw__r"><span class="tag tag--ok">沿用</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--note-ink)"></div><div class="sw__nm">--note-ink</div><div class="sw__v">#b55600 · 4.62:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--stay)"></div><div class="sw__nm">--stay</div><div class="sw__v">#7048e8 · 5.40:1</div><div class="sw__r"><span class="tag tag--ok">沿用</span></div></div>
+  </div>
+
+  <h4 style="font-size:var(--fs-3);font-weight:var(--fw-6);margin-bottom:var(--sp-2)">6 处修复的精确数值</h4>
+  <div class="tbl-scroll">
+  <table class="tbl tbl--num">
+    <thead><tr><th>令牌</th><th>修复前</th><th>原实测</th><th>修复后</th><th>新实测</th><th>影响面</th></tr></thead>
+    <tbody>
+      <tr><td><strong>元信息色</strong></td><td class="muted">oklch(68% .016 255)</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.88:1</td><td class="num">oklch(56% .016 255)<br><span class="muted">#6f757e</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.63:1</td><td>50 处引用：标签、票价、时间、图标色</td></tr>
+      <tr><td><strong>占位符</strong></td><td class="muted">同 --muted-3</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.64:1</td><td class="num">oklch(55% .014 255)<br><span class="muted">#6b7179</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.91:1</td><td>全部输入框</td></tr>
+      <tr><td><strong>实心按钮底</strong></td><td class="muted">--accent</td><td class="num" style="color:var(--bad-ink);font-weight:600">4.21:1</td><td class="num">--accent-solid<br><span class="muted">#0871d9</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.62:1</td><td>「开始规划」等全部主按钮</td></tr>
+      <tr><td><strong>警告正文</strong></td><td class="muted">无 ink 档</td><td class="num" style="color:var(--warn-ink);font-weight:600">3.58:1</td><td class="num">--warn-ink<br><span class="muted">#bc4c00</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.62:1</td><td>警告文案用 ink 档，图形保留 --warn</td></tr>
+      <tr><td><strong>提示正文</strong></td><td class="muted">#ad6800</td><td class="num" style="color:var(--warn-ink);font-weight:600">4.41:1</td><td class="num">#b55600</td><td class="num" style="color:var(--ok-ink);font-weight:600">4.62:1</td><td>提示条文案</td></tr>
+      <tr><td><strong>成功态图形</strong></td><td class="muted">#12b76a</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.62:1</td><td class="num">#00a865</td><td class="num" style="color:var(--ok-ink);font-weight:600">3.10:1</td><td>成功勾选、达标圆点、约束满足图标</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="alert alert--note" style="margin-top:var(--sp-3)">
+    <span><strong>这一处是门禁挖出来的，不是肉眼发现的：</strong><code>--ok</code> 作为<strong>图形</strong>（不是文字）压在白色上只有
+    <strong>2.62:1</strong>，低于图形所需的 3:1 —— 但它的 ink 档（6.03:1）一直达标，
+    所以只看文字会漏掉。这是「一个颜色同时承担文字与图形两种角色」时可读性最容易被漏掉的地方。</span>
+  </div>
+  <div class="alert alert--note" style="margin-top:var(--sp-2)">
+    <span><strong>还有一条工程教训值得记：不要把值解到「刚好等于阈值」。</strong>初版把每档都反解到精确的 3.00:1 / 4.50:1，
+    但 oklch 取值四舍五入成 hex、以及 <code>--accent-ink</code> 并非纯白（<code>#f7fcff</code>）这两件事，
+    会把结果重新推回线下 —— 门禁一次跑出 4 项「差 0.01~0.03」的失败。
+    最终统一<strong>留 0.10~0.12 的比例余量</strong>（如 <code>--icon</code> 定 <code>#8c939c</code> 实测 3.10:1，
+    而不是贴着 3.00:1 的 <code>#8f969f</code>）。<strong>设计令牌要能扛住取整与换算误差。</strong></span>
+  </div>
+
+  <h3 class="sub">3.2 暗色主题 · 全新（逐档实测）</h3>
+  <p>
+    项目当前 <strong>0 处</strong>暗色支持。这套暗色的底不用纯黑（纯黑会让所有描边消失、且对比过冲），
+    改用冷中性 <code>oklch(16.5% .008 250)</code> 起底；主色在暗色下分工也反转 ——
+    按钮改用<strong>亮主色底 + 深字</strong>，这是暗色下对比度最稳的解法。
+  </p>
+  <div class="sw-grid">
+    <div class="sw"><div class="sw__chip" style="background:#0c0f12"></div><div class="sw__nm">--bg</div><div class="sw__v">#0c0f12</div><div class="sw__r"><span class="tag tag--n">页面底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#14171b"></div><div class="sw__nm">--surface</div><div class="sw__v">#14171b</div><div class="sw__r"><span class="tag tag--n">卡片面</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#1e2124"></div><div class="sw__nm">--fill</div><div class="sw__v">#1e2124</div><div class="sw__r"><span class="tag tag--n">输入底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#dee0e2"></div><div class="sw__nm">--fg</div><div class="sw__v">#dee0e2 · 14.52:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#adb2b6"></div><div class="sw__nm">--text-2</div><div class="sw__v">#adb2b6 · 8.35:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#7e848a"></div><div class="sw__nm">--text-3</div><div class="sw__v">#7e848a · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#868b92"></div><div class="sw__nm">--placeholder</div><div class="sw__v">#868b92 · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#616870"></div><div class="sw__nm">--icon</div><div class="sw__v">#616870 · 3.16:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#63676d"></div><div class="sw__nm">--border-strong</div><div class="sw__v">#63676d · 3.16:1</div><div class="sw__r"><span class="tag tag--ok">边界</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#292e34"></div><div class="sw__nm">--border</div><div class="sw__v">#292e34 · 1.25:1</div><div class="sw__r"><span class="tag tag--n">装饰豁免</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#2c7bd7"></div><div class="sw__nm">--accent-solid</div><div class="sw__v">#2c7bd7 · 深字 4.61:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#539af2"></div><div class="sw__nm">--accent</div><div class="sw__v">#539af2 · 6.19:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#102034"></div><div class="sw__nm">--accent-soft</div><div class="sw__v">#102034</div><div class="sw__r"><span class="tag tag--n">选中底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#4ed589"></div><div class="sw__nm">--ok</div><div class="sw__v">#4ed589 · 9.53:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#009f57"></div><div class="sw__nm">--ok-ink</div><div class="sw__v">#009f57 · 4.71:1</div><div class="sw__r"><span class="tag tag--ok">文字</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#f78955"></div><div class="sw__nm">--warn</div><div class="sw__v">#f78955 · 7.38:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#da672c"></div><div class="sw__nm">--warn-ink</div><div class="sw__v">#da672c · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">文字</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#e85854"></div><div class="sw__nm">--bad-ink</div><div class="sw__v">#e85854 · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">文字</span></div></div>
+  </div>
+
+  <div class="alert alert--note" style="margin-top:var(--sp-2)">
+    <span>暗色的每一档都是<strong>反解</strong>出来的，不是挑好看的：先定该档要承担的角色（正文 4.5:1 / 图形 3:1 / 主文字 13:1），
+    再二分求出刚好达标且最不闷的亮度。所以暗色主文字是 90.5% 而不是刺眼的 100% 纯白。</span>
+  </div>
+
+  <h3 class="sub">3.3 三天配色 · 不引入新色</h3>
+  <p>
+    原实现用硬编码 7 色（<code>DAY_COLORS</code>），一屏最多同时出现 7 种颜色。
+    改法：<strong>同色相（255）不同明度</strong>，观感是「同一族的三档深浅」，不是七个独立色。
+    且按主题分两套 —— 因为同一档在浅底与暗底上不可能同时达标。
+    块内标签色统一用 <code>--on-accent</code>：浅色主题是亮字，暗色主题是深字。
+  </p>
+  <div class="tbl-scroll">
+  <table class="tbl tbl--num">
+    <thead><tr><th>Day</th><th>浅色块色</th><th>块内亮字</th><th>块色压白</th><th>暗色块色</th><th>块内深字</th><th>判定</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Day 1</strong></td><td class="num">#064180</td><td class="num">9.81:1</td><td class="num">10.11:1</td><td class="num">#3d7ece</td><td class="num">4.57:1</td><td><span class="tag tag--ok">全达标</span></td></tr>
+      <tr><td><strong>Day 2</strong></td><td class="num">#1b589e</td><td class="num">6.97:1</td><td class="num">7.19:1</td><td class="num">#5e9ae7</td><td class="num">6.82:1</td><td><span class="tag tag--ok">全达标</span></td></tr>
+      <tr><td><strong>Day 3</strong></td><td class="num">#3a70b3</td><td class="num">4.93:1</td><td class="num">5.08:1</td><td class="num">#8cbaf7</td><td class="num">9.85:1</td><td><span class="tag tag--ok">全达标</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="alert alert--note" style="margin-bottom:var(--sp-3)">
+    <span>这里踩过一次坑值得记下来：初版浅色用 <code>#5d8ece</code> 作 Day 3，压白 3.36:1 <strong>恰好达标</strong>，
+    但把 11px 白字压上去只有 <strong>3.0:1</strong> —— 块色达标 ≠ 块内文字达标。
+    两个约束要同时解：块色必须暗到「亮字 ≥4.5:1」，又不能暗到「块色压白 &lt;3:1」。最终区间是明度 38~54%。</span>
+  </div>
+  <p style="font-size:var(--fs-2);color:var(--text-3)">
+    通勤线段统一用 <code>--icon</code> 中性色（不再单独占一个颜色），午休填充用 <code>--border</code>。这样全屏色彩数量从 ≥10 降到 ≤5。
+  </p>
+</section>
+
+<!-- ============ §4 界面稿 ============ -->
+<section id="screens">
+  <div class="eyebrow">§4 · 高保真界面稿</div>
+  <h2 class="sec">4 张稿子，覆盖全部关键决策点</h2>
+  <p class="sec-sub">
+    下面的界面稿全部是<strong>可交互的真实 HTML</strong>（不是截图）：按钮有 hover、chip 可点、折叠可展开、
+    输入框可聚焦。它们与本文档共用同一套令牌 —— 所以切右上角主题时，稿子会一起换肤，
+    这就同时演示了「令牌一致性」和「暗色主题能成立」两件事。
+    <br>数据用 <code>backend/demo_spots.json</code> 里的真实成都景点与真实门票/停留时长。
+  </p>
+
+  <!-- 稿 A -->
+  <div class="shot">
+    <div class="shot__hd">
+      <span class="shot__id">稿 A</span>
+      <span class="shot__tt">首屏与空状态 — 让「下一步」不用想</span>
+      <span class="shot__ds">对应现有方案的方向 A + B。要点：首屏只暴露 3 个必填字段，其余折叠；右栏不再是空白，而是一张把「下一步」说透的引导卡。</span>
+    </div>
+    <div class="frame">
+      <div class="frame__bar">
+        <span class="frame__dot"></span><span class="frame__dot"></span><span class="frame__dot"></span>
+        <span class="frame__url">localhost:8000/app</span>
+      </div>
+      <div class="app">
+        <div class="app__side">
+          <div class="app__ttl">规划行程</div>
+          <div class="app__sub">填 3 项就能开始，其余都可以后改</div>
+
+          <div class="app__grp">
+            <div class="app__lb">去哪个城市</div>
+            <input class="inp" value="成都" aria-label="城市">
+          </div>
+
+          <div class="app__grp">
+            <div class="app__lb">玩几天</div>
+            <div style="display:flex;gap:var(--sp-2);align-items:center">
+              <div class="chip chip--quiet" style="flex:1;justify-content:center">09-26 周六</div>
+              <span style="color:var(--text-3)">→</span>
+              <div class="chip chip--quiet" style="flex:1;justify-content:center">09-28 周一</div>
+            </div>
+            <div class="fld__hint" style="margin-top:6px">3 天 · 其中 2 个完整游玩日</div>
+          </div>
+
+          <div class="app__grp">
+            <div class="app__lb">偏好（可多选）</div>
+            <div class="app__chips">
+              <button class="chip" aria-pressed="true">人文历史</button>
+              <button class="chip" aria-pressed="true">本地美食</button>
+              <button class="chip" aria-pressed="false">自然风光</button>
+              <button class="chip" aria-pressed="false">亲子</button>
+              <button class="chip" aria-pressed="false">夜游</button>
+            </div>
+          </div>
+
+          <details class="adv">
+            <summary>高级设置 · 酒店 / 预算 / 稳妥度 / 出发时间</summary>
+            <div class="app__grp" style="margin-top:var(--sp-3)">
+              <div class="app__lb">稳妥度</div>
+              <div style="display:flex;gap:var(--sp-2)">
+                <button class="chip chip--quiet">紧凑</button>
+                <button class="chip chip--quiet" style="background:var(--accent-soft);border-color:var(--accent-solid);color:var(--accent-deep)">均衡</button>
+                <button class="chip chip--quiet">宽松</button>
+              </div>
+            </div>
+          </details>
+
+          <div style="margin-top:var(--sp-5)">
+            <button class="b b--pri b--block b--lg">开始规划 3 天行程</button>
+          </div>
+          <div class="fld__hint" style="text-align:center;margin-top:var(--sp-2)">预计 8 秒 · 本地求解，不出网</div>
+        </div>
+
+        <div class="app__main">
+          <div class="hero-card">
+            <h4>把一段攻略，<br>变成走得完的行程</h4>
+            <div class="steps">
+              <div class="step"><i>1</i><span>城市已选好：<b>成都</b></span></div>
+              <div class="step"><i>2</i><span>日期已默认：<b>3 天</b>（09-26 → 09-28），可改</span></div>
+              <div class="step"><i>3</i><span>点左边<b>「开始规划 3 天行程」</b>即可</span></div>
+            </div>
+            <button class="b b--pri b--block b--lg">开始规划 3 天行程</button>
+            <div class="or">或者</div>
+            <button class="b b--sec b--block">粘贴一段攻略，让 AI 自动识别景点</button>
+            <div class="or">示例</div>
+            <button class="b b--ghost b--sm">填入成都 6 个示例景点，先看看效果</button>
+          </div>
+          <div class="pet-note">
+            <span>桌宠「小舟」首次进入<strong>不出现</strong>，等规划完成后才招手说「已经生成，看看要不要改」。
+            否则它会抢走引导卡的焦点 —— 这是首次进入最大的干扰源。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-note">
+      <b>规格：</b>左栏固定 330px，右侧自适应；字段纵向间距 <code>--sp-4</code> 16px；
+      主按钮高 48px（<code>--fs-4</code> 16px）；空状态卡最大宽 520px 居中；
+      「或者」分隔线用 1px <code>--border</code> 两侧撑满；引导卡主标题 <code>--fs-7</code> 30px/<code>--fw-6</code>，负字距 −0.03em。
+      <b>验收：</b>首次进入 5 秒内能说出下一步做三件事。
+    </div>
+  </div>
+
+  <!-- 稿 B -->
+  <div class="shot">
+    <div class="shot__hd">
+      <span class="shot__id">稿 B</span>
+      <span class="shot__tt">行程时间线 — 把「事件列表」换成真的时间轴</span>
+      <span class="shot__ds">对应方向 C 单天视图。核心改动：景点块的<strong>纵向位置=真实开始时间、高度=停留时长</strong>，通勤用虚线接续。于是一眼能看出「几点出门、几点回、中间空在哪」。</span>
+    </div>
+    <div class="frame">
+      <div class="frame__bar">
+        <span class="frame__dot"></span><span class="frame__dot"></span><span class="frame__dot"></span>
+        <span class="frame__url">localhost:8000/app · 第 1 天</span>
+      </div>
+      <div class="app__main" style="padding:var(--sp-5)">
+        <div class="day-tabs">
+          <button class="day-tab" aria-selected="true">第 1 天</button>
+          <button class="day-tab" aria-selected="false">第 2 天</button>
+          <button class="day-tab" aria-selected="false">第 3 天</button>
+          <button class="day-tab" aria-selected="false">总览</button>
+          <span style="margin-left:auto;font-size:12px;color:var(--text-3)">09:18 出门 · 17:09 回 · 3 个景点 · 通勤 59 分钟</span>
+        </div>
+        <div class="tl-grid">
+          <div class="tl">
+            <div class="tl__axis">
+              <div class="tl__h" style="top:0">08:00</div>
+              <div class="tl__line" style="top:0"></div>
+              <div class="tl__h" style="top:51px">09:00</div>
+              <div class="tl__line" style="top:51px"></div>
+              <div class="tl__h" style="top:102px">10:00</div>
+              <div class="tl__line" style="top:102px"></div>
+              <div class="tl__h" style="top:153px">11:00</div>
+              <div class="tl__line" style="top:153px"></div>
+              <div class="tl__h" style="top:204px">12:00</div>
+              <div class="tl__line" style="top:204px"></div>
+              <div class="tl__h" style="top:255px">13:00</div>
+              <div class="tl__line" style="top:255px"></div>
+              <div class="tl__h" style="top:306px">14:00</div>
+              <div class="tl__line" style="top:306px"></div>
+              <div class="tl__h" style="top:357px">15:00</div>
+              <div class="tl__line" style="top:357px"></div>
+              <div class="tl__h" style="top:408px">16:00</div>
+              <div class="tl__line" style="top:408px"></div>
+              <div class="tl__h" style="top:459px">17:00</div>
+              <div class="tl__line" style="top:459px"></div>
+              <div class="tl__h" style="top:510px">18:00</div>
+              <div class="tl__line" style="top:510px"></div>
+              <div class="tl__h" style="top:561px">19:00</div>
+              <div class="tl__line" style="top:561px"></div>
+            </div>
+            <div class="tl__flow">
+              <div class="tl__lead" style="--m:60"></div>
+              <div class="tl__cm" style="--m:18"><span>地铁 18 分钟</span></div>
+              <div class="tl__sp" style="--m:120;--c:var(--day1)">
+                <div class="tl__nm">宽窄巷子景区</div>
+                <div class="tl__mt"><span>09:18–11:18</span><span>免费</span><span>停留 120 分钟</span></div>
+              </div>
+              <div class="tl__cm" style="--m:14"><span>步行 + 公交 14 分钟</span></div>
+              <div class="tl__sp" style="--m:150;--c:var(--day1)">
+                <div class="tl__nm">成都武侯祠博物馆</div>
+                <div class="tl__mt"><span>11:32–14:02</span><span>门票 ¥50</span><span>停留 150 分钟</span></div>
+              </div>
+              <div class="tl__brk" style="--m:40"><span>午餐 40 分钟</span></div>
+              <div class="tl__cm" style="--m:11"><span>步行 11 分钟</span></div>
+              <div class="tl__sp" style="--m:120;--c:var(--day1)">
+                <div class="tl__nm">锦里古街</div>
+                <div class="tl__mt"><span>14:53–16:53</span><span>免费</span><span>停留 120 分钟</span></div>
+              </div>
+              <div class="tl__cm" style="--m:16"><span>返回酒店 16 分钟</span></div>
+              <div class="tl__end" style="--m:111"></div>
+            </div>
+          </div>
+
+          <aside class="tl-map">
+            <div class="mini">
+              <div class="mini__hd">当天路线</div>
+              <svg viewBox="0 0 250 210" style="display:block;width:100%;height:auto;background:var(--fill)" role="img" aria-label="第 1 天路线示意图">
+                <g stroke="var(--border)" stroke-width="1">
+                  <path d="M0 42h250M0 84h250M0 126h250M0 168h250M62 0v210M125 0v210M187 0v210"/>
+                </g>
+                <path d="M42 168 L74 112 L120 96 L176 58" fill="none" stroke="var(--day1)" stroke-width="2.2"
+                      stroke-linecap="round" stroke-dasharray="1 0" opacity=".85"/>
+                <g>
+                  <circle cx="42" cy="168" r="9" fill="var(--surface)" stroke="var(--stay)" stroke-width="2.4"/>
+                  <text x="42" y="172" text-anchor="middle" font-size="9" fill="var(--stay)" font-weight="600">宿</text>
+                  <circle cx="74" cy="112" r="8.5" fill="var(--day1)"/>
+                  <text x="74" y="115.5" text-anchor="middle" font-size="9" fill="var(--on-accent)" font-weight="600">1</text>
+                  <circle cx="120" cy="96" r="8.5" fill="var(--day1)"/>
+                  <text x="120" y="99.5" text-anchor="middle" font-size="9" fill="var(--on-accent)" font-weight="600">2</text>
+                  <circle cx="176" cy="58" r="8.5" fill="var(--day1)"/>
+                  <text x="176" y="61.5" text-anchor="middle" font-size="9" fill="var(--on-accent)" font-weight="600">3</text>
+                </g>
+                <text x="8" y="200" font-size="9" fill="var(--text-3)">示意 · 实际由 Leaflet 渲染</text>
+              </svg>
+              <div class="mini__list">
+                <div class="mini__it"><i style="background:var(--stay)"></i><b>酒店</b><span>起点</span></div>
+                <div class="mini__it"><i style="background:var(--day1)"></i><span>①</span><b>宽窄巷子景区</b><span>09:18</span></div>
+                <div class="mini__it"><i style="background:var(--day1)"></i><span>②</span><b>武侯祠博物馆</b><span>11:32</span></div>
+                <div class="mini__it"><i style="background:var(--day1)"></i><span>③</span><b>锦里古街</b><span>14:53</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+    <div class="spec-note">
+      <b>刻度：</b>1 分钟 = 0.85px，时间窗固定 08:00–19:00（660 分钟 = 561px 轨道高）。
+      景点块高 = 停留分钟 × 0.85，最小 34px 兜底；块内留白 <code>--sp-3</code>；左侧色条 3px。
+      <b>色：</b>全部用 <code>--day1</code> 单色，不按景点换色 —— 当天只属于一个 Day，重复上色没有信息量。
+      <b>通勤：</b>虚线 + <code>--fs-1</code> 文字，用 <code>--icon</code> 中性色，不占语义色额度。
+      <b>右栏小地图：</b>仅 ≥820px 显示（窄屏隐藏而不是挤压主内容）。
+      <b>验收：</b>任何一天 1 秒内能说出「几点出门、几点回、中间空多久」。
+    </div>
+  </div>
+
+  <!-- 稿 C -->
+  <div class="shot">
+    <div class="shot__hd">
+      <span class="shot__id">稿 C</span>
+      <span class="shot__tt">总览视图 — 一眼看出「哪天紧、哪天松」</span>
+      <span class="shot__ds">对应方向 C 总览。三条轨道共用同一时间刻度 08:00–18:00，横向对比密度。虚线是长途通勤，最容易被忽视、也最该被看见。</span>
+    </div>
+    <div class="frame">
+      <div class="frame__bar">
+        <span class="frame__dot"></span><span class="frame__dot"></span><span class="frame__dot"></span>
+        <span class="frame__url">localhost:8000/app · 总览</span>
+      </div>
+      <div class="app__main" style="padding:var(--sp-5)">
+        <div class="ov">
+          <div class="ov__row">
+            <div class="ov__lb">第 1 天</div>
+            <div class="ov__tr">
+              <div class="ov__blk" style="left:13.0%;width:20.0%;--c:var(--day1)"><span>宽窄巷子</span></div>
+              <div class="ov__blk" style="left:35.3%;width:25.0%;--c:var(--day1)"><span>武侯祠</span></div>
+              <div class="ov__blk" style="left:68.8%;width:20.0%;--c:var(--day1)"><span>锦里古街</span></div>
+            </div>
+          </div>
+          <div class="ov__row">
+            <div class="ov__lb">第 2 天</div>
+            <div class="ov__tr">
+              <div class="ov__blk" style="left:1.3%;width:30.0%;--c:var(--day2)"><span>大熊猫基地</span></div>
+              <div class="ov__gap" style="left:31.3%;width:11.7%"><span>通勤 70 分钟</span></div>
+              <div class="ov__blk" style="left:43.0%;width:30.0%;--c:var(--day2)"><span>都江堰景区</span></div>
+            </div>
+          </div>
+          <div class="ov__row">
+            <div class="ov__lb">第 3 天</div>
+            <div class="ov__tr">
+              <div class="ov__blk" style="left:15.0%;width:30.0%;--c:var(--day3)"><span>青城山景区</span></div>
+            </div>
+          </div>
+          <div class="ov__scale">
+            <div></div>
+            <div class="ov__ticks"><span>08:00</span><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:var(--sp-5);margin-top:var(--sp-5);flex-wrap:wrap;font-size:12px;color:var(--text-3)">
+          <span>时长总计：第 1 天 6.5h · 第 2 天 6.0h + 通勤 2.5h · 第 3 天 3.0h</span>
+          <span style="color:var(--warn-ink)">第 2 天长途通勤占掉 2.5 小时，是主要风险点</span>
+        </div>
+      </div>
+    </div>
+    <div class="spec-note">
+      <b>刻度：</b>时间窗 08:00–18:00（600 分钟），左右定位用百分比（<code>left = (开始分钟−480)/600</code>），
+      轨道高 36px，块高 26px（上下各 5px 内缩），圆角 6px。
+      <b>色：</b>Day 1/2/3 用同色相不同明度（浅 <code>#064180 / #1b589e / #3a70b3</code>），
+      验证过浅底暗底两侧都 ≥3:1。
+      <b>为什么不按景点分色：</b>景点没有颜色语义，按天分色才有；再拆一层就是「色彩堆叠」。
+    </div>
+  </div>
+
+  <!-- 稿 D -->
+  <div class="shot">
+    <div class="shot__hd">
+      <span class="shot__id">稿 D</span>
+      <span class="shot__tt">结果区顺序 — 用户的东西排在 AI 前面</span>
+      <span class="shot__ds">对应方向 D。现状是「AI 总评在最上面」，用户第一眼看到的是模型对自己行程的评价，而不是自己的行程。改法：用户内容优先，慢接口（LLM）排到后面，专家信息默认收起。</span>
+    </div>
+    <div class="frame">
+      <div class="frame__bar">
+        <span class="frame__dot"></span><span class="frame__dot"></span><span class="frame__dot"></span>
+        <span class="frame__url">localhost:8000/app · 结果区顺序对照</span>
+      </div>
+      <div class="app__main" style="padding:var(--sp-5)">
+        <div class="col2">
+          <div>
+            <h5>现状（改前）</h5>
+            <div class="stack">
+              <div class="blk is-dim"><span class="blk__n">1</span><span class="blk__t">AI 总评</span><span class="blk__d">LLM · 最慢 · 却占首位</span></div>
+              <div class="blk is-dim"><span class="blk__n">2</span><span class="blk__t">稳健性报告</span><span class="blk__d">专家信息常驻展开</span></div>
+              <div class="blk is-dim"><span class="blk__n">3</span><span class="blk__t">天气</span><span class="blk__d">副信息</span></div>
+              <div class="blk is-dim"><span class="blk__n">4</span><span class="blk__t">Day tabs</span><span class="blk__d">要点开才看到行程</span></div>
+              <div class="blk is-dim"><span class="blk__n">5</span><span class="blk__t">行程本体</span><span class="blk__d">用户最想看，排最后</span></div>
+            </div>
+            <div class="alert alert--bad" style="margin-top:var(--sp-3)">第一眼落在模型评价上，自己的行程要滚动才看到</div>
+          </div>
+          <div>
+            <h5>改后（推荐）</h5>
+            <div class="stack">
+              <div class="blk is-pri"><span class="blk__n">1</span><span class="blk__t">行程本体</span><span class="blk__d">本地数据 · 立即渲染</span></div>
+              <div class="blk"><span class="blk__n">2</span><span class="blk__t">总览轨道</span><span class="blk__d">一眼看密度</span></div>
+              <div class="blk"><span class="blk__n">3</span><span class="blk__t">天气</span><span class="blk__d">按行程那几天</span></div>
+              <div class="blk"><span class="blk__n">4</span><span class="blk__t">AI 总评</span><span class="blk__d">慢接口，位置靠下不抢戏</span></div>
+              <div class="blk is-dim"><span class="blk__n">5</span><span class="blk__t">稳健性报告</span><span class="blk__d">默认折叠 · 专家视图</span></div>
+            </div>
+            <div class="alert alert--ok" style="margin-top:var(--sp-3)">第一眼是自己的行程；LLM 的等待不阻塞首屏</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-note">
+      <b>关键收益不只是体验：</b>把 LLM 总评从第 1 位挪到第 4 位，首屏渲染不再依赖最慢的那个请求 ——
+      这是<strong>架构层面的收益</strong>，不只是排版偏好。行程数据在本地求解完就有，可以立刻画；总评还要等模型。
+    </div>
+  </div>
+</section>
+
+<!-- ============ §5 组件库 ============ -->
+<section id="kit">
+  <div class="eyebrow">§5 · 组件库</div>
+  <h2 class="sec">组件状态一览（可直接 hover / 点击／Tab 试）</h2>
+  <p class="sec-sub">
+    每个组件都给出<strong>全部交互状态</strong>，而不只是静态外观 —— 状态缺失是「实现走形」最常见的来源。
+    按下 Tab 可以逐个走一遍焦点环，你会发现所有可交互元素的焦点样式是同一套。
+  </p>
+
+  <div class="cmp">
+    <div class="cmp__hd">按钮 · 5 变体 × 4 态 × 3 尺寸</div>
+    <div class="cmp__bd">
+      <button class="b b--pri">主按钮</button>
+      <button class="b b--sec">次按钮</button>
+      <button class="b b--ghost">幽灵按钮</button>
+      <button class="b b--danger">危险操作</button>
+      <button class="b b--sec b--icon" aria-label="定位">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+      <button class="b b--pri" disabled>禁用态</button>
+    </div>
+    <div class="cmp__bd">
+      <button class="b b--pri b--sm">小按钮</button>
+      <button class="b b--pri">默认 40px</button>
+      <button class="b b--pri b--lg">大按钮 48px（表单主操作专用）</button>
+    </div>
+    <div class="cmp__note">
+      高度三档：32 / 40 / 48px。<strong>48px 只给表单主操作</strong>（「开始规划」），一屏最多一个。
+      触摸设备上 <code>.b--sm</code> 会被强制提到 40px（<code>@media (pointer:coarse)</code>），保证触达面积。
+      焦点环统一 <code>2px --focus + 2px offset</code>，颜色随主题切换。
+    </div>
+  </div>
+
+  <div class="cmp">
+    <div class="cmp__hd">表单 · 默认 / 聚焦 / 错误 / 禁用</div>
+    <div class="cmp__bd cmp__bd--col" style="flex-direction:row;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:var(--sp-4)">
+      <div class="fld">
+        <label class="fld__lb" for="i1">城市</label>
+        <input class="inp" id="i1" placeholder="例如：成都">
+        <span class="fld__hint">已支持 5 个城市的本地示例数据</span>
+      </div>
+      <div class="fld">
+        <label class="fld__lb" for="i2">聚焦态（点一下试试）</label>
+        <input class="inp" id="i2" value="成都">
+        <span class="fld__hint">边框转主色 + 3px 主色浅环</span>
+      </div>
+      <div class="fld">
+        <label class="fld__lb" for="i3">错误态</label>
+        <input class="inp" id="i3" value="2026-13-45" style="border-color:var(--bad-ink)">
+        <span class="fld__err">日期格式不对，请用 年-月-日</span>
+      </div>
+      <div class="fld">
+        <label class="fld__lb" for="i4">禁用态</label>
+        <input class="inp" id="i4" value="需先选择城市" disabled style="background:var(--fill);color:var(--text-3)">
+        <span class="fld__hint">禁用时不给焦点，不用低透明度假装</span>
+      </div>
+    </div>
+    <div class="cmp__bd cmp__bd--col">
+      <div class="fld">
+        <label class="fld__lb" for="i5">粘贴攻略（多行）</label>
+        <textarea class="inp" id="i5" placeholder="把小红书／公众号里那段攻略整段粘进来，AI 会识别出城市、天数与景点…"></textarea>
+      </div>
+    </div>
+    <div class="cmp__note">
+      占位符用 <code>--placeholder</code>（4.91:1）而不是原来的 <code>--muted-3</code>（2.64:1）——
+      这是「表单填不下去」的直接原因。错误文字不给图标也给颜色（<code>--bad-ink</code> 6.39:1），不靠红框单通道传达。
+    </div>
+  </div>
+
+  <div class="cmp">
+    <div class="cmp__hd">Chip · 偏好选择 / 筛选 / 状态标签</div>
+    <div class="cmp__bd">
+      <button class="chip" aria-pressed="true">已选：人文历史</button>
+      <button class="chip" aria-pressed="false">未选：自然风光</button>
+      <button class="chip chip--quiet">安静型（低优先）</button>
+      <span class="badge">免费</span>
+      <span class="badge badge--accent">3 天</span>
+      <span class="badge badge--stay">住宿</span>
+    </div>
+    <div class="cmp__note">
+      选中态＝<code>--accent-soft</code> 底 + <code>--accent-solid</code> 描边 + <code>--accent-deep</code> 文字（实测 4.95:1）。
+      原实现里 chip 用的是临时十六进制、文字压在浅底上只有 3.87:1 —— 换成 deep 档即达标，不需要新颜色。
+      chip 高度 32px、药丸圆角；触摸设备同样抬到 40px。
+    </div>
+  </div>
+
+  <div class="cmp">
+    <div class="cmp__hd">反馈 · 提示条 / 加载骨架 / 空态</div>
+    <div class="cmp__bd cmp__bd--col">
+      <div class="alert alert--note"><span>当天第 2 段通勤 70 分钟，比其余段都长 —— 已自动排到上午，避免天黑后赶路。</span></div>
+      <div class="alert alert--bad"><span>青城山景区当天闭园维护，已从第 3 天移除。</span></div>
+      <div class="alert alert--ok"><span>约束全部满足：4 个景点、2 晚住宿、预算 ¥1,240 未超。</span></div>
+    </div>
+    <div class="cmp__bd cmp__bd--col" style="gap:var(--sp-2)">
+      <div class="skel" style="height:14px;width:42%"></div>
+      <div class="skel" style="height:14px;width:88%"></div>
+      <div class="skel" style="height:14px;width:74%"></div>
+      <div class="skel" style="height:64px;width:100%;margin-top:var(--sp-2)"></div>
+    </div>
+    <div class="cmp__note">
+      骨架屏形状要<strong>贴近真实内容</strong>（标题短、正文长、然后一张卡），不要一堆等宽灰条 ——
+      那会让加载完成时的跳动更明显。三档提示色都绑定了 <code>*-ink</code> 正文档，实测 4.50–6.39:1。
+    </div>
+  </div>
+
+  <div class="cmp">
+    <div class="cmp__hd">浮层 · 弹层（桌面居中，不是底部抽屉）</div>
+    <div class="cmp__bd" style="background:var(--fill);padding:var(--sp-5);justify-content:center">
+      <div style="width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-layer);box-shadow:0 18px 48px var(--shadow);overflow:hidden">
+        <div style="padding:var(--sp-4) var(--sp-5) var(--sp-3);display:flex;align-items:flex-start;gap:var(--sp-3)">
+          <div style="flex:1">
+            <div style="font-size:var(--fs-4);font-weight:var(--fw-6)">成都武侯祠博物馆</div>
+            <div style="font-size:var(--fs-2);color:var(--text-3);margin-top:2px">门票 ¥50 · 建议停留 150 分钟</div>
+          </div>
+          <button class="b b--sec b--icon" aria-label="关闭" style="height:32px;width:32px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div style="padding:0 var(--sp-5) var(--sp-4);font-size:var(--fs-3);color:var(--text-2)">
+          中国唯一君臣合祀祠庙，三国文化核心景点。上午人流相对可控，建议先看惠陵再沿中轴线往回走。
+        </div>
+        <div style="padding:var(--sp-3) var(--sp-5);background:var(--fill);border-top:1px solid var(--border);display:flex;gap:var(--sp-2);justify-content:flex-end">
+          <button class="b b--sec b--sm">从行程中移除</button>
+          <button class="b b--pri b--sm">换一个景点</button>
+        </div>
+      </div>
+    </div>
+    <div class="cmp__note">
+      <strong>桌面端用居中弹层，不要底部抽屉。</strong>底部抽屉是移动端形态，在宽屏上会让视线从 1/3 屏跳到底部。
+      遮罩改用 <code>color-mix(in oklab, var(--fg) 30%, transparent)</code> —— 原来写死
+      <code>rgba(0,0,0,.55)</code>，在浅色主题上黑得突兀，而且不跟主题走。
+      浮层圆角 16px（<code>--r-layer</code>），这是四档圆角里最高一档，与「浮起」的语义对应。
+    </div>
+  </div>
+</section>
+
+<!-- ============ §6 无障碍 ============ -->
+<section id="a11y">
+  <div class="eyebrow">§6 · 无障碍核对表</div>
+  <h2 class="sec">把 a11y 从「心里知道」变成「门禁可查」</h2>
+  <p class="sec-sub">
+    这一节是整份方案里<strong>最能在面试中扛追问</strong>的部分：它不是「我注意了无障碍」，
+    而是「我实测了 21 组，发现 5 处不达标，用反解把每一档调到刚好达标，并且留下了可复跑的脚本」。
+  </p>
+
+  <div class="tbl-scroll">
+  <table class="tbl">
+    <thead><tr><th>WCAG 2.2 条目</th><th>要求</th><th>本项目现状</th><th>本方案动作</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>1.4.3 对比度（最小）</strong></td>
+        <td>正文 ≥4.5:1</td>
+        <td>元信息 2.88:1、占位符 2.64:1、主按钮 4.21:1 不达标</td>
+        <td>反解出 <code>--text-3</code> 56% / <code>--placeholder</code> 55% / <code>--accent-solid</code> 56.4%</td>
+        <td><span class="tag tag--ok">已修复并实测</span></td>
+      </tr>
+      <tr>
+        <td><strong>1.4.11 非文本对比度</strong></td>
+        <td>图形与控件边界 ≥3:1</td>
+        <td>线性图标 2.88:1 不达标；输入框边界用纯装饰色（1.27:1）</td>
+        <td>新增 <code>--icon</code>(3.10:1) 与 <code>--border-strong</code>(3.10:1)，把「装饰线」与「可交互边界」拆成两个令牌</td>
+        <td><span class="tag tag--ok">已修复并实测</span></td>
+      </tr>
+      <tr>
+        <td><strong>2.4.7 焦点可见</strong></td>
+        <td>键盘焦点必须可见</td>
+        <td>无统一焦点样式，依赖浏览器默认</td>
+        <td>统一 <code>2px --focus + 2px outline-offset</code>；<code>--focus</code> 浅色 4.22:1 / 暗色 7.19:1</td>
+        <td><span class="tag tag--ok">新增</span></td>
+      </tr>
+      <tr>
+        <td><strong>2.5.8 目标尺寸（最小）</strong></td>
+        <td>可点击目标 ≥24×24px</td>
+        <td>小 chip / 小图标按钮高度 32px，接近下限</td>
+        <td><code>@media (pointer:coarse)</code> 下小控件统一抬到 40px；图标按钮 32px 起并保证内边距</td>
+        <td><span class="tag tag--ok">新增</span></td>
+      </tr>
+      <tr>
+        <td><strong>2.3.3 动画可关闭</strong></td>
+        <td>尊重「减少动态效果」</td>
+        <td>无 <code>prefers-reduced-motion</code> 处理</td>
+        <td>全局兜底 <code>*{transition:none;animation:none}</code>，骨架屏动画一并停止</td>
+        <td><span class="tag tag--ok">新增</span></td>
+      </tr>
+      <tr>
+        <td><strong>1.3.1 信息与关系</strong></td>
+        <td>语义结构正确</td>
+        <td>状态标签、按钮多为 <code>div</code> + 事件</td>
+        <td>交互元素统一用 <code>&lt;button&gt;</code> + <code>aria-pressed</code>；tab 用 <code>aria-selected</code>；输入框配 <code>&lt;label for&gt;</code></td>
+        <td><span class="tag tag--warn">需随重构落地</span></td>
+      </tr>
+      <tr>
+        <td><strong>1.4.1 不只靠颜色</strong></td>
+        <td>信息不能只用颜色表达</td>
+        <td>错误态仅红框；Day 靠颜色区分</td>
+        <td>错误态「红框 + 文字」双通道；总览轨道每块带景点名文字；图标全带文字标签</td>
+        <td><span class="tag tag--ok">已覆盖</span></td>
+      </tr>
+      <tr>
+        <td><strong>1.4.4 文本缩放 200%</strong></td>
+        <td>放大到 200% 不丢内容</td>
+        <td>未验证；布局以 px 固定为主</td>
+        <td>收敛到 7 档字号后，关键容器改用 8pt 间距 + 弹性布局，避免 px 硬宽</td>
+        <td><span class="tag tag--warn">需实测</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="sub">6.1 可复跑的实测脚本</h3>
+  <p>
+    规范里的数字不该只活在这份 HTML 里。本轮所有换算与反解都收敛成一个零依赖 Python 脚本，
+    放在 <code>docs/design/contrast-audit.py</code>：读令牌、换算 sRGB、算 WCAG 对比度、按角色反解达标亮度。
+    它可以直接接进现有 <code>tools/check_frontend.py</code> 的门禁体系，变成第 10 项检查 ——
+    <strong>从此「有人改了颜色导致不达标」会在 CI 就被拦下</strong>，而不是等用户说「字太淡」。
+  </p>
+  <div class="spec-note">
+    <b>建议的门禁用法：</b>把 <code>:root</code> 与 <code>[data-theme]</code> 里的令牌表解析成字典，
+    对每组「前景色 × 它的参照底」断言对比度下限；新增令牌若没在断言表里登记就失败。
+    这样令牌表与断言表会强制同步，不会再出现 <code>--muted</code> 那种「定义了 0 次引用」的死令牌。
+  </div>
+</section>
+
+<!-- ============ §7 决策点 ============ -->
+<section id="decide">
+  <div class="eyebrow">§7 · 待拍板的 5 个决策点</div>
+  <h2 class="sec">每个都给了推荐，你只需要否掉不同意的</h2>
+  <p class="sec-sub">
+    这 5 项与 <code>docs/plan-page-redesign.md</code> §十一 一一对应，但这里把选项<strong>画出来了</strong>，
+    而不是让你读文字想象。推荐项已用主色标出。
+  </p>
+
+  <div class="dec">
+    <div class="dec__q"><span class="dec__n">1</span><span class="dec__t">桌宠「小舟」的出现时机？</span></div>
+    <div class="dec__opts">
+      <div class="opt is-pick">
+        <div class="opt__h"><span class="tag tag--ok">推荐</span>规划完成后才出现</div>
+        <div class="opt__d">首次进入的焦点完整让给引导卡；出结果时它招手说「已经生成，看看要不要改」，此时它才真的有用。</div>
+      </div>
+      <div class="opt">
+        <div class="opt__h"><span class="tag tag--n">选项 B</span>常驻但首次不打招呼</div>
+        <div class="opt__d">保留品牌存在感，但空状态里它仍是一个会动的东西，仍然抢焦点。</div>
+      </div>
+    </div>
+    <div class="dec__why"><b>理由：</b>空状态阶段它没有可说的话。一个有嘴但没内容的吉祥物，只会稀释引导卡。</div>
+  </div>
+
+  <div class="dec">
+    <div class="dec__q"><span class="dec__n">2</span><span class="dec__t">单天视图的右栏小地图，所有宽度都给还是只在桌面？</span></div>
+    <div class="dec__opts">
+      <div class="opt is-pick">
+        <div class="opt__h"><span class="tag tag--ok">推荐</span>仅 ≥820px 显示</div>
+        <div class="opt__d">窄屏时隐藏小地图，时间线占满宽。见稿 B —— 窄屏下地图挤压时间线比没有地图更糟。</div>
+      </div>
+      <div class="opt">
+        <div class="opt__h"><span class="tag tag--n">选项 B</span>所有宽度都给</div>
+        <div class="opt__d">信息完整，但手机上时间线被压到 60% 宽，景点名要折行。</div>
+      </div>
+    </div>
+    <div class="dec__why"><b>理由：</b>信息优先级明确 —— 时间线是主，地图是辅。空间不足时砍辅不砍主，这是唯一正确的取舍方向。</div>
+  </div>
+
+  <div class="dec">
+    <div class="dec__q"><span class="dec__n">3</span><span class="dec__t">字重体系是否改成「700 主标题 / 600 标题 / 500 强调 / 400 正文」？</span></div>
+    <div class="dec__opts">
+      <div class="opt is-pick">
+        <div class="opt__h"><span class="tag tag--ok">推荐</span>同意四档，700 仅主标题</div>
+        <div class="opt__d">现有 700 的 34 处中约 26 处降为 600。层级改由「字号 + 颜色」承担，这是更可持续的做法。</div>
+      </div>
+      <div class="opt">
+        <div class="opt__h"><span class="tag tag--n">选项 B</span>保留 700 为主标题档</div>
+        <div class="opt__d">改动面小，但 700 通胀继续，标题与正文的层级依然靠「更粗」硬撑。</div>
+      </div>
+    </div>
+    <div class="dec__why"><b>理由：</b>字重是<strong>最弱</strong>的层级手段 —— 它在小字号上几乎不可感知，却会让整页「发黑」。字号和颜色才是主手段。</div>
+  </div>
+
+  <div class="dec">
+    <div class="dec__q"><span class="dec__n">4</span><span class="dec__t">落地的批次划分？</span></div>
+    <div class="dec__opts">
+      <div class="opt is-pick">
+        <div class="opt__h"><span class="tag tag--ok">推荐</span>三批，每批可独立验收</div>
+        <div class="opt__d">批 1 令牌收敛（纯替换，零结构改动）→ 批 2 尺度收敛 + 5 处对比度修复 → 批 3 暗色主题 + 界面稿 A/B/C/D。见 §8。</div>
+      </div>
+      <div class="opt">
+        <div class="opt__h"><span class="tag tag--n">选项 B</span>一次全做</div>
+        <div class="opt__d">总时长更短，但一旦出问题回滚半径覆盖全部改动，且无法定位是哪一层引入的。</div>
+      </div>
+    </div>
+    <div class="dec__why"><b>理由：</b>令牌替换是<strong>可机械验证</strong>的（替换后跑一次对比度脚本 + 截图比对），它必须单独成批 —— 把它和结构改动混在一起，出问题就分不清是取值错了还是结构错了。</div>
+  </div>
+
+  <div class="dec">
+    <div class="dec__q"><span class="dec__n">5</span><span class="dec__t">是否同步更新 README / CHANGELOG？</span></div>
+    <div class="dec__opts">
+      <div class="opt is-pick">
+        <div class="opt__h"><span class="tag tag--ok">推荐</span>是，并加一节「设计令牌」</div>
+        <div class="opt__d">README 里补一节令牌表与对比度实测结论，让「为什么是 56% 而不是 68%」有据可查。文档一致性目前是掉分项。</div>
+      </div>
+      <div class="opt">
+        <div class="opt__h"><span class="tag tag--n">选项 B</span>只改 CHANGELOG</div>
+        <div class="opt__d">成本更低，但下一个人（或三个月后的你）会重新问一遍「这个值是怎么定的」。</div>
+      </div>
+    </div>
+    <div class="dec__why"><b>理由：</b>项目已有「文档更新速度跟不上功能增长」的教训。这次改动<strong>本身就是关于取值的决策</strong>，不记录取值依据，下次一定会重做一遍推导。</div>
+  </div>
+</section>
+
+<!-- ============ §8 落地 ============ -->
+<section id="plan">
+  <div class="eyebrow">§8 · 落地顺序</div>
+  <h2 class="sec">三批，每批独立可验收</h2>
+  <p class="sec-sub">
+    排序原则：<strong>先把「取值」和「结构」解耦</strong>。令牌收敛不碰 DOM，可以先用最少风险把地基铺平；
+    对比度修复紧随其后，因为它有客观验收标准（数字达标）；结构改造放最后，因为它最需要反复看图。
+  </p>
+
+  <div class="tbl-scroll">
+  <table class="tbl">
+    <thead><tr><th>批次</th><th>内容</th><th>改什么 / 不改什么</th><th>验收方式</th><th>风险</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>批 1</strong><br><span class="muted">令牌层</span></td>
+        <td>建 7/4/8/4 尺度令牌；把现有散值批量 snap 到最近档；删死令牌 <code>--muted</code>，把 <code>--muted-2/3</code> 重命名并绑定职责</td>
+        <td>只动 CSS 取值，<strong>不动任何 DOM 结构与 JS</strong></td>
+        <td>替换前后各跑一次 <code>contrast-audit.py</code>；对比截图存档</td>
+        <td><span class="tag tag--ok">低</span> 纯替换，可整批回滚</td>
+      </tr>
+      <tr>
+        <td><strong>批 2</strong><br><span class="muted">可读性</span></td>
+        <td>5 处对比度修复：<code>--text-3</code> / <code>--placeholder</code> / <code>--accent-solid</code> / <code>--warn-ink</code> / <code>--note-ink</code>；补 <code>--icon</code> 与 <code>--border-strong</code>；顺带修方向 E 的颜色收敛（Day 色、chip 色）</td>
+        <td>动色值 + 少量选择器；仍不动结构</td>
+        <td>对比度脚本全绿（这是客观标准，不靠肉眼）；顺带把脚本接进门禁</td>
+        <td><span class="tag tag--ok">低</span></td>
+      </tr>
+      <tr>
+        <td><strong>批 3</strong><br><span class="muted">结构与主题</span></td>
+        <td>挂 <code>[data-theme]</code> 暗色主题；落地界面稿 A（空状态 + 三段表单）、稿 B（时间线）、稿 C（总览）、稿 D（结果区顺序）；修 <code>plan-page-redesign.md</code> §四 的 5 个 bug</td>
+        <td>动 DOM 结构与 JS；<strong>不动后端契约、不加依赖、不拆文件</strong></td>
+        <td><code>tools/check_frontend.py</code> 9 项门禁 + 前端冒烟 + 明暗两套截图</td>
+        <td><span class="tag tag--warn">中</span> 需注意 <code>shareImage()</code> 依赖结果区内部结构</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3 class="sub">8.1 必须守住的边界</h3>
+  <div class="col2">
+    <div>
+      <h5>不做什么</h5>
+      <div class="stack">
+        <div class="blk"><span class="blk__n">✕</span><span class="blk__t">不加任何依赖（无 CDN / 无构建）</span></div>
+        <div class="blk"><span class="blk__n">✕</span><span class="blk__t">不改后端 API 契约（25 个接口）</span></div>
+        <div class="blk"><span class="blk__n">✕</span><span class="blk__t">不重做界面 / 不改配色方向</span></div>
+        <div class="blk"><span class="blk__n">✕</span><span class="blk__t">不重画桌宠 sprite</span></div>
+        <div class="blk"><span class="blk__n">✕</span><span class="blk__t">不把 index.html 拆模块（单文件是本项目纪律）</span></div>
+      </div>
+    </div>
+    <div>
+      <h5>必须做的验证</h5>
+      <div class="stack">
+        <div class="blk"><span class="blk__n">✓</span><span class="blk__t">对比度脚本全绿（新增门禁）</span></div>
+        <div class="blk"><span class="blk__n">✓</span><span class="blk__t">明暗两套截图各存档一份</span></div>
+        <div class="blk"><span class="blk__n">✓</span><span class="blk__t">键盘 Tab 走一遍全流程</span></div>
+        <div class="blk"><span class="blk__n">✓</span><span class="blk__t"><code>shareImage()</code> 长图导出回归手测 1 次</span></div>
+        <div class="blk"><span class="blk__n">✓</span><span class="blk__t">前端 9 项门禁 + 冒烟测试通过</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="sub">8.2 一句话总结</h3>
+  <p style="font-size:var(--fs-4);color:var(--fg);max-width:76ch">
+    这套方案的价值不在「4 张新界面」，而在<strong>三样可以复用的东西</strong>：
+    一套有刻度且每档都有职责的令牌表、一份 21 组的对比度实测报告、一段能自动拦回归的门禁断言。
+    界面会继续改，这三样会一直用下去。
+  </p>
+</section>
+
+<footer>
+  <div style="display:flex;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap">
+    <div>
+      <strong style="color:var(--text-2)">AI 行程规划 · 界面设计规范与高保真稿</strong><br>
+      v1.0 · 2026-09-24 · 基准：<code>static/index.html</code> 3,556 行 / <code>static/home.html</code> 1,204 行
+    </div>
+    <div style="text-align:right">
+      实测脚本 <code>docs/design/contrast-audit.py</code><br>
+      零依赖 · 可离线打开 · 单文件评审
+    </div>
+  </div>
+</footer>
+
+</div><!-- /wrap -->
+
+<script>
+// 主题切换：文档与界面稿共用同一套令牌，所以切一次全部换肤。
+(function(){
+  var root=document.documentElement, btn=document.getElementById('themeBtn'), txt=document.getElementById('themeTxt');
+  function apply(t){
+    root.setAttribute('data-theme',t);
+    txt.textContent = (t==='dark') ? '浅色' : '暗色';
+    try{ localStorage.setItem('spec-theme',t); }catch(e){}
+  }
+  var saved=null;
+  try{ saved=localStorage.getItem('spec-theme'); }catch(e){}
+  apply(saved || 'dark');
+  btn.addEventListener('click',function(){
+    apply(root.getAttribute('data-theme')==='dark' ? 'light' : 'dark');
+  });
+  // 界面稿里的 tab 可点，给评审一点交互感（纯演示，不影响文档）
+  document.querySelectorAll('.day-tab').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.day-tab').forEach(function(x){ x.setAttribute('aria-selected','false'); });
+      b.setAttribute('aria-selected','true');
+    });
+  });
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click',function(){
+      if(c.hasAttribute('aria-pressed')) c.setAttribute('aria-pressed', c.getAttribute('aria-pressed')==='true'?'false':'true');
+    });
+  });
+})();
+</script>
+</body>
+</html>
