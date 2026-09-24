@@ -964,10 +964,13 @@
           <label>酒店</label>
           <div class="datebox">
             <b id="hotelText">未设置（点此搜索选择）</b>
-            <span class="dicon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"
-              fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-              stroke-linejoin="round"><path d="M2.5 11.5V6"/><path d="M2.5 9h11"/>
-              <path d="M13.5 11.5V9"/><path d="M5 9V7h3.5v2"/></svg></span>
+            <span class="dicon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"
+              fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"
+              stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/>
+              <path d="M8 7h.01"/><path d="M12 7h.01"/><path d="M16 7h.01"/>
+              <path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/>
+              <path d="M10 22v-6.57"/><path d="M14 15.43V22"/>
+              <path d="M15 16a5 5 0 0 0-6 0"/></svg></span>
           </div>
         </div>
         <div class="grid3">
@@ -1274,11 +1277,18 @@ function gcj2wgs(lat, lon) {
 // 酒店「线性图标」常量：与日期框的日历图标同一套画法（16 视窗 / currentColor / 圆头描边），
 // 用来替代 🏨 emoji —— emoji 发色且跨平台不一致，在 modern-minimal 里显得廉价。
 // HOTEL_SVG = 裸 svg（供地图标记等需要自定义尺寸处用）；HOTEL_ICON = 带 .licon 外壳（行内文本用）。
-const HOTEL_SVG = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none"'
-  + ' stroke="currentColor" stroke-width="1.8"'
+// 酒店图标：Lucide「hotel」（开源 MIT）—— 原来那个是手绘的"床"，床头比床尾长、
+// 两条竖线不等高，比例不对、看着别扭。改用成熟图标集的正规造型（楼房 + 窗 + 门）。
+// 注：Lucide 是 24 视窗、默认 stroke-width 2；这里写 2.6 是为了在我们 16px 的显示
+// 尺寸下得到 ≈1.8px 的描边，与其它 16 视窗图标（日历/车/罗盘…）视觉一致。
+const HOTEL_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none"'
+  + ' stroke="currentColor" stroke-width="2.6"'
   + ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<path d="M2.5 11.5V6"/><path d="M2.5 9h11"/><path d="M13.5 11.5V9"/>'
-  + '<path d="M5 9V7h3.5v2"/></svg>';
+  + '<rect x="4" y="2" width="16" height="20" rx="2"/>'
+  + '<path d="M8 7h.01"/><path d="M12 7h.01"/><path d="M16 7h.01"/>'
+  + '<path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/>'
+  + '<path d="M10 22v-6.57"/><path d="M14 15.43V22"/>'
+  + '<path d="M15 16a5 5 0 0 0-6 0"/></svg>';
 const HOTEL_ICON = '<span class="licon">' + HOTEL_SVG + '</span>';
 
 // 线性图标库（统一规格：16 视窗 / currentColor / 1.8px 圆头描边）—— 全站替代 emoji。
