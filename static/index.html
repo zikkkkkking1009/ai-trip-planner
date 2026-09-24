@@ -498,16 +498,22 @@
   /* 分区卡：与顶部导航同一套居中配方 —— 宽屏自动居中到 1180，
      窄屏保证至少 24px 边距（原来 margin:14px 会在宽屏拉满整个视口，
      而单纯改成 margin:auto 又会让卡片在窄屏贴边）。 */
+  /* 分区卡：发丝描边、**无阴影**（modern-minimal 只在弹层/浮层用阴影）——
+     与右栏 .dayblock 同一姿态。 */
   .usection { background:var(--surface); border-radius:14px; padding:16px;
               margin:20px max(24px, calc((100vw - 1180px) / 2));
-              border:1px solid var(--border); box-shadow:var(--sh-1); }
-  .usection h2 { font-size:16px; font-weight:800; margin-bottom:12px; }
+              border:1px solid var(--border); }
+  .usection h2 { font-size:16px; font-weight:700; letter-spacing:-.02em; margin-bottom:12px; }
   .ucard { display:flex; gap:12px; padding:10px 0; border-top:1px dashed var(--border);
            cursor:pointer; align-items:center; }
   .ucard:first-of-type { border-top:none; }
+  /* 管理模式勾选态：浅 accent 底 + 发丝 accent 环（不用重色块，与左栏 .pref.on 同一语言） */
+  .ucard.selected { background:var(--accent-soft); border-top-color:transparent;
+                    box-shadow:inset 0 0 0 1px var(--accent-line); }
   .ucard .info { flex:1; min-width:0; }
-  .ucard .t { font-size:16px; font-weight:700; }
-  .ucard .s { color:var(--dim); font-size:12px; margin-top:3px; }
+  .ucard .t { font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .ucard .s { color:var(--dim); font-size:12px; margin-top:3px;
+              font-variant-numeric:tabular-nums; }
   .ucard .del { background:none; border:none; color:var(--bad); font-size:16px; cursor:pointer; padding:6px; }
   .uempty { color:var(--dim); font-size:14px; text-align:center; padding:18px 0; }
   /* 加载动画 */
@@ -517,21 +523,23 @@
   /* ===== 日历弹层 ===== */
   .cal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:950;
                  display:flex; align-items:flex-end; justify-content:center; }
-  .cal-sheet { width:100%; max-width:460px; background:var(--surface); border-radius:18px 18px 0 0;
-               max-height:86vh; display:flex; flex-direction:column; }
+  .cal-sheet { width:100%; max-width:460px; background:var(--surface); border-radius:16px 16px 0 0;
+               max-height:86vh; display:flex; flex-direction:column;
+               border:1px solid var(--border); border-bottom:none;
+               box-shadow:var(--sh-3); }   /* 弹层允许阴影，与 .share-sheet 同一配方 */
   .cal-head { padding:14px 16px 8px; display:flex; justify-content:space-between; align-items:center; }
-  .cal-head b { font-size:16px; }
+  .cal-head b { font-size:16px; font-weight:700; letter-spacing:-.02em; }
   .cal-week { display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
               color:var(--dim); font-size:12px; padding:6px 8px; border-bottom:1px solid var(--line); }
   .cal-week span:first-child, .cal-week span:last-child { color:var(--warn); }
   .cal-months { overflow-y:auto; flex:1; padding:0 8px 8px; }
-  .cal-title { font-size:16px; font-weight:800; padding:14px 10px 6px; }
+  .cal-title { font-size:16px; font-weight:700; letter-spacing:-.02em; padding:14px 10px 6px; }
   .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); }
   .cal-cell { height:48px; display:flex; align-items:center; justify-content:center; }
   .cal-cell .d { width:36px; height:36px; display:flex; align-items:center; justify-content:center;
                  border-radius:9px; font-size:14px; font-variant-numeric:tabular-nums; }
-  .cal-cell.dis .d { color:var(--muted-3); pointer-events:none; }
-  .cal-cell .d.today { box-shadow:inset 0 0 0 1px var(--acc); color:var(--acc); }
+  .cal-cell.dis .d { color:var(--muted-3); pointer-events:none; }   /* 已过去/不可选：只降灰，不加灰底 */
+  .cal-cell .d.today { box-shadow:inset 0 0 0 1px var(--acc); color:var(--acc); font-weight:600; }
   .cal-cell .d.start, .cal-cell .d.end { background:var(--acc); color:var(--surface); font-weight:700; }
   .cal-cell .d.inrange { background:var(--accent-soft); color:var(--acc); border-radius:0; }
   .cal-cell .d.start.inrange { border-radius:9px 0 0 9px; }
@@ -2085,13 +2093,13 @@ function renderPlans() {
     const sel = selectedPlans.has(p.task_id);
     const check = manageMode
       ? `<div style="width:20px;height:20px;border-radius:50%;flex-shrink:0;
-          border:2px solid ${sel ? 'var(--acc)' : 'var(--muted-3)'};background:${sel ? 'var(--acc)' : 'var(--surface)'};
-          color:var(--surface);font-size:12px;display:flex;align-items:center;justify-content:center">✓</div>`
+          border:2px solid ${sel ? 'var(--acc)' : 'var(--muted-3)'};background:${sel ? 'var(--accent-soft)' : 'var(--surface)'};
+          color:var(--acc);font-size:12px;display:flex;align-items:center;justify-content:center">${sel ? '✓' : ''}</div>`
       : '';
     const act = manageMode
       ? ` data-act="plan-sel" data-plan="${esc(p.task_id)}"`
       : ` data-act="plan" data-plan="${esc(p.task_id)}"`;
-    return `<div class="ucard"${act}>${check}
+    return `<div class="ucard${sel ? ' selected' : ''}"${act}>${check}
       <div class="info"><div class="t">${esc(p.city) || '行程'} · ${p.spots_planned || '?'} 个景点</div>
       <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · ' + HOTEL_ICON + ' ' + esc(p.hotel) : ''}</div></div>
       <div style="color:var(--muted-3)">›</div></div>`;
