@@ -1,7 +1,7 @@
 # 交接文档（HANDOFF）
 
 > 用途：**新会话读这一份就能无损接上下文**。
-> ⚠️ **2026-09-24 状态核对**：① 本地 `main` **领先远端 55 个提交、尚未推送**（缺 GitHub 凭据，需人工 `git push origin main`）；
+> ✅ **2026-09-24 已同步**：**SSH 已配好**（`~/.ssh/id_ed25519`，remote 已切 `git@github.com:zikkkkkking1009/ai-trip-planner.git`），58 个提交已推上远程 `main`（`f79fa7f..5f86b91`）。以后 `git push` 免交互。
 > ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 286**、接口 **20 → 26**、前端冒烟 **12 → 14+30**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
