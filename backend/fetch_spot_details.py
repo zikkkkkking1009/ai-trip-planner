@@ -10,7 +10,6 @@ import json
 import time
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
 from cities import DEFAULT_CITY
 from commute import load_env_file

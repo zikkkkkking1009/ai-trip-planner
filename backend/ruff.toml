@@ -1,0 +1,34 @@
+# ruff 配置（C3）
+#
+# 为什么用 ruff.toml 而不是 pyproject.toml：
+# pytest 会把 pyproject.toml 当作 rootdir 锚点，凭空建一个会改变测试根目录的判定，
+# 属于与本任务无关的副作用。这里只用 ruff 自己的配置文件，零副作用。
+#
+# 规则选取原则：**先只开能抓真 bug 的规则**。
+# 一上来开 ALL 会产生上百条风格噪音，要么被强行 autofix 出大 diff，
+# 要么被一行行 `# noqa` 淹没 —— 两种结果都让这道门失去意义（没人再看了）。
+
+target-version = "py312"
+line-length = 100
+
+[lint]
+# E4/E7/E9：pycodestyle 里真正指向错误的那部分（缩进、语法类问题）
+# F：pyflakes —— 未定义名、未使用导入/变量、重复定义。**这一类最能抓真 bug**。
+#   历史上本项目踩过「缺常量导致接口 500」，正是 F821 覆盖的范围。
+select = ["E4", "E7", "E9", "F"]
+ignore = []
+
+[lint.per-file-ignores]
+# 测试文件里允许未使用的 import（conftest 的 fixture、参数化用的常量）
+"tests/*" = ["F401"]
+
+# main.py 的 E402 是**有意为之**，不是坏味道，不要"顺手整理"掉：
+# 必须先 `load_env_file()` 把 .env 写进 os.environ，再 import logging_setup 并
+# setup_logging() —— 否则 LOG_LEVEL / LOG_FILE 读不到，日志配置静默失效。
+# 后续几个 import 同理（依赖上面已建好的 log / env）。移动它们会改坏行为，
+# 所以这里显式豁免，理由写在此处以免后人误改。
+"main.py" = ["E402"]
+
+[lint.flake8-quotes]
+# 本项目既有代码双引号为主，不强制改写（避免大 diff）
+inline-quotes = "double"

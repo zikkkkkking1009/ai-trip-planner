@@ -282,10 +282,12 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
         for d in base.result["days"]:
             pts = [next((s for s in base_spots if s.name == v["name"]), None)
                    for v in d["spots"]]
-            pts = [p for p in pts if p]
+            pts = [p for p in pts if p is not None]
             if pts:
-                day_anchors[d["day"]] = (sum(p.lat for p in pts) / len(pts),
-                                         sum(p.lon for p in pts) / len(pts))
+                # p 的静态类型仍是 Spot | None（变量类型由首次赋值推定），此处再收窄一次
+                day_anchors[d["day"]] = (
+                    sum(p.lat for p in pts if p is not None) / len(pts),
+                    sum(p.lon for p in pts if p is not None) / len(pts))
         params = base.req_params
 
         pin_ops = [o for o in ops if o.get("op") == "pin_add"]
@@ -334,7 +336,6 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
         if pin_ops and not other_ops:
             days = copy.deepcopy(base.result["days"])
             new_spots_acc: list[SpotModel] = []
-            fallback = False
             for op in pin_ops:
                 day_i = op.get("day") or 1
                 d = next((x for x in days if x["day"] == day_i), None)
@@ -345,7 +346,8 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
                 # （修过的 bug：用 Day 几何中心搜「钟楼的全季酒店」会因距离 20km 搜不到）
                 after = op.get("after")
                 if after and after in spot_by_name:
-                    anchor = (spot_by_name[after].lat, spot_by_name[after].lon)
+                    anchor: tuple[float, float] | None = (
+                        spot_by_name[after].lat, spot_by_name[after].lon)
                 else:
                     anchor = day_anchors.get(day_i)
                 if anchor is None:

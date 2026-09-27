@@ -56,7 +56,8 @@ def main() -> None:
     for d in plan_days:
         print(f"  第{d.day}天: " + "、".join(s.name for s in d.spots))
 
-    rows, risk_lists = [], {}
+    rows: list[dict] = []
+    risk_lists = {}
     print(f"\n{'参数组':<26}{'按时概率':>9}{'Top3 风险点':>40}")
     for label, nm in PARAM_SETS:
         res = simulate(plan_days, spot_by_name, req, CommuteMatrix().minutes,

@@ -210,7 +210,8 @@ def poi_search(query: str, lat: float, lon: float,
         wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
         if wait > 0:
             time.sleep(wait)
-        poi_search._last = time.time()
+        # 记限频时间戳：两个搜索入口共用 poi_search._last（同一份高德配额）
+        setattr(poi_search, "_last", time.time())
         with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
@@ -254,7 +255,7 @@ def text_search(query: str, city: str = DEFAULT_CITY,
         wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
         if wait > 0:
             time.sleep(wait)
-        poi_search._last = time.time()
+        setattr(poi_search, "_last", time.time())
         with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
@@ -329,8 +330,9 @@ def apply_ops(base_spots: list[Spot], ops: list[dict],
         elif kind == "add":
             query = op.get("query", "")
             day = op.get("day")
-            anchor = anchors.get(day) or _overall_centroid(base_spots, city)
-            cands = (poi_search_fn or (lambda q, a, b: []))(query, *anchor)
+            anchor = ((anchors.get(day) if day is not None else None)
+                      or _overall_centroid(base_spots, city))
+            cands: list[dict] = (poi_search_fn or (lambda q, a, b: []))(query, *anchor)
             poi = pick_poi(cands)
             if poi is None:
                 changes.append(f"没有搜到「{query}」，跳过新增")
@@ -344,7 +346,8 @@ def apply_ops(base_spots: list[Spot], ops: list[dict],
             changes.append(f"移除「{old}」")
             query = op.get("query", "")
             day = op.get("day")
-            anchor = anchors.get(day) or _overall_centroid(base_spots, city)
+            anchor = ((anchors.get(day) if day is not None else None)
+                      or _overall_centroid(base_spots, city))
             cands = (poi_search_fn or (lambda q, a, b: []))(query, *anchor)
             poi = pick_poi(cands)
             if poi is not None:
@@ -363,7 +366,12 @@ def _overall_centroid(spots: list[Spot],
     写死坐标正是「粘成都攻略得到西安坐标且不报错」那类静默错误的源头。
     """
     if not spots:
-        return city_center(city) or city_center(DEFAULT_CITY)
+        center = city_center(city) or city_center(DEFAULT_CITY)
+        if center is None:
+            # 连兜底城市都不在表里 = 城市表坏了。宁可显式报错，也不造一个假坐标
+            # （假坐标会让周边搜索"看似成功、实则全错"，正是本项目最忌讳的静默错误）
+            raise RuntimeError(f"城市表缺少 {DEFAULT_CITY}，请检查 backend/cities.py")
+        return center
     return (sum(s.lat for s in spots) / len(spots),
             sum(s.lon for s in spots) / len(spots))
 
@@ -389,8 +397,8 @@ def pin_modify_day(day_spots: list[Spot],
     for ns in inserts:
         idx = len(seq)
         if after:
-            for i, s in enumerate(seq):
-                if s.name == after:
+            for i, sp in enumerate(seq):
+                if sp.name == after:
                     idx = i + 1
                     break
         else:
@@ -603,7 +611,7 @@ def review_plan(plan_summary: str, memory: list[str] | None = None) -> dict:
              parsed.get("score"), time.time() - t0, model)
     score = parsed.get("score")
     try:
-        score = round(float(score), 1)
+        score = round(float(score), 1) if score is not None else None
     except (TypeError, ValueError):
         score = None
     return {

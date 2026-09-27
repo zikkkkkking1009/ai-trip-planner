@@ -258,7 +258,7 @@ def test_cli_main_loads_env_before_probing(monkeypatch):
     monkeypatch.setattr("commute.load_env_file",
                         lambda: {"LLM_API_KEY": "sk-from-env",
                                  "LLM_BASE_URL": "https://from-env/v1"})
-    seen: dict[str, str] = {}
+    seen: dict[str, str | None] = {}
 
     def fake_llm(fast: bool = False):
         seen["key"] = os.environ.get("LLM_API_KEY")

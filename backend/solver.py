@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
-from models import DayPlan, PlanRequest, Spot, UnplannedSpot, VisitedSpot
+from models import DayPlan, Hotel, PlanRequest, Spot, UnplannedSpot, VisitedSpot
 
 log = logging.getLogger(__name__)
 
@@ -85,8 +85,12 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def commute_min(a: Spot, b: Spot) -> float:
-    """两景点间通勤时长（分钟）。TODO: 换成高德路径规划 API + Redis 缓存。"""
+def commute_min(a: Spot | Hotel, b: Spot | Hotel) -> float:
+    """两景点间通勤时长（分钟）。TODO: 换成高德路径规划 API + Redis 缓存。
+
+    接受 Hotel：住宿锚点是每天的起点/终点，与景点一样只用到坐标，
+    调用方一直这么传（原标注写窄了）。
+    """
     km = haversine_km(a.lat, a.lon, b.lat, b.lon)
     return max(10.0, km / CITY_SPEED_KMH * 60 + COMMUTE_OVERHEAD_MIN)
 
@@ -96,7 +100,7 @@ class _Seq:
     """一天内部的访问序列。commute_fn 可注入（高德真实数据 / 估算降级）。"""
 
     spots: list[Spot] = field(default_factory=list)
-    commute_fn: Callable[[Spot, Spot], float] = commute_min
+    commute_fn: Callable[[Spot | Hotel, Spot | Hotel], float] = commute_min
 
     def timeline(self, req: PlanRequest, hotel=None) -> list[tuple[Spot, float, float]] | None:
         """给定顺序模拟一天时间线，返回 [(spot, arrive_h, depart_h)]。
@@ -134,7 +138,7 @@ class _Seq:
             if prev is not None:
                 total += self.commute_fn(prev, s)
             prev = s
-        if hotel is not None and self.spots:
+        if hotel is not None and self.spots and prev is not None:
             total += self.commute_fn(prev, hotel)
         return total
 
@@ -149,9 +153,12 @@ class Solver:
                 "daily_end_h": req.daily_end_h + MORE_SPOTS_EXTRA_H})
         self.req = req
         self.pref = pref
-        self.commute_fn = commute_fn or commute_min
+        self.commute_fn: Callable[[Spot | Hotel, Spot | Hotel], float] = (
+            commute_fn or commute_min)
         self.hotel = req.hotel  # 住宿锚点：每天的起点与终点
         self.last_elapsed_ms: float = 0.0   # 上次 solve() 耗时，供实验脚本与日志取值
+        # 在此一次性声明：solve() 的每轮开始会重新赋值，不该在函数体里再标一次类型
+        self._unplanned: list[UnplannedSpot] = []
         self.days: list[_Seq] = [
             _Seq(commute_fn=self.commute_fn) for _ in range(req.days)]
 
@@ -395,7 +402,7 @@ class Solver:
                                     if iters > 1
                                     else f"贪心构造：{n} 个景点 / {self.req.days} 天")})
 
-        self._unplanned: list[UnplannedSpot] = []
+        self._unplanned = []
         best_obj = float("-inf")
         best_snap = None
         t0 = time.perf_counter()
@@ -433,10 +440,12 @@ class Solver:
                                             f"（通勤 {self._global_commute():.0f} 分钟）"})
             if k == 0:
                 _budget_start = time.perf_counter()
-            elif iters > 1 and time.perf_counter() - _budget_start > MULTISTART_TIME_BUDGET_S:
+            elif (iters > 1 and _budget_start is not None
+                    and time.perf_counter() - _budget_start > MULTISTART_TIME_BUDGET_S):
                 break
 
-        self._restore(best_snap)
+        if best_snap is not None:
+            self._restore(best_snap)
         unplanned = self._unplanned
         progress_cb("构造", {"msg": (f"多起点 {rounds_done} 轮取最优：" if rounds_done > 1
                                     else "单起点贪心：")
@@ -463,7 +472,7 @@ class Solver:
             tl = day.timeline(self.req, self.hotel) or []
             vspots: list[VisitedSpot] = []
             cost = active = comm = 0.0
-            prev: Spot | None = self.hotel  # 通勤从酒店出发算起
+            prev: Spot | Hotel | None = self.hotel  # 通勤从酒店出发算起
             for s, arrive, depart in tl:
                 if prev is not None:
                     comm += self.commute_fn(prev, s)

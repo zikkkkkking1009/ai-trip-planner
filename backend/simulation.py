@@ -75,7 +75,7 @@ class SimulationResult:
 
 def _commute_table(plan_days, spot_by_name, hotel, commute_fn) -> list[list[float]]:
     """每天的"分段通勤矩阵"：[[酒店→s1, s1→s2, ..., sn→酒店], ...]（分钟）。"""
-    table = []
+    table: list[list[float]] = []
     for day in plan_days:
         seq = [spot_by_name[s.name] for s in day.spots if s.name in spot_by_name]
         if not seq:
@@ -124,7 +124,7 @@ def simulate(plan_days, spot_by_name: dict, req, commute_fn,
 
     n_days = len(days_seq)
 
-    def draw() -> list[list[tuple[list[float], list[float]]]]:
+    def draw() -> list[tuple[list[float], list[float]]]:
         """为每轮抽一组样本：每天的 (通勤倍数, 停留倍数)。"""
         out = []
         for di in range(n_days):
@@ -162,7 +162,9 @@ def simulate(plan_days, spot_by_name: dict, req, commute_fn,
     returns: list[list[float]] = [[] for _ in range(n_days)]
     on_time_all = 0
     for smp in samples:
-        ok = True
+        # ok 在基线循环里是「这天是否超时」的布尔；
+        # 下面按天统计时同一个名字复用成了「按时样本计数」，故标成联合类型
+        ok: bool | int = True
         for di in range(n_days):
             cm, st = smp[di]
             r = eval_day(di, cm, st)

@@ -60,8 +60,12 @@ WEEKDAYS = ("周一", "周二", "周三", "周四", "周五", "周六", "周日"
 _cache: dict[tuple[str, str, str, str], tuple[float, dict]] = {}
 
 
-def describe_code(code: int | None) -> tuple[str, str]:
-    """WMO code → (中文, emoji)。未知 code 返回「未知」，不猜一个像样的天气出来。"""
+def describe_code(code: float | None) -> tuple[str, str]:
+    """WMO code → (中文, emoji)。未知 code 返回「未知」，不猜一个像样的天气出来。
+
+    入参标成 float：open-meteo 的 weather_code 是 JSON 数值，经 _num() 统一取出来后
+    是 float | None（缺测为 None）；查表前内部已有 int(code)，两边口径一致。
+    """
     if code is None:
         return "未知", "❓"
     return WMO_MAP.get(int(code), ("未知", "❓"))

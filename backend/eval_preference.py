@@ -26,9 +26,10 @@ from solver import PREFERENCES, Solver
 OUT_FILE = Path(__file__).parent / "eval_preference.json"
 # 扫描范围要覆盖"肯为省通勤而放弃景点"的量级：
 # 放弃一个景点损失 ≈ 1000×9=9000，省下通勤约 45 分钟 → 权重 ≈ 200 才是临界。
-SWEEP_WEIGHTS = (1.0, 25.0, 60.0, 120.0, 200.0, 320.0, 500.0, 800.0)
+SWEEP_WEIGHTS: tuple[float, ...] = (1.0, 25.0, 60.0, 120.0, 200.0, 320.0, 500.0, 800.0)
 # 门票同理：一张票几十元，要让"放弃这个景点"划算，权重也在百量级。
-SWEEP_COST_WEIGHTS = (1.0, 20.0, 60.0, 120.0, 200.0, 350.0, 600.0)
+# 两组都标成不定长 tuple：do_sweep 里同一个变量要接「通勤 8 档 / 门票 7 档」两种长度
+SWEEP_COST_WEIGHTS: tuple[float, ...] = (1.0, 20.0, 60.0, 120.0, 200.0, 350.0, 600.0)
 
 
 def run_once(req, pref: str, **weights) -> dict:

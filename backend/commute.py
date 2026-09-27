@@ -11,20 +11,19 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import os
 import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from models import Spot
+from models import Hotel, Spot
 from reliability import retry_call
+from solver import COMMUTE_OVERHEAD_MIN, haversine_km
 
 log = logging.getLogger(__name__)
 
 AMAP_TIMEOUT_S = 8.0   # 单次高德请求超时（秒），失败由 reliability 重试
-from solver import COMMUTE_OVERHEAD_MIN, haversine_km
 
 BACKEND_DIR = Path(__file__).parent
 CACHE_FILE = BACKEND_DIR / ".commute_cache.json"
@@ -46,13 +45,13 @@ def load_env_file() -> dict:
     return env
 
 
-def _estimate_min(a: Spot, b: Spot) -> float:
+def _estimate_min(a: Spot | Hotel, b: Spot | Hotel) -> float:
     """降级用的估算：haversine / 市内均速 + 固定开销。"""
     km = haversine_km(a.lat, a.lon, b.lat, b.lon)
     return max(10.0, km / 18.0 * 60 + COMMUTE_OVERHEAD_MIN)
 
 
-def _cache_key(a: Spot, b: Spot) -> str:
+def _cache_key(a: Spot | Hotel, b: Spot | Hotel) -> str:
     """坐标取 3 位小数（~110m）做 key，同区域重复请求直接命中。"""
     return (f"{round(a.lat, 3):.3f},{round(a.lon, 3):.3f}|"
             f"{round(b.lat, 3):.3f},{round(b.lon, 3):.3f}")
@@ -81,7 +80,7 @@ class CommuteMatrix:
         self.stats = {"api_calls": 0, "cache_hits": 0, "fallbacks": 0}
 
     # ---- 高德 API ----
-    def _amap_driving_min(self, a: Spot, b: Spot) -> float:
+    def _amap_driving_min(self, a: Spot | Hotel, b: Spot | Hotel) -> float:
         """调 /v3/distance 拿驾车时长（分钟）。失败抛异常，由调用方降级。"""
         params = urllib.parse.urlencode({
             "origins": f"{a.lon},{a.lat}",   # 高德参数顺序是 经度,纬度
@@ -103,8 +102,11 @@ class CommuteMatrix:
         return float(r["duration"]) / 60.0    # 秒 → 分钟
 
     # ---- 对外主入口 ----
-    def minutes(self, a: Spot, b: Spot) -> float:
-        """两景点间通勤分钟数。memo → 文件缓存 → 高德 API → 估算降级。"""
+    def minutes(self, a: Spot | Hotel, b: Spot | Hotel) -> float:
+        """两景点间通勤分钟数。memo → 文件缓存 → 高德 API → 估算降级。
+
+        接受 Hotel：住宿锚点是每天的起点/终点，只在乎坐标，早已这样调用。
+        """
         if a is b or (a.lat, a.lon) == (b.lat, b.lon):
             return 0.0
 

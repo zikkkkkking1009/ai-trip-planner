@@ -208,7 +208,7 @@ def run(n: int = 50, with_llm: bool = False) -> dict:
         os.environ.setdefault(k, v)
 
     scenarios = gen_scenarios(n)
-    acc = {
+    acc: dict[str, dict] = {
         "naive": {"conflicts": [], "budget": 0, "quality": [], "commute": []},
         "solver": {"conflicts": [], "budget": 0, "quality": [], "commute": []},
     }

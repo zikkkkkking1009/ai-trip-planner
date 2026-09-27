@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from ortools.sat.python import cp_model
 
-from models import DayPlan, PlanRequest, Spot, UnplannedSpot, VisitedSpot
+from models import DayPlan, PlanRequest, UnplannedSpot, VisitedSpot
 from solver import commute_min
 
 # 目标函数权重：收益为主，通勤为次（单位：收益 1000 分 ≈ 通勤 1 分钟的量级）
@@ -103,7 +103,6 @@ class CPSatSolver:
         n = len(spots)
         D = req.days
         S, E = n, n + 1                     # 起点 / 终点（节点索引）
-        nodes = n + 2
         day_start, day_end = self._start_min(), self._end_min()
 
         m = cp_model.CpModel()
@@ -161,7 +160,6 @@ class CPSatSolver:
                 m.Add(t[d, j] == day_start).OnlyEnforceIf(z[d, j].Not())
 
             # 弧上的时序约束
-            M = horizon * 4
             for i in list(range(n)) + [S]:
                 for j in list(range(n)) + [E]:
                     if i == j:
@@ -169,7 +167,6 @@ class CPSatSolver:
                     travel = c(i, j)
                     if j == E:
                         # 到终点：从 i 出发 + 通勤
-                        depart_i = day_start if i == S else None
                         if i == S:
                             m.Add(t[d, E] >= day_start + travel).OnlyEnforceIf(y[d, S, E])
                         else:
@@ -270,7 +267,6 @@ class CPSatSolver:
             for j in seq_idx:
                 arr = solver.Value(t[d, j]) / 60.0
                 dep = (solver.Value(s[d, j]) + spots[j].stay_min) / 60.0
-                start_v = solver.Value(s[d, j]) / 60.0
                 vspots.append(VisitedSpot(
                     name=spots[j].name, arrive_h=round(arr, 2),
                     depart_h=round(dep, 2), ticket=spots[j].ticket,

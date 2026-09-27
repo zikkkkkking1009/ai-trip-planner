@@ -260,8 +260,6 @@ def configured() -> dict[str, bool]:
     缺了这份基线就只能二选一说谎。
     """
     main_cfg = bool(_env("LLM_API_KEY") and _env("LLM_BASE_URL"))
-    fast_separate = bool(_env("LLM_FAST_BASE_URL") or _env("LLM_FAST_API_KEY")
-                         or _env("LLM_FAST_MODEL"))
     return {"llm": main_cfg,
             # 快通道只有两条路成立：自己配全了，或回落到已配置的主通道
             "llm_fast": (bool(_env("LLM_FAST_API_KEY") and _env("LLM_FAST_BASE_URL"))

@@ -177,7 +177,8 @@ def extract(text: str, city: str = "") -> dict:
 
     from aligner import POIAligner, align_spot
     aligner = POIAligner()
-    aligned, review = [], []
+    aligned: list[dict] = []
+    review: list[dict] = []
     for s in spots:
         s, r = align_spot(s, aligner, align_city)
         item = s.model_dump() | {"confidence": r.confidence,
@@ -542,7 +543,8 @@ async def hotel_set(body: dict) -> dict:
     hotel = {"name": body.get("name"), "lat": body.get("lat"), "lon": body.get("lon")}
     if not base_task_id or not hotel["name"]:
         raise HTTPException(400, "需要 task_id 和酒店信息")
-    if MANAGER.get(base_task_id) is None or MANAGER.get(base_task_id).status != "completed":
+    base = MANAGER.get(base_task_id)
+    if base is None or base.status != "completed":
         raise HTTPException(404, "基准任务不存在或未完成")
     task = MANAGER.create()
     asyncio.create_task(run_set_hotel(task.id, base_task_id, hotel))
@@ -713,6 +715,8 @@ def simulate_task(body: dict) -> dict:
     city = params.get("city", DEFAULT_CITY)
     # 兜底坐标取**当前城市**中心（老快照缺 request_spots 时才会用到），不写死字面坐标
     _fallback = city_center(city) or city_center(DEFAULT_CITY)
+    if _fallback is None:
+        raise HTTPException(500, f"城市表缺少 {DEFAULT_CITY}，请检查 backend/cities.py")
     # 稳妥度（N3b）：稳健化**判定用的就是用户原始时间窗**（排程才内缩留缓冲），
     # 所以这里也用原始时间窗 → 与稳健化的 achieved 口径一致
     eff_end_h = params.get("daily_end_h", 18.0)
@@ -786,7 +790,8 @@ async def edit_plan(body: dict) -> dict:
     if not (env.get("LLM_API_KEY") or os.environ.get("LLM_API_KEY")):
         raise HTTPException(503, "未配置 LLM_API_KEY，无法解析编辑指令")
     from tasks import MANAGER, run_edit_task
-    if MANAGER.get(base_task_id) is None or MANAGER.get(base_task_id).status != "completed":
+    base = MANAGER.get(base_task_id)
+    if base is None or base.status != "completed":
         raise HTTPException(404, "基准任务不存在或未完成")
     task = MANAGER.create()
     asyncio.create_task(run_edit_task(task.id, base_task_id, instruction, memory=memory))
