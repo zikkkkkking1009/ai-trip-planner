@@ -141,7 +141,11 @@ A3 标注集扩充（20 → 100~200 条）   ← 需要周周抽时间人工标�
                                     ⚠ A7/N1 的改动（LLM 仲裁、主名先验、城市参数）扩充标注集后必须复测
 B1/B2 数据库（SQLite + SQLAlchemy 三表）+ 用户体系  ← 工程完整度，工程量较大
 B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化刚补完）  ← 免费方案调研见 docs/deploy_freetier.md
-C3 CI 加 ruff / mypy                      ← 仍未做（CI 现有 7 道门，见第六节）
+**C3 CI 加 ruff / mypy ✅ 已完成**（2026-09-28）  ← 两道硬门禁，**均已清零**：
+                                         ruff 21 条（3 处未用 import + 6 处死变量 + commute 一处 import 位置；
+                                         main.py 的 13 处 E402 属有意豁免，理由写在 ruff.toml 里）；
+                                         mypy 59 条（Optional 收窄 / 补容器标注 / 修 2 处属性重复声明），
+                                         **0 处 `# type: ignore`**。配置见 `backend/ruff.toml`、`backend/mypy.ini`
 **C2 接口级集成测试 ✅ 已完成**（2026-09-28）  ← `backend/tests/test_api_endpoints.py` 21 条，
                                         覆盖此前零测试引用的 14 个接口；离线 + 落盘重定向 tmp，
                                         含「跨城市数据绝不写缓存」回归（spy 断言 save_media 未被调用）

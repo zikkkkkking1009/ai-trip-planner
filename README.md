@@ -186,13 +186,16 @@ python tools/check_frontend.py             # 前端静态检查（10 项阻塞�
 python tools/check_backend_health.py       # 后端五维健壮性审计（AST，无 Key 即可跑）
 python tools/check_contrast.py             # 页面级对比度门禁（解析两页 :root 令牌，零依赖）
 python docs/design/contrast-audit.py --check  # 规范级对比度门禁（浅/暗两套主题各 27 组断言）
+cd backend && ruff check .                 # 静态检查（pyflakes + pycodestyle 错误类，当前 0 条）
+cd backend && mypy .                       # 类型检查（渐进式，当前 0 条、0 处 type: ignore）
 ```
 
 > 只在本机跑：`node tools/contrast_runtime.js static/index.html static/home.html --all`
 > —— 它启真实浏览器渲染复核（需 playwright-core + 本机 Edge/Chrome），不进 CI（慢且脆）。
 
 - **测试与 CI**：**307 个单元测试**全过（对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / **接口级集成**），GitHub Actions 全绿
-- **七道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **jsdom 运行时冒烟**（`frontend_smoke.js` 14 项 + `hotel_smoke.js` 39 项）+ 无密钥的求解器 demo
+- **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 14 项 + `hotel_smoke.js` 39 项）+ 无密钥的求解器 demo
+- **静态检查策略**：ruff 只开**能抓真 bug 的规则**（`E4/E7/E9/F`），不堆风格规则——一上来开全量只会产出满屏 `# noqa`，门禁就没人看了；`main.py` 的 `E402` 是**有意豁免**（必须先加载 .env 再初始化日志），理由写在 `ruff.toml` 里。mypy 走**渐进式**（默认不进未标注函数体），先把已标注部分的真类型错误抓干净，**0 处 `# type: ignore`**
 - **缓存与限频**：通勤矩阵三级缓存（重复求解 API 调用降为 0）；高德 0.35s 节流
 - **快慢接口分离**：详情接口只返回毫秒级可达的高德数据，AI 评价走二次请求异步补，避免首屏等待
 - **后台预取**：规划开始时即并发预取媒体（与求解并行），用户点开详情时通常已命中缓存

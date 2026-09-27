@@ -160,11 +160,14 @@ cd backend && python -m pytest -q          # unit tests (307 passed; AMap-depend
 cd .. && node tools/frontend_smoke.js      # frontend jsdom runtime smoke (14 assertions)
 node tools/hotel_smoke.js                  # hotel picker + long-image preview + map view jsdom smoke (30 assertions)
 python tools/check_frontend.py             # frontend static check (10 blocking gates)
+cd backend && ruff check .                 # lint (pyflakes + pycodestyle error-class rules; 0 findings today)
+cd backend && mypy .                       # type check (gradual; 0 findings and 0 `# type: ignore` today)
 python tools/check_backend_health.py       # backend five-dimension robustness audit (AST, keyless)
 ```
 
 - **Tests and CI**: **307 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather / hotel endpoints), GitHub Actions green
-- **Seven CI gates**: unit tests + **frontend static check** (10 blocking gates: syntax / variable shadowing / hardcoded coordinates / attribute escaping / CSS self-reference / undefined CSS variables / document integrity) + **backend five-dimension robustness audit** + **jsdom runtime smoke** (`frontend_smoke.js` 14 assertions + `hotel_smoke.js` 39 assertions) + a keyless solver demo
+- **Nine CI gates**: unit tests + **frontend static check** (10 blocking gates: syntax / variable shadowing / hardcoded coordinates / attribute escaping / CSS self-reference / undefined CSS variables / document integrity) + **two-level contrast gates** (page-level token parsing + spec-level light/dark) + **backend five-dimension robustness audit** + **ruff lint** + **mypy type check** + **jsdom runtime smoke** (`frontend_smoke.js` 14 assertions + `hotel_smoke.js` 39 assertions) + a keyless solver demo
+- **Static-check strategy**: ruff enables only **bug-catching rules** (`E4/E7/E9/F`) rather than every style rule — turning everything on at once produces a wall of `# noqa` and the gate stops being read. `main.py`'s `E402` is an **intentional exemption** (`.env` must load before logging is initialised); the reason is recorded in `ruff.toml`. mypy runs **gradually** (bodies of unannotated functions are not checked by default), so genuine type errors in annotated code surface first — **zero `# type: ignore`**
 - **Caching and throttling**: three-tier commute cache (repeat solves issue **zero** API calls); AMap throttled at 0.35 s
 - **Fast/slow endpoint split**: the details endpoint returns only millisecond-level AMap data; AI reviews arrive via a second async request, so the first paint never waits
 - **Background prefetch**: media is prefetched concurrently (3-way) when planning starts, in parallel with solving, so opening a detail usually hits cache
