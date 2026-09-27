@@ -2,7 +2,7 @@
 
 > 用途：**新会话读这一份就能无损接上下文**。
 > ✅ **2026-09-24 已同步**：**SSH 已配好**（`~/.ssh/id_ed25519`，remote 已切 `git@github.com:zikkkkkking1009/ai-trip-planner.git`），58 个提交已推上远程 `main`（`f79fa7f..5f86b91`）。以后 `git push` 免交互。
-> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 286**、接口 **20 → 26**、前端冒烟 **12 → 14+30**（详见二、六节）。
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 307**、接口 **20 → 26**、前端冒烟 **12 → 14+39**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -17,7 +17,7 @@ cd "D:\workby room\ai-trip-planner"
 # 启动服务（当前应有实例在跑，先探测再决定是否重启）
 cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-# 单元测试（286 个）
+# 单元测试（307 个）
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
 # 前端静态检查（共 10 项：语法 / 遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义变量 / 文档完整性 + 对比度达标 + 无容器级硬编码颜色）——在项目根目录跑
@@ -28,7 +28,7 @@ cd "D:\workby room\ai-trip-planner"
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" tools/check_contrast.py
 node tools/contrast_runtime.js static/index.html static/home.html --all
 
-# 前端运行时冒烟（jsdom，14 项断言；另有 hotel_smoke.js 30 项，见第六节）
+# 前端运行时冒烟（jsdom，14 项断言；另有 hotel_smoke.js 39 项，见第六节）
 cd "D:\workby room\ai-trip-planner" && node tools/frontend_smoke.js
 cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 ```
@@ -57,7 +57,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | 求解耗时 | 均值 **501ms**（CP-SAT 均值 4.18s） | 同上 |
 | 实体对齐 F1 | **100%**（20 条标注，转人工率 15%；改进前 90%/20%） | `python eval_aligner.py` |
 | 三方对照（朴素 / 求解器 / LLM 直排） | 求解器 100% 无冲突、0 预算违规；LLM 直排质量分 0.921 但违规 8 次 | `backend/eval_results.json` |
-| 单元测试 | **286 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
+| 单元测试 | **307 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **7 项**全绿；冒烟 **14/14**（行程渲染）+ **30/30**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态） | `tools/` |
 | 接口数 | **26 个**（13 GET / 11 POST / 1 DELETE / 1 WS；含新增 `/hotel/recommend` 与 `/meta`） | `backend/main.py` |
 
@@ -141,7 +141,10 @@ A3 标注集扩充（20 → 100~200 条）   ← 需要周周抽时间人工标�
                                     ⚠ A7/N1 的改动（LLM 仲裁、主名先验、城市参数）扩充标注集后必须复测
 B1/B2 数据库（SQLite + SQLAlchemy 三表）+ 用户体系  ← 工程完整度，工程量较大
 B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化刚补完）  ← 免费方案调研见 docs/deploy_freetier.md
-C3 CI 加 ruff / mypy；C2 接口级集成测试
+C3 CI 加 ruff / mypy                      ← 仍未做（CI 现有 7 道门，见第六节）
+**C2 接口级集成测试 ✅ 已完成**（2026-09-28）  ← `backend/tests/test_api_endpoints.py` 21 条，
+                                        覆盖此前零测试引用的 14 个接口；离线 + 落盘重定向 tmp，
+                                        含「跨城市数据绝不写缓存」回归（spy 断言 save_media 未被调用）
 **C5 分享长图 ✅ 已完成**（2026-09-24）  ← 原来点一下静默下载、样式陈旧；现改为**先弹预览浮层再「下载 / 取消」**，
                                         canvas 也重排为现代简洁版（去蓝色渐变头、细分隔线、字重层级）
 设计系统落地（批 1 令牌 / 批 2 可读性 / 批 3 暗色主题 + 界面稿）  ← 完整方案见 `docs/design/ui-design-system.html`
@@ -164,7 +167,7 @@ C3 CI 加 ruff / mypy；C2 接口级集成测试
 
 | 工具 | 作用 | 命令 |
 |------|------|------|
-| `pytest` | **286** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
+| `pytest` | **307** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查 **10 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / **对比度达标** / **无容器级硬编码颜色**）；设计稿 HTML 也一并检查配色 | `python tools/check_frontend.py` |
 | `tools/check_contrast.py` | **页面级对比度门禁**（读 static/ 里真实的 `:root` / 暗色块，按「角色 × 参照底」断言 WCAG） | `python tools/check_contrast.py` |
 | `tools/contrast_runtime.js` | **浏览器运行时对比度实测**（真渲染，非推算）；`--all` 跑明暗两套 | `node tools/contrast_runtime.js static/index.html static/home.html --all` |
