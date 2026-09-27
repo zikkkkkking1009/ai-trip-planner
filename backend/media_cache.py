@@ -44,7 +44,8 @@ def load_media() -> dict:
     if not MEDIA_FILE.exists():
         return {}
     try:
-        return json.loads(MEDIA_FILE.read_text(encoding="utf-8"))
+        _loaded: dict = json.loads(MEDIA_FILE.read_text(encoding="utf-8"))
+        return _loaded
     except (json.JSONDecodeError, OSError) as e:
         log.warning("媒体缓存读取失败，按空处理: %s: %s", type(e).__name__, e)
         return {}

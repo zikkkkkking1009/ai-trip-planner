@@ -8,6 +8,8 @@ __pycache__/
 .venv/
 .ci-venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 local-notes/
 data/
 *.log

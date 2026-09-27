@@ -49,10 +49,12 @@ def _tolerant_json_parse(text: str) -> dict:
         raise ValueError(f"LLM 输出中找不到 JSON：{text[:120]!r}")
     raw = text[start:end + 1]
     try:
-        return json.loads(raw)
+        _loaded: dict = json.loads(raw)
+        return _loaded
     except json.JSONDecodeError:
         cleaned = re.sub(r",\s*([}\]])", r"\1", raw)  # 去尾逗号
-        return json.loads(cleaned)
+        _loaded = json.loads(cleaned)
+        return _loaded
 
 
 def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:

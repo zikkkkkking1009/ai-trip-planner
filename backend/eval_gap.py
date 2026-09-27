@@ -27,7 +27,7 @@ DEFAULT_LIMIT = 8.0
 
 
 def _commute_of(days) -> float:
-    return round(sum(d.commute_min for d in days), 1)
+    return float(round(sum(d.commute_min for d in days), 1))
 
 
 def _obj(score: float, commute: float) -> float:

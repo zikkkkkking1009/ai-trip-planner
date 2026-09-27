@@ -117,7 +117,8 @@ def _build_url(source: str, lat: float, lon: float,
 
 def _fetch(url: str) -> dict:
     with urllib.request.urlopen(url, timeout=WEATHER_TIMEOUT_S) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+        _loaded: dict = json.loads(resp.read().decode("utf-8"))
+        return _loaded
 
 
 def _num(seq: list, i: int) -> float | None:

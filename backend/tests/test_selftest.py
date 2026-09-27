@@ -50,7 +50,7 @@ def _env(monkeypatch, **values):
     table = {k: str(v) for k, v in values.items()}
 
     def fake(name: str) -> str:
-        return table.get(name, "")
+        return str(table.get(name, ""))
     monkeypatch.setattr(selftest, "_env", fake)
     return table
 

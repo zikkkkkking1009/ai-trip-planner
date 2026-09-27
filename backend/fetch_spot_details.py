@@ -26,7 +26,8 @@ def amap_get(path: str, **params) -> dict:
         time.sleep(wait)
     _last = time.time()
     with urllib.request.urlopen(url, timeout=8) as r:
-        return json.loads(r.read().decode("utf-8"))
+        _loaded: dict = json.loads(r.read().decode("utf-8"))
+        return _loaded
 
 
 def fetch(name: str, city: str = DEFAULT_CITY) -> dict:

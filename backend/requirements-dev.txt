@@ -1,3 +1,6 @@
 # 开发与测试依赖
 pytest==9.1.1
 httpx==0.28.1
+# 静态检查（CI 门禁，见 .github/workflows/ci.yml）
+ruff==0.16.9
+mypy==2.3.1

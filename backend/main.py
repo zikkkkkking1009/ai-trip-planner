@@ -107,7 +107,8 @@ FAV_FILE = DATA_DIR / "favorites.json"
 
 def _load_favorites() -> list[dict]:
     if FAV_FILE.exists():
-        return json.loads(FAV_FILE.read_text(encoding="utf-8"))
+        _loaded: list[dict] = json.loads(FAV_FILE.read_text(encoding="utf-8"))
+        return _loaded
     return []
 
 

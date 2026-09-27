@@ -55,6 +55,17 @@ jobs:
       - name: Hotel picker runtime smoke test (jsdom)
         run: NODE_PATH=tools/node_modules node tools/hotel_smoke.js
 
+      # ruff / mypy（C3）。为什么必须进 CI：
+      # 「缺常量导致接口 500」这类问题能靠肉眼 review 漏掉、也能被单元测试漏掉，
+      # 但 pyflakes 一眼就看得到。配置见 backend/ruff.toml 与 backend/mypy.ini。
+      - name: Lint (ruff)
+        working-directory: backend
+        run: ruff check .
+
+      - name: Type check (mypy)
+        working-directory: backend
+        run: mypy .
+
       - name: Run unit tests
         working-directory: backend
         run: |

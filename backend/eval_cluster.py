@@ -53,7 +53,7 @@ def run_once(req, use_cluster: bool, pref: str = "balanced") -> dict:
 
 
 def mean(rows: list[dict], key: str) -> float:
-    return round(statistics.mean(r[key] for r in rows), 4)
+    return float(round(statistics.mean(r[key] for r in rows), 4))
 
 
 def main() -> None:

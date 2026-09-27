@@ -31,7 +31,8 @@ KEY_STATES = {"missing", "ok", "invalid", "unreachable"}
 
 
 def _meta() -> dict:
-    return TestClient(app).get("/meta").json()
+    _loaded: dict = TestClient(app).get("/meta").json()
+    return _loaded
 
 
 def test_catalog_contains_core_routes():

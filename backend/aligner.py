@@ -276,7 +276,8 @@ class POIAligner:
                 time.sleep(wait)
             self._last_call = time.time()
             with urllib.request.urlopen(url, timeout=POI_TIMEOUT_S) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                _loaded: dict = json.loads(resp.read().decode("utf-8"))
+                return _loaded
 
         # 与通勤/LLM 一致：网络抖动先重试，最终失败才降级为 no_candidate
         try:

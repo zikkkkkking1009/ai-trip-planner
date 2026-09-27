@@ -213,7 +213,8 @@ def poi_search(query: str, lat: float, lon: float,
         # 记限频时间戳：两个搜索入口共用 poi_search._last（同一份高德配额）
         setattr(poi_search, "_last", time.time())
         with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            _loaded: dict = json.loads(resp.read().decode("utf-8"))
+            return _loaded
 
     try:
         # 与通勤/LLM 保持一致：先重试（网络抖动），最终失败才降级——且降级要留痕
@@ -257,7 +258,8 @@ def text_search(query: str, city: str = DEFAULT_CITY,
             time.sleep(wait)
         setattr(poi_search, "_last", time.time())
         with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            _loaded: dict = json.loads(resp.read().decode("utf-8"))
+            return _loaded
 
     try:
         data = retry_call(once, what=f"高德文本搜索({query}@{city})")

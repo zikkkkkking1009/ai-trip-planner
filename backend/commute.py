@@ -92,7 +92,8 @@ class CommuteMatrix:
 
         def once() -> dict:
             with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                _loaded: dict = json.loads(resp.read().decode("utf-8"))
+                return _loaded
 
         # 网络抖动/限流会重试；业务性错误（status != 1）不重试，直接走降级
         data = retry_call(once, what=f"高德通勤({a.name}→{b.name})")
