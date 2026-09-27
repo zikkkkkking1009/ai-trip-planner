@@ -28,6 +28,16 @@ jobs:
       - name: Frontend static check (syntax + shadowing guard)
         run: python tools/check_frontend.py
 
+      # 对比度门禁（静态解析，零依赖）。为什么必须进 CI：
+      # 令牌一改就可能踩 WCAG 红线，而"看着还行"肉眼根本发现不了。
+      # 只在开发机跑的是 tools/contrast_runtime.js —— 它要 playwright + 真实浏览器，
+      # 进 CI 又慢又脆，留在本地做真渲染复核。
+      - name: Contrast gate (page-level tokens)
+        run: python tools/check_contrast.py
+
+      - name: Contrast gate (design spec, light + dark)
+        run: python docs/design/contrast-audit.py --check
+
       # 五维健壮性审计：超时 / 重试 / 状态 / 日志 / 成本（静态检查，不需要密钥）
       # 立这道门的原因：这几条底线靠人记记不住 —— 历史上出现过
       # 「缺常量导致接口 500」「漏传城市导致详情卡 404」「except: pass 吞掉异常」
@@ -38,6 +48,12 @@ jobs:
         run: |
           npm install jsdom --no-save --prefix tools
           NODE_PATH=tools/node_modules node tools/frontend_smoke.js
+
+      # 酒店选择器 + 长图 + 主题切换的运行时断言。
+      # 立这道门的原因（真实事故）：「点搜索」曾因把 click 事件当 page 传给后端
+      # 而 500 —— 静态检查和单元测试都发现不了，只有真跑一遍并断言 DOM 才抓得到。
+      - name: Hotel picker runtime smoke test (jsdom)
+        run: NODE_PATH=tools/node_modules node tools/hotel_smoke.js
 
       - name: Run unit tests
         working-directory: backend

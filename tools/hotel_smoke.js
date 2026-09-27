@@ -82,7 +82,11 @@ function leafletStub() {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
   const errors = [];
   const vc = new VirtualConsole();
-  const IGNORE = /Could not parse CSS stylesheet/;
+  // 白名单只放「jsdom 明确没实现、真浏览器正常」的能力缺失：
+  //  - CSS 解析不全（jsdom 的 cssom 不支持现代语法）
+  //  - 页面跳转（点 <a href> 必现 "Not implemented: navigation to another Document"）
+  // ⚠️ 不要往这里塞业务错误 —— 那条会连同类真 bug 一起被吃掉。
+  const IGNORE = /Could not parse CSS stylesheet|Not implemented: navigation to another Document/;
   const pushErr = s => { if (!IGNORE.test(s)) errors.push(s); };
   vc.on('jsdomError', e => pushErr('jsdomError: ' + (e.message || e)));
   vc.on('error', (...a) => pushErr('console.error: ' + a.join(' ')));
@@ -103,6 +107,17 @@ function leafletStub() {
       w.fetch = makeFetchStub(counter);
       w.WebSocket = FakeWS;
       w.L = leafletStub();
+      // jsdom 没实现 URL.createObjectURL（浏览器有）。不补的话长图导出会抛
+      // "is not a function"，被算成运行时错误 → 退出码 1 → CI 每次都红。
+      // 这是 jsdom 的能力缺口、不是产品 bug，所以在这里补齐，**而不是忽略错误**
+      // （忽略的话真出现别的运行时错误也会一起被吃掉）。
+      if (!w.URL.createObjectURL) {
+        w.URL.createObjectURL = () => 'blob:smoke-stub';
+        w.URL.revokeObjectURL = () => {};
+      }
+      // 同理：jsdom 不实现 window.open（「一键导航」用它开新标签页），
+      // 不打桩会抛 "Not implemented: navigation to another Document"。
+      w.open = () => null;
       w.alert = () => { w.__alerted = (w.__alerted || 0) + 1; };
       w.confirm = () => true;
     },
