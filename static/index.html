@@ -1945,9 +1945,22 @@ function renderEmpty() {
   </div>`;
 }
 
+// ---- 总览专属模块的显隐 ----
+// 天气注脚 / AI 总评 / 稳健性模拟只在总览（currentDay=0）出现；
+// 点进具体一天只看当天的内容（用户 2026-09-28 要求）。地图视图同理按天判定。
+function syncOverviewModules() {
+  const ov = currentDay === 0;
+  ['weatherBox', 'reviewBox'].forEach(id => {
+    const el = $(id); if (el) el.style.display = ov ? '' : 'none';
+  });
+  const rob = $('robustDetails');
+  if (rob) rob.style.display = (ov && plan) ? 'block' : 'none';
+}
+
 function renderItin() {
   const v = $('view'); v.innerHTML = ''; $('mapView').style.display='none'; v.style.display='block';
   if (!plan) { v.innerHTML = renderEmpty(); return; }
+  syncOverviewModules();
   if (plan.reply || (plan.changes && plan.changes.length)) {
     const c = document.createElement('div');
     c.className = 'changes';
@@ -3314,6 +3327,7 @@ function switchPage(which) {
 
 // ---- 地图 ----
 function renderMap() {
+  syncOverviewModules();
   $('view').style.display='none'; $('mapView').style.display='block';
   if (!map) {
     // 初始视野跟随当前城市。拿不到当前城市中心时退回**任意一个已知城市中心**，
