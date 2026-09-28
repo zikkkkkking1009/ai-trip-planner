@@ -2,7 +2,7 @@
 
 > 用途：**新会话读这一份就能无损接上下文**。
 > ✅ **2026-09-24 已同步**：**SSH 已配好**（`~/.ssh/id_ed25519`，remote 已切 `git@github.com:zikkkkkking1009/ai-trip-planner.git`），58 个提交已推上远程 `main`（`f79fa7f..5f86b91`）。以后 `git push` 免交互。
-> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 331**、接口 **20 → 26**、前端冒烟 **12 → 18+47**（详见二、六节）。
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 348**、接口 **20 → 26**、前端冒烟 **12 → 22+49**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -17,7 +17,7 @@ cd "D:\workby room\ai-trip-planner"
 # 启动服务（当前应有实例在跑，先探测再决定是否重启）
 cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-# 单元测试（331 个）
+# 单元测试（348 个）
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
 # 前端静态检查（共 10 项：语法 / 遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义变量 / 文档完整性 + 对比度达标 + 无容器级硬编码颜色）——在项目根目录跑
@@ -28,7 +28,7 @@ cd "D:\workby room\ai-trip-planner"
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" tools/check_contrast.py
 node tools/contrast_runtime.js static/index.html static/home.html --all
 
-# 前端运行时冒烟（jsdom，18 项断言；另有 hotel_smoke.js 47 项，见第六节）
+# 前端运行时冒烟（jsdom，22 项断言；另有 hotel_smoke.js 49 项，见第六节）
 cd "D:\workby room\ai-trip-planner" && node tools/frontend_smoke.js
 cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 ```
@@ -57,7 +57,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | 求解耗时 | 均值 **501ms**（CP-SAT 均值 4.18s） | 同上 |
 | 实体对齐 F1 | **100%**（20 条标注，转人工率 15%；改进前 90%/20%） | `python eval_aligner.py` |
 | 三方对照（朴素 / 求解器 / LLM 直排） | 求解器 100% 无冲突、0 预算违规；LLM 直排质量分 0.921 但违规 8 次 | `backend/eval_results.json` |
-| 单元测试 | **331 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
+| 单元测试 | **348 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **7 项**全绿；冒烟 **14/14**（行程渲染）+ **30/30**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态） | `tools/` |
 | 接口数 | **26 个**（13 GET / 11 POST / 1 DELETE / 1 WS；含新增 `/hotel/recommend` 与 `/meta`） | `backend/main.py` |
 
@@ -178,14 +178,14 @@ B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化�
 
 | 工具 | 作用 | 命令 |
 |------|------|------|
-| `pytest` | **331** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
+| `pytest` | **348** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查 **10 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / **对比度达标** / **无容器级硬编码颜色**）；设计稿 HTML 也一并检查配色 | `python tools/check_frontend.py` |
 | `tools/check_contrast.py` | **页面级对比度门禁**（读 static/ 里真实的 `:root` / 暗色块，按「角色 × 参照底」断言 WCAG） | `python tools/check_contrast.py` |
 | `tools/contrast_runtime.js` | **浏览器运行时对比度实测**（真渲染，非推算）；`--all` 跑明暗两套 | `node tools/contrast_runtime.js static/index.html static/home.html --all` |
 | `tools/check_backend_health.py` | **五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本，静态检查、不需要密钥，已接入 CI） | `python tools/check_backend_health.py` |
 | `tools/verify_multicity.py` | **多城市端到端验证**（7 组断言：城市列表 / 各城景点数与坐标落城 / 未知城市不回落 / 成都攻略全链路 / 西安回归 / 同名 POI 不串味）。**需先起服务并把 `BASE` 端口对齐** | `python tools/verify_multicity.py` |
 | `tools/build_demo_data.py` | 抓取多城市 demo 景点（高德真实坐标，禁止手写坐标）+ 打印城市中心表 | `python tools/build_demo_data.py` |
-| `tools/frontend_smoke.js` | jsdom 运行时冒烟（**18 项**：行程渲染 / 事件委托 / 详情卡 / 转义） | `node tools/frontend_smoke.js` |
+| `tools/frontend_smoke.js` | jsdom 运行时冒烟（**22 项**：行程渲染 / 事件委托 / 详情卡 / 转义） | `node tools/frontend_smoke.js` |
 | `tools/hotel_smoke.js` | jsdom 运行时冒烟（**30 项**：酒店弹层 推荐·筛选·分页·画廊·先选酒店 + 长图预览 + 地图视图 + 首屏空状态） | `node tools/hotel_smoke.js` |
 | `docs/design/contrast-audit.py` | **对比度门禁**（oklch→sRGB 换算 + WCAG 实测；浅/暗两套主题各 27 组断言） | `python docs/design/contrast-audit.py --check` |
 | `evaluation.py` | 三方对照实验（朴素 / 求解器 / LLM 直排） | `python evaluation.py --n 50 --seed 42 --with-llm` |
@@ -255,5 +255,23 @@ B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化�
   WS 增量消费（O(n²)→游标）、WS 断线兜底、CSS 笔误 ×5。
 - ⚠️ **接口变化**：`/extract` 现在收 `{"text","city"}` JSON body；`media_cache.put_media()` 已改名
   `update_media()` 且语义变为合并写。
-- 门禁：pytest **331** / 冒烟 **18+47** / 新增 `check_css_invalid_props`（前端静态现为 10 项阻塞 + 2 项警告）。
+- 门禁：pytest **348** / 冒烟 **22+49** / 新增 `check_css_invalid_props`（前端静态现为 10 项阻塞 + 2 项警告）。
 - Low 清单（10 项，量级小）与后续建议见报告第四节；**鉴权与多用户**是公开部署前的必做项（报告 §五.4）。
+
+## 附：2026-09-28 部署阶段一（访问令牌 + 限流）
+
+配套计划 `ai-trip 部署计划-花生壳免费档.md`（工作区根，ZCode 制定，定位：朋友娱乐 + 作品集）。
+**照做步骤见 `docs/deploy-runbook.md`**（含阶段二~四与三处对原计划的修正）。
+
+- 代码闸门：`verify_token` 罩住 18 个有副作用/花钱的接口；WS 走 `?token=`（失败先 accept 再
+  `close(4401)`）；`APP_TOKEN` 留空即无鉴权（本地开发不受影响），但启动告警 + `/meta` 回
+  `token_required=false`
+- 限流：30 次/分钟/IP，只计花钱路径；`RATE_LIMIT_PER_MIN` 可环境变量覆盖
+- **隧道两个坑**：① 花生壳客户端同机 ⇒ `client.host` 恒为 127.0.0.1，按它限流会把所有朋友算成
+  同一人；② XFF 取**最后一个**（标准反代是追加式，第一个是攻击者可伪造的）
+- 前端：包 `window.fetch` 只对**同源**注入（跨域绝不加）；导航栏令牌面板；401/429/4401 各有提示
+- 测试：`backend/tests/test_auth.py` 17 条，含「遍历真实路由表」的门禁型用例
+- 门禁：pytest **348** / 前端静态 10 项阻塞 + 2 警告 / 冒烟 **22+49** / ruff、mypy 0
+- 待用户操作：注册贝锐 + 实名认证 + 装客户端 + 加隧道（内网主机 `127.0.0.1`、端口 `8000`）
+- 注意：`--host` 用 **127.0.0.1**（原计划写 0.0.0.0，没必要且会暴露给局域网）；
+  docker-compose 的 `ports` 已收紧为 `127.0.0.1:8000:8000`
