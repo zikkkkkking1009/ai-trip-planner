@@ -963,9 +963,13 @@
     }
   };
   window.cycleTheme = function () {
-    var s = saved();
-    var next = s === 'dark' ? null : (s === 'light' ? 'dark' : 'light');   // 亮→暗→跟随系统
-    try { next ? localStorage.setItem(KEY, next) : localStorage.removeItem(KEY); } catch (e) {}
+    // 二态切换：按**当前生效主题**取反，永远一次到位。
+    // 旧的三态循环（亮→暗→跟随系统）在系统本身是深色偏好时，
+    // 「暗→跟随系统」看起来毫无变化，用户要点两下才切到亮（2026-09-28 报）。
+    // 初次打开仍未选择时依旧跟随系统（themeApply(null) 的首帧逻辑不变）。
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var next = dark ? 'light' : 'dark';
+    try { localStorage.setItem(KEY, next); } catch (e) {}
     window.themeApply(next);
   };
   window.themeApply(saved());                    // 首帧前落地，避免闪烁

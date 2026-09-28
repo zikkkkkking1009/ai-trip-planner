@@ -216,6 +216,16 @@
      地标漂浮、钟摆、笔迹微动。系统开了「减少动态效果」时全部关闭。 */
   .hero-card svg .flow{ animation: hero-flow 5.5s linear infinite; }
   @keyframes hero-flow{ to{ stroke-dashoffset:-60; } }
+  /* 彗星流光：一段亮色沿路径周期扫过（pathLength=100 归一化，dash 循环无缝） */
+  .hero-card svg .comet{
+    stroke-dasharray:12 88;
+    animation: hero-comet 4.5s linear infinite;
+  }
+  .hero-card svg .comet2{
+    stroke-dasharray:16 84;
+    animation: hero-comet 5.2s linear 1.2s infinite;
+  }
+  @keyframes hero-comet{ to{ stroke-dashoffset:-100; } }
   .hero-card svg .draw{
     stroke-dasharray:100;
     animation: hero-draw 1.8s cubic-bezier(.6,0,.3,1) .3s both, hero-breathe 5s ease-in-out 2.4s infinite;
@@ -227,15 +237,15 @@
     animation: hero-ping 2.6s ease-out infinite;
   }
   @keyframes hero-ping{
-    0%{ transform:scale(1); opacity:.65; } 70%,100%{ transform:scale(2); opacity:0; }
+    0%{ transform:scale(1); opacity:.7; } 70%,100%{ transform:scale(2.2); opacity:0; }
   }
   .hero-card svg .traveler{
     offset-path:path('M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112');
-    animation: hero-travel 6.5s ease-in-out infinite;
+    animation: hero-travel 7s cubic-bezier(.4,0,.6,1) infinite;
   }
   @keyframes hero-travel{
-    0%{ offset-distance:0%; opacity:0; } 10%{ opacity:1; }
-    85%{ opacity:1; } 100%{ offset-distance:100%; opacity:0; }
+    0%{ offset-distance:0%; opacity:0; } 8%{ opacity:1; }
+    92%{ opacity:1; } 100%{ offset-distance:100%; opacity:0; }
   }
   .hero-card svg .float-a, .hero-card svg .float-b, .hero-card svg .float-c{
     transform-box:fill-box; transform-origin:center;
@@ -243,7 +253,7 @@
   .hero-card svg .float-a{ animation: hero-float 5.5s ease-in-out infinite; }
   .hero-card svg .float-b{ animation: hero-float 6.5s ease-in-out .8s infinite; }
   .hero-card svg .float-c{ animation: hero-float 7.5s ease-in-out 1.6s infinite; }
-  @keyframes hero-float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-4px); } }
+  @keyframes hero-float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-6px); } }
   .hero-card svg .clock-hand{
     transform-box:fill-box; transform-origin:50% 100%;
     animation: hero-clock 20s linear infinite;
@@ -565,9 +575,10 @@
     }
   };
   window.cycleTheme = function () {
-    var s = saved();
-    var next = s === 'dark' ? null : (s === 'light' ? 'dark' : 'light');   // 亮→暗→跟随系统
-    try { next ? localStorage.setItem(KEY, next) : localStorage.removeItem(KEY); } catch (e) {}
+    // 二态切换：按**当前生效主题**取反，永远一次到位（与 index.html 同一套修正）。
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var next = dark ? 'light' : 'dark';
+    try { localStorage.setItem(KEY, next); } catch (e) {}
     window.themeApply(next);
   };
   window.themeApply(saved());                    // 首帧前落地，避免闪烁
@@ -639,9 +650,11 @@
             <path d="M28 96 h60 v-38 h76 v54 h58" stroke-width="1.6" opacity=".22"/>
             <path d="M28 214 h88 v-46 h72" stroke-width="1.6" opacity=".22"/>
             <path d="M40 330 h64 v-52 h92 v40 h52" stroke-width="1.6" opacity=".22"/>
-            <!-- 主路线：虚线行进中 -->
+            <!-- 主路线：虚线行进中 + 一段 accent 彗星扫过 -->
             <path id="heroRoute" class="flow" d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112"
                   stroke-dasharray="7 8" stroke-width="2.6"/>
+            <path class="comet" pathLength="100" d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112"
+                  stroke="var(--accent)" stroke-width="3.5"/>
             <!-- 地标线稿（轻漂浮） -->
             <g class="float-a">
               <path d="M212 300 v-34 h34 v34 M219 266 v-14 h20 v14"/>
@@ -682,13 +695,15 @@
               <path d="M248 344 l8 -8 M258 352 l8 -8"/>
             </g>
           </g>
-          <!-- 强调笔触：入场描边 + 缎带（accent 用量纪律不变） -->
+          <!-- 强调笔触：入场描边 + 缎带呼吸 + 缎带流光（accent 用量纪律不变） -->
           <path class="draw" pathLength="100" d="M30 250 C 70 232, 132 236, 168 262" fill="none"
                 stroke="var(--accent)" stroke-width="5" stroke-linecap="round" opacity=".55"/>
-          <!-- 旅行者：沿主路线巡游（CSS offset-path，reduced-motion 下隐藏） -->
+          <path class="comet2" pathLength="100" d="M30 250 C 70 232, 132 236, 168 262" fill="none"
+                stroke="var(--surface)" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- 旅行者：纸飞机沿主路线巡游（CSS offset-path，reduced-motion 下隐藏） -->
           <g class="traveler" fill="none">
-            <circle r="9" stroke="var(--accent)" stroke-width="1.5" opacity=".55"/>
-            <circle r="4.5" fill="var(--accent)" stroke="none"/>
+            <circle r="10" stroke="var(--accent)" stroke-width="1.5" opacity=".45"/>
+            <path d="M-7 -5 L8 0 L-7 5 L-4 0 Z" fill="var(--accent)" stroke="none"/>
           </g>
         </svg>
       </div>
