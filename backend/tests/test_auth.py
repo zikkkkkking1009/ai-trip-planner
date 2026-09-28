@@ -166,16 +166,30 @@ def test_rate_limit_does_not_count_cheap_paths(monkeypatch):
 
 # ---------------------------------------------------------------- 真实 IP
 
-def test_client_ip_prefers_xff_from_loopback(monkeypatch):
+def test_client_ip_takes_last_xff_from_loopback(monkeypatch):
     """⚠️ 隧道场景的关键点：花生壳的请求都来自本机，真实 IP 在 X-Forwarded-For。
 
     不取 XFF 的话，所有朋友会被算成同一个 IP，30 次/分钟 被全场共享。
+
+    **而取的是最后一个值**：标准反代是**追加**（`客户端自带的` + `, ` + `真实 peer`），
+    第一个元素恰恰是攻击者塞进来的。取第一个 = 用一个伪造头就换一个限流桶 → 限流白做。
     """
     class _Req:
         class client:
             host = "127.0.0.1"
-        headers = {"x-forwarded-for": "203.0.113.7, 10.0.0.1"}
-    assert main.client_ip(_Req) == "203.0.113.7"
+        # 前面两个是攻击者伪造的，最后一个是可信代理追加的真实来源
+        headers = {"x-forwarded-for": "1.2.3.4, 5.6.7.8, 203.0.113.7"}
+    assert main.client_ip(_Req) == "203.0.113.7", \
+        "取到了伪造的第一个值 —— 伪造 XFF 就能绕过限流"
+
+
+def test_client_ip_single_xff_still_works(monkeypatch):
+    """覆盖式写入（整条就是真实 IP）的实现也要正常。"""
+    class _Req:
+        class client:
+            host = "127.0.0.1"
+        headers = {"x-forwarded-for": "203.0.113.9"}
+    assert main.client_ip(_Req) == "203.0.113.9"
 
 
 def test_client_ip_ignores_spoofed_xff_from_lan(monkeypatch):

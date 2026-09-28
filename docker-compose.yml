@@ -3,7 +3,10 @@ services:
     build: .
     image: ai-trip-planner:latest
     ports:
-      - "8000:8000"
+      # 只绑回环：花生壳客户端与容器同机，连 127.0.0.1:8000 即可。
+      # 写成 "8000:8000" 会绑到 0.0.0.0 —— 同一局域网里任何人都能直连进来，
+      # 还能伪造 X-Forwarded-For 绕过按 IP 的限流。少一个暴露面。
+      - "127.0.0.1:8000:8000"
     env_file:
       - backend/.env           # 密钥不进镜像，运行时注入
     environment:

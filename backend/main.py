@@ -197,16 +197,23 @@ def client_ip(request: Request) -> str:
     `request.client.host` 恒为 127.0.0.1 —— 直接按它限流会把所有朋友算成同一个人
     （30 次/分钟 被全场共享）。真实 IP 在 `X-Forwarded-For` 里。
 
-    但 XFF 是**可伪造**的，不能无条件相信：只在"直连方是回环"（即请求来自本机隧道
-    客户端）时才采信 XFF。这样局域网里的机器即使伪造 XFF 也只会被按自己的真实 IP 限流。
+    但 XFF 是**可伪造**的，不能无条件相信，所以有两道防线：
+
+    1. 只在"直连方是回环"（即请求来自本机隧道客户端）时才采信 XFF。这样局域网里的
+       机器伪造 XFF 也没用，只会被按自己的真实 IP 限流。
+    2. **取最后一个值，不是第一个。** 标准反代（nginx 的 `$proxy_add_x_forwarded_for`
+       这类）是**追加**：`XFF = <客户端自带的> + ", " + <真实 peer>`。所以**第一个
+       元素恰恰是攻击者自己塞进来的**，取它会让人用一个伪造头就换一个限流桶、直接绕过限流；
+       最后一个才是可信代理追加的真实来源。若代理是整条覆盖式写入（不带追加），
+       最后一个同样等于真实 IP —— 两种实现下取"最后"都更安全。
     """
     peer = request.client.host if request.client else "-"
     if peer in ("127.0.0.1", "::1"):
         xff = request.headers.get("x-forwarded-for", "")
         if xff:
-            first = xff.split(",")[0].strip()
-            if first:
-                return first
+            last = xff.split(",")[-1].strip()
+            if last:
+                return last
     return peer
 
 
