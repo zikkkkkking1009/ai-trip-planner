@@ -71,12 +71,42 @@ class TaskManager:
     def __init__(self):
         self._tasks: dict[str, Task] = {}
         self.evicted = 0
+        # create_task 的返回值必须有人持有强引用（官方文档警告：不然协程可能在
+        # 执行中途被 GC）；顺便在这里挂 done 回调做「僵尸 running」兜底
+        self._bg: set[asyncio.Task] = set()
 
     def create(self) -> Task:
         self._evict()
         task = Task(id=uuid.uuid4().hex[:12])
         self._tasks[task.id] = task
         return task
+
+    def spawn(self, task_id: str, coro) -> None:
+        """托管一个后台协程：异常/被取消时把对应 Task 置为 failed。
+
+        为什么必须有这层：run_* 任务里 `status = "running"` 与 `try:` 之间的代码、
+        以及取消/GC 两条路，都会让任务**永远停在 running** —— WS 客户端空转
+        不退出、非终态任务也进不了淘汰流程，dict 只进不出。
+        """
+        atask = asyncio.create_task(coro)
+        self._bg.add(atask)
+
+        def _done(t: asyncio.Task) -> None:
+            self._bg.discard(t)
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc is None:
+                return
+            log.error("后台任务异常 task_id=%s: %s: %s",
+                      task_id, type(exc).__name__, exc)
+            mtask = self._tasks.get(task_id)
+            if mtask is not None and mtask.status not in ("completed", "failed"):
+                mtask.status = "failed"
+                mtask.error = f"{type(exc).__name__}: {exc}"
+                mtask.version += 1
+
+        atask.add_done_callback(_done)
 
     def _evict(self) -> None:
         now = time.time()
@@ -288,7 +318,10 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
                 day_anchors[d["day"]] = (
                     sum(p.lat for p in pts if p is not None) / len(pts),
                     sum(p.lon for p in pts if p is not None) / len(pts))
-        params = base.req_params
+        # 必须深拷贝：直接引用的话，下面写 params["hotel"]/["preference"] 会把
+        # 基准任务的入参一并改掉（快照里出现不属于它的酒店/偏好），
+        # 且两个任务共享同一 dict，同一 base 并发两次编辑会互相覆盖
+        params = copy.deepcopy(base.req_params)
 
         pin_ops = [o for o in ops if o.get("op") == "pin_add"]
         hotel_ops = [o for o in ops if o.get("op") == "hotel"]
@@ -421,6 +454,12 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
                                      [s.model_dump() for s in new_spots_acc]
                 task.status = "completed"
                 task.version += 1
+                # 轻量路径同样是完整的编辑结果：不写 chat_history 下一轮编辑丢记忆，
+                # 不落盘则 TTL 淘汰/重启后 /task/{id} 404（与全局路径 496-499 同口径）
+                task.chat_history = list(base.chat_history) + \
+                    [{"q": instruction, "ops": ops, "reply": reply}]
+                from main import save_plan_snapshot
+                save_plan_snapshot(task)
                 return
             # 降级：任一 pin 插不进时间窗 → 走全局重排（pin_add 视为普通 add）
 
@@ -431,7 +470,10 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
             return editor.apply_ops(base_spots, all_ops,
                                     poi_search_fn=search_provider,
                                     day_anchors=day_anchors, city=city)
-        new_spots, changes = await asyncio.to_thread(work_apply)
+        new_spots, applied_changes = await asyncio.to_thread(work_apply)
+        # 追加而不是整体覆盖：apply_ops 的变更说明要接到前面 hotel 操作累计的
+        # changes 后面 —— 旧写法重新赋值，带 hotel 的编辑会丢「住宿设为X」那条
+        changes += applied_changes
         # 重複去重：LLM 重复输出同一操作会导致同名景点被加多次
         seen_names, uniq = set(), []
         for s in new_spots:
@@ -443,7 +485,9 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
             MANAGER.say(task, "执行", c)
 
         # 阶段 3：重排求解 + 校验（复用排期流水线）
-        params = base.req_params
+        # params 沿用上面 deepcopy 出的副本，**不要**在这里重新 `= base.req_params`：
+        # 旧写法靠共享引用才把 308-331 写入的 hotel 传过来，副作用是基准任务的
+        # 入参被改掉（见 291 行注释）。副本从 291 行一路用下来，hotel/preference 都在。
         # 偏好切换（A2）：写回请求参数——后续重排、换酒店、历史回看都沿用同一偏好
         pref_ops = [o for o in ops if o.get("op") == "pref"]
         if pref_ops:
@@ -529,11 +573,19 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
         MANAGER.say(task, "通勤矩阵",
                     f"计算酒店与 {len(base_spots)} 个景点的通勤（{pairs} 对，"
                     f"首次走真实高德调用，约 {pairs * 0.35:.0f} 秒）…")
-        for i, sp in enumerate(base_spots, 1):
-            cm.minutes(hotel_obj, sp)
-            cm.minutes(sp, hotel_obj)
-            if i % 3 == 0 or i == len(base_spots):
-                MANAGER.say(task, "通勤矩阵", f"酒店通勤已算 {i}/{len(base_spots)} 个景点")
+
+        def preheat() -> None:
+            # say() 从工作线程调用是既有约定（run_plan_task 的求解回调同样如此）
+            for i, sp in enumerate(base_spots, 1):
+                cm.minutes(hotel_obj, sp)
+                cm.minutes(sp, hotel_obj)
+                if i % 3 == 0 or i == len(base_spots):
+                    MANAGER.say(task, "通勤矩阵",
+                                f"酒店通勤已算 {i}/{len(base_spots)} 个景点")
+
+        # 预热里有 0.35s 限频 sleep + 真实 HTTP + 重试，绝不能在事件循环里直接跑——
+        # 否则整个服务的请求与 WS 在此期间全部冻结（与下面求解一致放进线程）
+        await asyncio.to_thread(preheat)
         new_req = PlanRequest(city=params.get("city", DEFAULT_CITY),
                               days=params.get("days", 2),
                               budget=params.get("budget"),
@@ -581,22 +633,9 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
 
 _prefetching: set[str] = set()
 
-# 「读-改-写」串行化所需的锁与共享字典**必须是模块级**。
-# ⚠️ 2026-09-23 修：原先 `write_lock = asyncio.Lock()` 写在函数体内，而 run_plan_task
-# 会**并发调用本函数两次**（规划开始时、规划完成后），两次调用各持各的锁、
-# 各自 load_media() 一份字典 ⇒ 后写的整份覆盖先写的，静默丢条目。
-# 只把锁提到模块级也还不够——字典也必须共享，否则仍是「各写各的快照」。
-_media_write_lock = asyncio.Lock()
-_media_shared: dict | None = None
-
-
-def _shared_media() -> dict:
-    """进程内共享的一份媒体缓存（懒加载），保证并发写入的是同一个字典。"""
-    global _media_shared
-    if _media_shared is None:
-        from media_cache import load_media
-        _media_shared = load_media()
-    return _media_shared
+# 「读-改-写」的串行化（锁 + 共享字典 + 合并写）已下沉到 media_cache.update_media /
+# media_cache.shared_media——2026-09-28 修：原先锁和共享字典只在本模块，main.py 的
+# /poi/detail、/poi/reviews 各自 load→改→save，不持这把锁，与预取互相整份覆盖丢更新。
 
 
 async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
@@ -606,10 +645,10 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
     **city 必须传**：缓存 key 是「城市|景点名」，抓取也依赖正确城市（高德搜索带 citylimit）。
     """
     import editor
-    from media_cache import (get_entry, media_key, save_media,
-                             suspected_wrong_city)
+    import media_cache
+    from media_cache import get_entry, media_key, suspected_wrong_city
 
-    media = _shared_media()
+    media = media_cache.shared_media()
     # 多个协程并发写同一份 JSON：原子写只保证不写坏文件，不保证不丢更新，
     # 所以「读-改-写」这段要串行化（锁与字典均为模块级，见上方注释）
     sem = asyncio.Semaphore(3)   # 并发 3 路：12 个景点预热从 ~45s 缩到 ~15s
@@ -637,9 +676,9 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
                 log.warning("媒体预取：高德返回的是「%s」的数据，与请求城市 %s 不符，"
                             "不写入缓存 name=%s", wrong, city, name)
                 return
-            async with _media_write_lock:
-                media[ck] = entry
-                save_media(media)
+            # update_media 内部带锁串行化 + 合并写（不丢其它写方的字段）；
+            # 磁盘 IO 放线程，别堵事件循环
+            await asyncio.to_thread(media_cache.update_media, city, name, entry)
         except Exception as e:
             # 预取是后台优化，失败不影响主流程（用户点开详情时再按需拉取）
             log.debug("媒体预取失败 name=%s city=%s: %s: %s",

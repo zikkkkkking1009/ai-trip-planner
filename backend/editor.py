@@ -127,6 +127,13 @@ def parse_instruction(instruction: str, plan_summary: str,
                     type(e).__name__, e, raw[:120])
         parsed = {"ops": [], "reply": "没听懂，换个说法试试"}
     parsed["_raw"] = raw[:300]
+    if not isinstance(parsed.get("ops"), list) \
+            or not all(isinstance(o, dict) for o in parsed["ops"]):
+        # 模型偶尔把 ops 给成字符串/单个对象 —— 下游逐元素 .get 会 AttributeError，
+        # 编辑任务只会 failed 得毫无解释。这里按「没听懂」降级并留痕
+        log.warning("意图解析 ops 字段类型异常（%s），按无操作处理 | raw=%r",
+                    type(parsed.get("ops")).__name__, raw[:120])
+        parsed = {"ops": [], "reply": "没听懂，换个说法试试", "_raw": parsed["_raw"]}
     return parsed
 
 
@@ -223,6 +230,11 @@ def poi_search(query: str, lat: float, lon: float,
         log.warning("周边搜索失败 query=%s: %s: %s", query, type(e).__name__, e)
         return []
     if data.get("status") != "1":
+        # status=0 是高德的**业务失败**（Key 无效 / 配额耗尽 / 参数错），不是网络异常，
+        # 不会走上面的 except —— info/infocode 里有人话原因，不记下来线上只能看到
+        # 「没搜到」，无从定位（历史教训：CUQPS 限流被当成「该城市没有酒店」）
+        log.warning("高德周边搜索业务失败 query=%s info=%s infocode=%s",
+                    query, data.get("info"), data.get("infocode"))
         return []
     out = []
     for p in data.get("pois", []):
@@ -268,6 +280,9 @@ def text_search(query: str, city: str = DEFAULT_CITY,
                     query, city, type(e).__name__, e)
         return []
     if data.get("status") != "1":
+        # 同 poi_search：业务失败不是网络异常，必须留痕（info=人话原因，infocode=错误码）
+        log.warning("高德文本搜索业务失败 query=%s city=%s info=%s infocode=%s",
+                    query, city, data.get("info"), data.get("infocode"))
         return []
     out = []
     for p in data.get("pois", []):

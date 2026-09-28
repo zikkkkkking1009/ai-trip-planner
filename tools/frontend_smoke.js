@@ -86,16 +86,18 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   // 因此用 beforeParse 钩子；事后赋 window.fetch 已太晚，页面首屏 fetch 会直接报错。
   class FakeWS {
     constructor() {
+      const full = [
+        { stage: '构造', msg: '冒烟：已完成' },
+        // 2026-09-23 加：后端会把 LLM 原始输出写进「调试」阶段推给前端，
+        // 所以进度日志的 stage/msg 必须当不可信输入处理。这里塞一个注入载荷验证转义。
+        { stage: '调试', msg: '模型原始输出: <img id="xss-probe" src=x onerror="window.__pwned=1">' },
+      ];
+      // 后端 snapshot() 每帧都推**全量** progress[]：分两帧、第二帧重复同一份数组，
+      // 前端必须只消费增量 —— 否则日志整段重放（一次规划 O(n²) 条重复日志）
       setTimeout(() => this.onmessage && this.onmessage({ data: JSON.stringify({
-        status: 'completed',
-        progress: [
-          { stage: '构造', msg: '冒烟：已完成' },
-          // 2026-09-23 加：后端会把 LLM 原始输出写进「调试」阶段推给前端，
-          // 所以进度日志的 stage/msg 必须当不可信输入处理。这里塞一个注入载荷验证转义。
-          { stage: '调试', msg: '模型原始输出: <img id="xss-probe" src=x onerror="window.__pwned=1">' },
-        ],
-        result: fakePlan(),
-      }) }), 20);
+        status: 'running', progress: full }) }), 10);
+      setTimeout(() => this.onmessage && this.onmessage({ data: JSON.stringify({
+        status: 'completed', progress: full, result: fakePlan() }) }), 30);
     }
     close() {} send() {}
   }
@@ -154,10 +156,38 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   check('详情卡：导航为 data-act 而非内联 onclick',
         !!d.querySelector('#spotRows [data-act="nav"]'));
 
+  // 3b) 灯箱：点缩略图放大，首帧与计数都要渲染。
+  //     回归：lbUrls 曾从未被赋值（数据写进了没人读的 window.__spotPhotos），
+  //     paint() 打开时也没调 —— 打开即空图、计数 "1 / 0"。
+  const thumb = d.querySelector('#spotPhotos img');
+  if (thumb) {
+    thumb.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    await sleep(5);
+    const lb = d.getElementById('lightbox');
+    check('灯箱：点击缩略图打开', !!lb);
+    const lbSrc = lb?.querySelector('#lbImg')?.getAttribute('src');
+    const lbCount = lb?.querySelector('#lbCount')?.textContent || '';
+    check('灯箱：首帧已渲染且计数正确',
+          lbSrc === 'http://img/1.jpg' && lbCount === '1 / 2',
+          `src=${lbSrc} count=${lbCount}`);
+    lb?.remove();
+  } else {
+    check('灯箱：点击缩略图打开', false, '无缩略图可点');
+    check('灯箱：首帧已渲染且计数正确', false, '无缩略图可点');
+  }
+
   // 4) 转义：带引号与尖括号的景点名不得被当作标签解析
   const nameEl = d.querySelector('#spotModal [data-act]') || d.querySelector('#spotModal b');
   const injected = d.querySelectorAll('#spotModal 标签').length;
   check('转义：外部名字中的尖括号未被解析为标签', injected === 0);
+
+  // 4b) ASCII 标签载荷：HTML 解析器只把 <字母…> 当标签，上面的中文探针抓不住
+  //     <img src=x onerror=…> 这类载荷 —— 标题曾漏 esc()，正是这类载荷可注入
+  window.openSpotDetail('x"><img src=x onerror=1>');
+  await sleep(5);
+  check('转义：ASCII 标签载荷未在标题里成为元素',
+        d.querySelectorAll('#spotModal img[src="x"]').length === 0);
+  d.querySelectorAll('#spotModal').forEach(m => m.remove());
 
   // 5) 进度日志转义：后端推来的 stage/msg（含 LLM 原始输出）不得被解析成 DOM
   //    2026-09-23 修：log() 曾把 stage/msg 直接插进 innerHTML。
@@ -167,6 +197,10 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         && d.querySelectorAll('#log img').length === 0);
   check('转义：进度日志把载荷当纯文本保留',
         (logEl?.textContent || '').includes('xss-probe'));
+
+  // 5b) 全量 progress 不得重放：FakeWS 连推两帧同一份数组，去重后每条日志只出现一次
+  const doneCount = ((logEl?.textContent || '').match(/冒烟：已完成/g) || []).length;
+  check('进度日志：全量 progress 重放被去重', doneCount === 1, `出现 ${doneCount} 次`);
 
   if (errors.length) {
     console.log('\n运行时错误：');

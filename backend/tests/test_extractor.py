@@ -49,3 +49,27 @@ def test_tolerant_json_recovers_when_outer_braces_only():
 def test_tolerant_json_no_json_raises_value_error():
     with pytest.raises(ValueError):
         _tolerant_json_parse("hi 没有任何 JSON")
+
+def test_tolerant_json_bare_array_raises():
+    """裸数组（无外层对象）无法修复成合法 JSON，抛 ValueError 走既定降级。
+
+    单元素数组会被花括号截取"救"成 dict 但形状不对，由 extract_guide 的
+    spots 字段校验按空处理 —— 两层防线都有测试。
+    """
+    with pytest.raises(ValueError):
+        _tolerant_json_parse('[{"name": "A"}, {"name": "B"}]')
+
+
+def test_num_field_tolerates_null_and_garbage():
+    """LLM 数值字段给 null / 文本时取默认值。
+
+    回归：float(None) 抛 TypeError，不在 /extract 的捕获列表里 → 500；
+    一个字段坏掉不该报废整份攻略。
+    """
+    from extractor import _num
+    assert _num(None, 7.0) == 7.0
+    assert _num("9.5", 7.0) == 9.5
+    assert _num(4, 7.0) == 4.0
+    assert _num(" 120 ", 0) == 120.0
+    assert _num("贵", 7.0) == 7.0
+    assert _num(True, 7.0) == 7.0, "布尔不是合法评分"

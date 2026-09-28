@@ -14,12 +14,16 @@
 所以写入前要用载荷坐标反查一次"它到底属于哪个城市"。
 
 并发安全：写入走「临时文件 + os.replace」原子替换，避免多个请求同时写坏 JSON。
+但原子写**只保证不写坏，不保证不丢更新**——两个写方各持一份 load_media() 快照
+时，后写的整份覆盖先写的。所以「读-改-写」必须串行化：所有写方统一走
+`update_media()`（模块级线程锁 + 进程内共享字典 + 按键合并）。
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
+import threading
 from pathlib import Path
 
 from cities import CITY_CENTERS, normalize_city
@@ -28,6 +32,12 @@ from solver import haversine_km
 log = logging.getLogger(__name__)
 
 MEDIA_FILE = Path(__file__).parent / "spot_media.json"
+
+# RLock：update_media 持锁期间还要调 shared_media()（同样加锁），可重入才不死锁。
+# 用线程锁而不是 asyncio.Lock：写方既有线程池里的同步 endpoint，也有 to_thread
+# 里的预取协程，asyncio.Lock 只罩得住后者。
+_io_lock = threading.RLock()
+_shared: dict | None = None
 
 # ---- 城市一致性判据（见 suspected_wrong_city 的说明，为什么必须用"相对距离"）----
 _MISMATCH_NEAR_KM = 60.0    # 载荷离某个**别的**城市中心多近，才算"明显属于它"
@@ -108,7 +118,25 @@ def get_media(city: str | None, name: str) -> dict | None:
     return get_entry(load_media(), city, name)
 
 
-def put_media(city: str | None, name: str, entry: dict) -> None:
-    media = load_media()
-    media[media_key(city, name)] = entry
-    save_media(media)
+def shared_media() -> dict:
+    """进程内共享的一份媒体缓存（懒加载）：所有写方写的是同一个字典。"""
+    global _shared
+    with _io_lock:
+        if _shared is None:
+            _shared = load_media()
+        return _shared
+
+
+def update_media(city: str | None, name: str, entry: dict) -> None:
+    """把一个条目合并进共享缓存并落盘（线程安全，所有写方的唯一入口）。
+
+    合并语义：entry 的键优先，已有条目里 entry 没有的键保留 ——
+    典型场景：详情接口刚写的评价不该被预取线程的整份覆盖抹掉
+    （2026-09-28 修：main.py 两个 endpoint 曾各自 load→改→save，
+    与 tasks.prefetch_media 的锁+共享字典并存，互相丢更新）。
+    """
+    with _io_lock:
+        media = shared_media()
+        existing = media.get(media_key(city, name))
+        media[media_key(city, name)] = {**(existing or {}), **entry}
+        save_media(media)

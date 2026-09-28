@@ -10,15 +10,20 @@ import json
 import pytest
 
 import media_cache
-from media_cache import (get_entry, load_media, media_key, put_media,
-                         save_media, suspected_wrong_city)
+from media_cache import (get_entry, load_media, media_key, save_media,
+                         suspected_wrong_city, update_media)
 
 
 @pytest.fixture
 def media_file(tmp_path, monkeypatch):
-    """把缓存文件指到临时目录，隔离真实数据。"""
+    """把缓存文件指到临时目录，隔离真实数据。
+
+    `_shared` 必须一并重置：写入统一走模块级共享字典（update_media），
+    不重置的话前一个测试留下的共享字典会串进下一个测试。
+    """
     f = tmp_path / "spot_media.json"
     monkeypatch.setattr(media_cache, "MEDIA_FILE", f)
+    monkeypatch.setattr(media_cache, "_shared", None)
     return f
 
 
@@ -39,7 +44,7 @@ def test_load_corrupted_file_returns_empty_not_raise(media_file):
 
 
 def test_put_then_get_roundtrip(media_file):
-    put_media("成都", "人民公园", {"image": "cd.jpg", "address": "成都某路"})
+    update_media("成都", "人民公园", {"image": "cd.jpg", "address": "成都某路"})
     assert get_entry(load_media(), "成都", "人民公园")["image"] == "cd.jpg"
     # 落盘的 key 必须带城市
     raw = json.loads(media_file.read_text(encoding="utf-8"))
@@ -48,8 +53,8 @@ def test_put_then_get_roundtrip(media_file):
 
 def test_same_name_different_city_not_confused(media_file):
     """核心断言：同名景点在不同城市取到各自的数据。"""
-    put_media("成都", "人民公园", {"image": "cd.jpg", "address": "成都少城路"})
-    put_media("上海", "人民公园", {"image": "sh.jpg", "address": "上海南京西路"})
+    update_media("成都", "人民公园", {"image": "cd.jpg", "address": "成都少城路"})
+    update_media("上海", "人民公园", {"image": "sh.jpg", "address": "上海南京西路"})
     media = load_media()
     assert get_entry(media, "成都", "人民公园")["image"] == "cd.jpg"
     assert get_entry(media, "上海", "人民公园")["image"] == "sh.jpg"
@@ -83,6 +88,43 @@ def test_save_failure_does_not_raise(monkeypatch, tmp_path):
     """写失败（磁盘满/权限）不能中断主流程。"""
     monkeypatch.setattr(media_cache, "MEDIA_FILE", tmp_path / "nonexistent_dir" / "x.json")
     save_media({"a": 1})   # 目录不存在 → OSError，应被吞掉并记日志
+
+
+def test_update_media_merges_instead_of_clobbering(media_file):
+    """合并写：新条目没有的字段不能被抹掉。
+
+    回归：main.py 的 /poi/reviews 曾整份覆盖 —— 预取线程刚写的图片/介绍
+    会被只有 reviews 字段的写方抹掉（丢更新）。
+    """
+    update_media("成都", "人民公园", {"image": "cd.jpg", "address": "成都少城路"})
+    update_media("成都", "人民公园", {"reviews": {"good": ["值得一去"]}})
+    entry = get_entry(load_media(), "成都", "人民公园")
+    assert entry["image"] == "cd.jpg" and entry["address"] == "成都少城路"
+    assert entry["reviews"]["good"] == ["值得一去"]
+
+
+def test_update_media_reuses_shared_dict(media_file):
+    """所有写方必须写同一个共享字典——各持一份快照就退化成「后写覆盖先写」。"""
+    update_media("成都", "人民公园", {"image": "cd.jpg"})
+    assert media_cache.shared_media() is media_cache.shared_media()
+    assert media_cache.shared_media()["成都|人民公园"]["image"] == "cd.jpg"
+
+
+def test_update_media_survives_concurrent_writers(media_file):
+    """多线程并发写：合并 + 互斥下 8 个条目全部落盘，谁也不能丢谁。"""
+    import threading
+
+    def write(i):
+        update_media("西安", f"景点{i}", {"image": f"{i}.jpg"})
+
+    threads = [threading.Thread(target=write, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    loaded = load_media()
+    missing = [i for i in range(8) if f"西安|景点{i}" not in loaded]
+    assert not missing, f"并发写丢了条目：{missing}"
 
 
 def test_suspected_wrong_city_catches_real_case():

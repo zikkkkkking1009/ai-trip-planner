@@ -42,6 +42,7 @@ def _tolerant_json_parse(text: str) -> dict:
     """LLM JSON 输出的容错解析（参考 TripStar 的做法）。
 
     顺序：剥 markdown 围栏 → 提取最外层花括号 → 修尾逗号 → 最后才报错。
+    失败一律抛 ValueError（JSONDecodeError 是其子类），由调用方各自降级。
     """
     text = re.sub(r"```(json)?|```", "", text).strip()
     start, end = text.find("{"), text.rfind("}")
@@ -55,6 +56,18 @@ def _tolerant_json_parse(text: str) -> dict:
         cleaned = re.sub(r",\s*([}\]])", r"\1", raw)  # 去尾逗号
         _loaded = json.loads(cleaned)
         return _loaded
+
+
+def _num(v: object, default: float) -> float:
+    """LLM 数值字段容错：null / 非数字不该让整份攻略报废（缺了用默认值）。"""
+    if v is None or isinstance(v, bool):
+        return default
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(str(v).strip())
+    except ValueError:
+        return default
 
 
 def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:
@@ -100,20 +113,33 @@ def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:
         log.warning("抽取未能识别城市（city_hint=%r），兜底坐标取 %s；上层应提示用户选择城市",
                     city_hint, DEFAULT_CITY)
 
+    raw_spots = data.get("spots", [])
+    if not isinstance(raw_spots, list):
+        # spots 给成字符串/对象时逐字符迭代毫无意义，按空处理走「没有抽到」降级
+        log.warning("攻略抽取：spots 字段不是数组（%s），按空处理",
+                    type(raw_spots).__name__)
+        raw_spots = []
     spots: list[Spot] = []
-    for i, s in enumerate(data.get("spots", [])):
+    for i, s in enumerate(raw_spots):
+        if not isinstance(s, dict) or not s.get("name"):
+            # 单条坏数据跳过并留痕，不该让一个字段报废整份攻略
+            log.warning("攻略抽取：第 %d 条景点格式异常，已跳过: %r", i + 1, s)
+            continue
+        ticket = _num(s.get("ticket"), 0)
         spots.append(Spot(
-            source_id=i + 1,
+            source_id=len(spots) + 1,
             name=str(s["name"]),
-            lat=float(s.get("lat", center[0])),   # 占位：由 aligner 对齐后替换为真实 POI 坐标
-            lon=float(s.get("lon", center[1])),
-            stay_min=int(s.get("stay_min", 90)),
-            score=float(s.get("rating", 7.0)),
-            ticket=float(s.get("ticket", 0)),
+            lat=_num(s.get("lat"), center[0]),   # 占位：由 aligner 对齐后替换为真实 POI 坐标
+            lon=_num(s.get("lon"), center[1]),
+            # stay_min 卡进 Spot 的边界（ge=30, le=480）：LLM 给 10 分钟不该让
+            # 整份攻略 422，收到边界值即可
+            stay_min=int(min(480, max(30, _num(s.get("stay_min"), 90)))),
+            score=_num(s.get("rating"), 7.0),
+            ticket=ticket,
             # 攻略里没写票价时 LLM 一律填 0，这跟"该景点免费"是两回事。
             # 所以 0 先记成**未知**，后面由 demo_data / 对齐结果回填；
             # 回填不到就保持未知 —— 前端据此显示"票价待查"而不是谎称 ¥0。
-            ticket_known=float(s.get("ticket", 0) or 0) > 0,
+            ticket_known=ticket > 0,
             desc=str(s.get("note", "")),
         ))
     if not spots:

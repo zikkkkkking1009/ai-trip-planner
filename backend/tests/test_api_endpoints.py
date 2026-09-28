@@ -116,7 +116,7 @@ def test_poi_detail_rejects_wrong_city_without_caching(monkeypatch):
     monkeypatch.setattr(main, "suspected_wrong_city", lambda city, m: "成都")
 
     called = []
-    monkeypatch.setattr(main, "save_media", lambda media: called.append(1))
+    monkeypatch.setattr(main, "update_media", lambda city, name, m: called.append(1))
 
     r = client.get("/poi/detail", params={"name": "某博物院", "city": "西安"})
     assert r.status_code == 404, "城市不符必须拒绝"
@@ -129,6 +129,17 @@ def test_favorites_empty_by_default(isolated):
     r = client.get("/favorites")
     assert r.status_code == 200
     assert r.json()["favorites"] == []
+
+
+def test_favorites_corrupt_file_returns_empty(isolated):
+    """收藏文件损坏时按空处理并留痕，不得 500（否则「我的」页整体不可用）。"""
+    _, fav = isolated
+    fav.write_text("{ 这不是合法 JSON", encoding="utf-8")
+    r = client.get("/favorites")
+    assert r.status_code == 200
+    assert r.json()["favorites"] == []
+    # 损坏文件保留到下一次写操作才被重建 —— 先 GET 不该偷偷清掉用户数据
+    assert fav.read_text(encoding="utf-8").startswith("{")
 
 
 def test_favorites_add_then_remove_roundtrip(isolated):
@@ -177,15 +188,19 @@ def test_list_plans_hides_soft_deleted(isolated):
 
 
 def test_delete_plan_soft_delete_keeps_file(isolated):
-    """删除是**软删除**：文件还在（可恢复），只是被标记。"""
+    """删除是**软删除**：文件还在（可恢复），只是被标记。
+
+    id 必须用合法格式（uuid4.hex[:12]）：task_id 现在有格式校验（防路径穿越），
+    非法格式的测试 id 会被 404 挡在门外，测不到软删除本身。
+    """
     plans, _ = isolated
-    _write_plan(plans, "t1")
-    r = client.delete("/plans/t1")
-    assert r.status_code == 200 and r.json() == {"deleted": "t1"}
-    assert (plans / "t1.json").exists(), "软删除不该物理删文件"
-    assert json.loads((plans / "t1.json").read_text(encoding="utf-8"))["deleted"] is True
+    _write_plan(plans, "aaaaaaaaaaaa")
+    r = client.delete("/plans/aaaaaaaaaaaa")
+    assert r.status_code == 200 and r.json() == {"deleted": "aaaaaaaaaaaa"}
+    assert (plans / "aaaaaaaaaaaa.json").exists(), "软删除不该物理删文件"
+    assert json.loads((plans / "aaaaaaaaaaaa.json").read_text(encoding="utf-8"))["deleted"] is True
     # 再删一次同一个 id：文件还在，但列表里已看不到 → 幂等，不报错
-    assert client.delete("/plans/t1").status_code == 200
+    assert client.delete("/plans/aaaaaaaaaaaa").status_code == 200
 
 
 def test_delete_plan_missing_returns_404(isolated):
@@ -194,18 +209,45 @@ def test_delete_plan_missing_returns_404(isolated):
 
 def test_delete_plans_batch(isolated):
     plans, _ = isolated
-    _write_plan(plans, "a")
-    _write_plan(plans, "b")
-    r = client.post("/plans/delete", json={"task_ids": ["a", "b", "missing"]})
+    _write_plan(plans, "aaaaaaaaaaaa")
+    _write_plan(plans, "bbbbbbbbbbbb")
+    # cccccccccccc 格式合法但不存在 —— 测的是「存在性」，不是格式校验（另有穿越测试）
+    r = client.post("/plans/delete", json={"task_ids": ["aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"]})
     assert r.status_code == 200
     d = r.json()
-    assert d["deleted"] == ["a", "b"], "不存在的 id 不该混进成功列表"
+    assert d["deleted"] == ["aaaaaaaaaaaa", "bbbbbbbbbbbb"], "不存在的 id 不该混进成功列表"
     assert d["count"] == 2
 
 
 def test_delete_plans_batch_requires_ids(isolated):
     """空 task_ids → 400。否则"全选但一个没勾"会被当成清空所有。"""
     assert client.post("/plans/delete", json={"task_ids": []}).status_code == 400
+
+
+# ---------------------------------------------------------------- /extract 输入约束
+
+def test_extract_rejects_empty_and_oversized_text():
+    """空文本 → 400；超长 → 413。两者都必须在碰 LLM 之前挡下。
+
+    断言不触发 503：说明长度校验先于 Key 检查——CI 无 Key 也能跑，
+    无鉴权接口的防滥用上限也不依赖「有没有配 Key」。
+    """
+    r = client.post("/extract", json={"text": "   "})
+    assert r.status_code == 400
+    r = client.post("/extract", json={"text": "x" * (main.EXTRACT_MAX_CHARS + 1)})
+    assert r.status_code == 413
+    assert str(main.EXTRACT_MAX_CHARS) in r.json()["detail"]
+
+
+def test_plan_edit_rejects_oversized_instruction():
+    """/plan/edit 同样要有输入上限（无鉴权接口防 token 滥用）。
+
+    超长 → 400，先于 Key 检查与任务存在性检查（CI 无 Key 照样能测）。
+    """
+    r = client.post("/plan/edit", json={
+        "task_id": "aaaaaaaaaaaa",
+        "instruction": "x" * (main.EDIT_INSTRUCTION_MAX_CHARS + 1)})
+    assert r.status_code == 400
 
 
 # ---------------------------------------------------------------- /task
@@ -216,16 +258,56 @@ def test_get_task_disk_fallback(isolated):
     为什么必须这样：服务重启后前端还在轮询旧 task_id，兜底不住就一片 404。
     """
     plans, _ = isolated
-    _write_plan(plans, "t9", result={"days": [{"day": 1, "items": []}]})
-    r = client.get("/task/t9")
+    _write_plan(plans, "aaaaaaaaaaa9", result={"days": [{"day": 1, "items": []}]})
+    r = client.get("/task/aaaaaaaaaaa9")
     assert r.status_code == 200
     d = r.json()
-    assert d["task_id"] == "t9" and d["status"] == "completed"
+    assert d["task_id"] == "aaaaaaaaaaa9" and d["status"] == "completed"
     assert d["result"]["days"], "兜底要把 result 带回去"
 
 
 def test_get_task_unknown_returns_404(isolated):
     assert client.get("/task/nope").status_code == 404
+
+
+def test_task_id_rejects_traversal(isolated):
+    """task_id 来自无鉴权入参且直接拼路径，必须校验格式，否则能穿越出 PLANS_DIR。
+
+    历史 bug：`POST /plans/delete` 传 `../x` 可对 PLANS_DIR 之外的任意 .json
+    写 deleted 标记；`GET /task/{id}` 可读其 result 字段（Windows 下路径参数
+    里的 %5C 反斜杠同样能穿越）。task_id 实际由 uuid4.hex[:12] 生成，
+    收紧成 12 位 hex 零成本。
+    """
+    plans, _ = isolated
+    outside = plans.parent / "outside.json"
+    outside.write_text(json.dumps({"secret": 1}, ensure_ascii=False), encoding="utf-8")
+
+    # 批量删除：穿越 id 不得碰到 PLANS_DIR 之外的文件（正斜杠 / 反斜杠两种写法）
+    r = client.post("/plans/delete", json={"task_ids": ["../outside"]})
+    assert r.status_code == 200 and r.json()["deleted"] == []
+    r = client.post("/plans/delete", json={"task_ids": ["..\\..\\outside"]})
+    assert r.json()["deleted"] == []
+    assert json.loads(outside.read_text(encoding="utf-8")) == {"secret": 1}, \
+        "穿越 id 改写了 PLANS_DIR 之外的文件"
+
+    # 单删 / 轮询同样拒绝非法格式（%5C 反斜杠在 Windows 路径里是分隔符）
+    assert client.delete("/plans/..%5C..%5Coutside").status_code == 404
+    assert client.get("/task/..%5C..%5Coutside").status_code == 404
+    assert json.loads(outside.read_text(encoding="utf-8")) == {"secret": 1}
+
+
+def test_list_plans_surfaces_cost_known(isolated):
+    """历史列表必须透出 cost_known：票价未知的行程不能被渲染成精确总价。
+
+    契约回归：快照 result 里有 cost_known，但列表接口此前漏传，
+    前端 p.cost_known 恒 undefined → moneyTxt 把「票价待查」显示成 ¥N。
+    """
+    plans, _ = isolated
+    _write_plan(plans, "aaaaaaaaaaaa", result={"days": [], "cost_known": False})
+    r = client.get("/plans")
+    assert r.status_code == 200
+    row = next(p for p in r.json()["plans"] if p["task_id"] == "aaaaaaaaaaaa")
+    assert row["cost_known"] is False
 
 
 # ---------------------------------------------------------------- /plan/* 子接口

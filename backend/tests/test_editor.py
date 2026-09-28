@@ -118,3 +118,40 @@ def test_pin_insert_best_commute_includes_hotel_roundtrip():
     assert abs(res["commute_min"] - round(with_hotel, 1)) < 0.05
     # 且严格大于不含酒店的值——修前该断言必然失败
     assert res["commute_min"] > inter
+
+
+def test_parse_instruction_coerces_bad_ops(monkeypatch):
+    """ops 字段给成字符串时按「没听懂」降级，不许 AttributeError 穿透成任务 failed。
+
+    回归：模型偶尔把 ops 输出成字符串/单个对象，下游逐元素 .get 会炸；
+    解析层统一挡住、置空并留痕，任务回到「没有识别到可执行的修改」路径。
+    """
+    from types import SimpleNamespace
+
+    import editor
+
+    resp = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+        content='{"ops": "加个咖啡馆", "reply": "好的"}'))])
+    completions = SimpleNamespace(create=lambda **kwargs: resp)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    monkeypatch.setattr(editor, "_llm", lambda fast=False: (client, "fake-model"))
+
+    out = editor.parse_instruction("加个咖啡馆", "Day1: 钟楼")
+    assert out["ops"] == []
+    assert "没听懂" in out["reply"]
+
+
+def test_parse_instruction_keeps_valid_ops(monkeypatch):
+    """正常 ops（元素都是 dict）不被误伤。"""
+    from types import SimpleNamespace
+
+    import editor
+
+    resp = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+        content='{"ops": [{"op": "remove", "name": "钟楼"}], "reply": "已移除"}'))])
+    completions = SimpleNamespace(create=lambda **kwargs: resp)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    monkeypatch.setattr(editor, "_llm", lambda fast=False: (client, "fake-model"))
+
+    out = editor.parse_instruction("去掉钟楼", "Day1: 钟楼")
+    assert out["ops"] == [{"op": "remove", "name": "钟楼"}]

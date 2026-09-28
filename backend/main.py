@@ -23,6 +23,7 @@ import logging
 import os
 import re
 import sys
+import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import date
@@ -47,8 +48,8 @@ from cities import CITY_CENTERS, DEFAULT_CITY, city_center, normalize_city
 from constraint_check import check_plan
 from demo_data import demo_cities, demo_spots
 from extractor import extract_guide
-from media_cache import (get_entry, load_media, media_key, save_media,
-                         suspected_wrong_city)
+from media_cache import (get_media, suspected_wrong_city,
+                         update_media)
 from models import PlanRequest, PlanResult
 from solver import Solver
 from weather import daily_weather
@@ -104,11 +105,36 @@ PLANS_DIR = DATA_DIR / "plans"
 FAV_FILE = DATA_DIR / "favorites.json"
 # 媒体缓存（spot_media.json）的读写统一走 media_cache 模块（key 规则 = 「城市|景点名」）
 
+_TASK_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+
+
+def _plan_snapshot_file(task_id: object) -> Path | None:
+    """task_id → 规划快照文件路径；格式非法返回 None。
+
+    task_id 由 MANAGER.create() 的 uuid4().hex[:12] 生成，格式是封闭集合。
+    但它来自**无鉴权的请求参数**，直接拼路径的话 `../x` 就能指到 PLANS_DIR
+    之外 —— 读走任意 .json 的 result（/task），删除接口还会往里写 deleted
+    标记（Windows 下路径参数里 %5C 反斜杠同样能穿越）。所以所有拿 task_id
+    摸磁盘的地方必须从这里取路径，不许自己拼。
+    """
+    if isinstance(task_id, str) and _TASK_ID_RE.fullmatch(task_id):
+        return PLANS_DIR / f"{task_id}.json"
+    return None
+
+
+_favorites_lock = threading.Lock()
+
 
 def _load_favorites() -> list[dict]:
     if FAV_FILE.exists():
-        _loaded: list[dict] = json.loads(FAV_FILE.read_text(encoding="utf-8"))
-        return _loaded
+        try:
+            _loaded: list[dict] = json.loads(FAV_FILE.read_text(encoding="utf-8"))
+            return _loaded
+        except (json.JSONDecodeError, OSError) as e:
+            # 损坏时按空处理并留痕：直接 500 会让「我的」页整体不可用。
+            # 文件原样保留到下一次 add/remove 才被重建（丢数据但服务能恢复）
+            log.warning("收藏文件解析失败，按空处理: %s: %s", type(e).__name__, e)
+            return []
     return []
 
 
@@ -160,16 +186,31 @@ def make_plan(req: PlanRequest) -> PlanResult:
     )
 
 
+# 攻略文本上限：超长输入多半是误贴整篇文章（抽取质量会崩），也是无鉴权接口
+# 防 LLM token 被烧的硬止损。文本现走 JSON body —— 旧版用 query 传，
+# encodeURIComponent 后中文 ×9 字节，长攻略还没到这里的校验就先撞上网关请求行上限
+EXTRACT_MAX_CHARS = 12000
+EDIT_INSTRUCTION_MAX_CHARS = 2000
+
+
 @app.post("/extract")
-def extract(text: str, city: str = "") -> dict:
+def extract(body: dict) -> dict:
     """攻略文本 → LLM 抽取（含城市识别）→ 实体对齐到高德 POI（坐标校正为真实值）。
 
-    - `city`：前端已选城市，作为 LLM 未识别时的兜底
+    - body: `{"text": "攻略文本", "city": "前端已选城市（LLM 未识别时的兜底）"}`
     - 返回 `detected_city`（LLM 识别结果）与 `needs_city`（是否未能确定城市）——
       `needs_city=true` 时前端必须提示用户选择，**不要静默按默认城市排行程**
     - 对齐必须用**确定的城市**：高德搜索带 citylimit，用错城市会搜不到或搜到同名异地 POI
     - 低置信度的条目标记 needs_review，坐标保持占位值，由前端让用户点选
     """
+    text = str(body.get("text") or "").strip()
+    city = str(body.get("city") or "")
+    if not text:
+        raise HTTPException(400, "攻略文本为空")
+    if len(text) > EXTRACT_MAX_CHARS:
+        raise HTTPException(
+            413, f"攻略文本过长（{len(text)} 字，上限 {EXTRACT_MAX_CHARS}），"
+                 "请只贴与本次行程相关的段落")
     try:
         spots, detected_city = extract_guide(text, city_hint=city)
     except RuntimeError as e:
@@ -233,11 +274,10 @@ def demo_spot_list(city: str = DEFAULT_CITY) -> dict:
     未知城市返回空列表 + supported 提示，**不会静默换成别的城市的数据**。
     """
     city = normalize_city(city) or DEFAULT_CITY
-    media = load_media()
     spots = []
     for s in demo_spots(city):
         d = s.model_dump()
-        m = get_entry(media, city, s.name) or {}
+        m = get_media(city, s.name) or {}
         d["image"] = m.get("image", "")
         d["intro"] = m.get("intro", "")
         spots.append(d)
@@ -350,6 +390,9 @@ def list_plans() -> dict:
                     "created_at": d.get("created_at"),
                     "city": r.get("city"),
                     "total_cost": r.get("total_cost"),
+                    # 票价未知 ≠ 免费：历史列表同样要带上口径，前端 moneyTxt
+                    # 才能把「票价待查」如实显示出来（缺这字段会被当成已知）
+                    "cost_known": r.get("cost_known"),
                     "spots_planned": (r.get("check_report") or {})
                         .get("stats", {}).get("spots_planned"),
                     "hotel": (r.get("hotel") or {}).get("name"),
@@ -389,8 +432,7 @@ def poi_detail(name: str, city: str = "") -> dict:
     未命中缓存时按 city 抓取，抓到后写入 spot_media.json 供后续零成本命中。
     """
     city = normalize_city(city) or DEFAULT_CITY
-    media = load_media()
-    m = get_entry(media, city, name)
+    m = get_media(city, name)
     if not m:
         from fetch_spot_details import fetch
         m = fetch(name, city)
@@ -403,8 +445,9 @@ def poi_detail(name: str, city: str = "") -> dict:
             log.warning("高德返回的是「%s」的数据，与请求城市 %s 不符，拒绝写入缓存 "
                         "name=%s address=%s", wrong, city, name, m.get("address", ""))
             raise HTTPException(404, f"「{name}」在 {city} 未找到（高德返回了 {wrong} 的结果）")
-        media[media_key(city, name)] = m
-        save_media(media)
+        # 统一走 update_media（锁 + 共享字典 + 合并写）：自己 load→改→save 会与
+        # 预取线程互相整份覆盖（预取刚写的评价会被这里抹掉）
+        update_media(city, name, m)
     out = {k: m.get(k, "") for k in
            ("image", "intro", "photos", "opentime", "address", "lat", "lon")}
     out["reviews"] = m.get("reviews")
@@ -419,8 +462,7 @@ def poi_reviews(name: str, city: str = "") -> dict:
     city 用于定位缓存条目：缓存 key 是「城市|景点名」，同名景点跨城市不能混用。
     """
     city = normalize_city(city) or DEFAULT_CITY
-    media = load_media()
-    m = get_entry(media, city, name)
+    m = get_media(city, name)
     if m is None:
         raise HTTPException(404, "该地点未收录")
     if "reviews" not in m:
@@ -434,8 +476,7 @@ def poi_reviews(name: str, city: str = "") -> dict:
             log.warning("评价生成失败 name=%s: %s: %s", name, type(e).__name__, e)
             m["reviews"] = None
             m["reviews_ai"] = False
-        media[media_key(city, name)] = m
-        save_media(media)
+        update_media(city, name, m)
     return {"reviews": m.get("reviews"), "reviews_ai": m.get("reviews_ai", False)}
 
 
@@ -555,7 +596,7 @@ async def hotel_set(body: dict) -> dict:
     if base is None or base.status != "completed":
         raise HTTPException(404, "基准任务不存在或未完成")
     task = MANAGER.create()
-    asyncio.create_task(run_set_hotel(task.id, base_task_id, hotel))
+    MANAGER.spawn(task.id, run_set_hotel(task.id, base_task_id, hotel))
     return {"task_id": task.id, "poll_url": f"/task/{task.id}"}
 
 
@@ -575,8 +616,8 @@ def _soft_delete_plan(f) -> bool:
 @app.delete("/plans/{task_id}")
 def delete_plan(task_id: str) -> dict:
     """删除单个历史规划（软删除，标记而非抹掉，可恢复）。"""
-    f = PLANS_DIR / f"{task_id}.json"
-    if not f.exists():
+    f = _plan_snapshot_file(task_id)
+    if f is None or not f.exists():
         raise HTTPException(404, "该规划不存在")
     _soft_delete_plan(f)
     from tasks import MANAGER
@@ -593,10 +634,10 @@ def delete_plans_batch(body: dict) -> dict:
     from tasks import MANAGER
     deleted = []
     for tid in ids:
-        f = PLANS_DIR / f"{tid}.json"
-        if f.exists() and _soft_delete_plan(f):
+        f = _plan_snapshot_file(tid)
+        if f is not None and f.exists() and _soft_delete_plan(f):
             deleted.append(tid)
-        MANAGER._tasks.pop(tid, None)
+        MANAGER._tasks.pop(str(tid), None)
     return {"deleted": deleted, "count": len(deleted)}
 
 
@@ -613,20 +654,26 @@ def mod_favorites(body: dict) -> dict:
     spot = body.get("spot") or {}
     if not spot.get("name"):
         raise HTTPException(400, "需要 spot.name")
-    favs = _load_favorites()
-    if action == "add":
-        if not any(f["name"] == spot["name"] for f in favs):
-            favs.insert(0, {"name": spot["name"], "lat": spot.get("lat"),
-                            "lon": spot.get("lon"), "image": spot.get("image", ""),
-                            "desc": spot.get("desc", ""), "intro": spot.get("intro", ""),
-                            "city": spot.get("city", "")})
-    elif action == "remove":
-        favs = [f for f in favs if f["name"] != spot["name"]]
-    else:
-        raise HTTPException(400, "action 需要 add 或 remove")
-    FAV_FILE.parent.mkdir(parents=True, exist_ok=True)
-    FAV_FILE.write_text(json.dumps(favs, ensure_ascii=False, indent=1),
-                        encoding="utf-8")
+    # 读-改-写全程持锁：并发 add/remove 各持一份快照会互相覆盖（丢收藏）
+    with _favorites_lock:
+        favs = _load_favorites()
+        if action == "add":
+            # get 而非 [] 取 name：历史脏数据缺 name 字段时不能 KeyError → 500
+            if not any(f.get("name") == spot["name"] for f in favs):
+                favs.insert(0, {"name": spot["name"], "lat": spot.get("lat"),
+                                "lon": spot.get("lon"), "image": spot.get("image", ""),
+                                "desc": spot.get("desc", ""), "intro": spot.get("intro", ""),
+                                "city": spot.get("city", "")})
+        elif action == "remove":
+            favs = [f for f in favs if f.get("name") != spot["name"]]
+        else:
+            raise HTTPException(400, "action 需要 add 或 remove")
+        FAV_FILE.parent.mkdir(parents=True, exist_ok=True)
+        # 原子写（临时文件 + replace）：读方（GET /favorites）不会读到半截 JSON
+        tmp = FAV_FILE.with_name(FAV_FILE.name + ".tmp")
+        tmp.write_text(json.dumps(favs, ensure_ascii=False, indent=1),
+                       encoding="utf-8")
+        os.replace(tmp, FAV_FILE)
     return {"favorites": favs}
 
 
@@ -653,7 +700,7 @@ async def create_async_plan(req: PlanRequest) -> dict:
         raise HTTPException(400, "景点列表为空")
     from tasks import MANAGER, run_plan_task
     task = MANAGER.create()
-    asyncio.create_task(run_plan_task(task.id, req))
+    MANAGER.spawn(task.id, run_plan_task(task.id, req))
     return {"task_id": task.id, "ws_url": f"/ws/{task.id}",
             "poll_url": f"/task/{task.id}"}
 
@@ -665,8 +712,8 @@ def get_task(task_id: str) -> dict:
     task = MANAGER.get(task_id)
     if task is not None:
         return task.snapshot()
-    f = PLANS_DIR / f"{task_id}.json"
-    if f.exists():
+    f = _plan_snapshot_file(task_id)
+    if f is not None and f.exists():
         d = json.loads(f.read_text(encoding="utf-8"))
         if not d.get("deleted"):
             return {"task_id": task_id, "status": "completed",
@@ -688,8 +735,8 @@ def _load_task_payload(task_id: str) -> tuple[dict | None, dict, dict]:
     if task is not None and task.status == "completed" and task.result:
         return (task.result, dict(task.req_params or {}),
                 {s["name"]: Spot(**s) for s in (task.request_spots or [])})
-    f = PLANS_DIR / f"{task_id}.json"
-    if not f.exists():
+    f = _plan_snapshot_file(task_id)
+    if f is None or not f.exists():
         raise HTTPException(404, "任务不存在或尚未完成")
     snap = json.loads(f.read_text(encoding="utf-8"))
     if snap.get("deleted"):
@@ -793,6 +840,9 @@ async def edit_plan(body: dict) -> dict:
     memory = [str(m).strip() for m in (body.get("memory") or []) if str(m).strip()][:20]
     if not base_task_id or not instruction:
         raise HTTPException(400, "需要 task_id 和 instruction")
+    if len(instruction) > EDIT_INSTRUCTION_MAX_CHARS:
+        # 同 /extract：无鉴权接口的输入必须有上限，防 LLM token 被烧
+        raise HTTPException(400, f"指令过长（上限 {EDIT_INSTRUCTION_MAX_CHARS} 字）")
     from commute import load_env_file
     env = load_env_file()
     if not (env.get("LLM_API_KEY") or os.environ.get("LLM_API_KEY")):
@@ -802,7 +852,7 @@ async def edit_plan(body: dict) -> dict:
     if base is None or base.status != "completed":
         raise HTTPException(404, "基准任务不存在或未完成")
     task = MANAGER.create()
-    asyncio.create_task(run_edit_task(task.id, base_task_id, instruction, memory=memory))
+    MANAGER.spawn(task.id, run_edit_task(task.id, base_task_id, instruction, memory=memory))
     return {"task_id": task.id, "ws_url": f"/ws/{task.id}",
             "poll_url": f"/task/{task.id}"}
 

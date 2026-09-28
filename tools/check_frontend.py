@@ -169,6 +169,29 @@ def check_css_self_ref(html: str) -> list[str]:
     return errors
 
 
+INVALID_PROP_RE = re.compile(r"var\(--[A-Za-z0-9-]+\)-space\s*:")
+
+
+def check_css_invalid_props(html: str) -> list[str]:
+    """错误级：`var(--surface)-space:` 这类被批量替换误伤的属性名。
+
+    背景：2026-09-28 审查发现 5 处 `white-space` 被全局替换成
+    `var(--surface)-space`——这不是语法错误，浏览器把整条声明静默丢弃，
+    导航标签 / Day tab 的 nowrap 与聊天气泡的 pre-wrap 全部失效。
+    与 CSS 自引用同属「静默错误」类，靠肉眼看不出来。
+    """
+    errors: list[str] = []
+    style = "\n".join(re.findall(r"<style>(.*?)</style>", html, re.S))
+    for m in INVALID_PROP_RE.finditer(style):
+        line = style[:m.start()].count("\n") + 1
+        errors.append(
+            f"CSS 第 {line} 行：`{m.group(0)}` 是拼错的属性名（应为 white-space），"
+            "浏览器当无效值静默丢弃，该条排版约束整个失效")
+    if not errors:
+        print("  ✓ 无 var(--x)-space 类拼错属性")
+    return errors
+
+
 def check_undefined_css_vars(html: str) -> list[str]:
     """错误级：CSS 里 `var(--x)` 引用了没定义的 `--x`。
 
@@ -384,7 +407,8 @@ def main() -> int:
         print(f"检查 {rel}（脚本 {len(js.splitlines())} 行）")
         errs = (check_syntax(js) + check_shadowing(js)
                 + check_hardcoded_coords(html) + check_unescaped_attrs(js)
-                + check_css_self_ref(html) + check_undefined_css_vars(html)
+                + check_css_self_ref(html) + check_css_invalid_props(html)
+                + check_undefined_css_vars(html)
                 + check_document_integrity(html) + check_contrast_tokens(rel)
                 + check_container_hardcoded_colors(html))
         warns = check_unescaped(js) + check_markdown_leak(html)
