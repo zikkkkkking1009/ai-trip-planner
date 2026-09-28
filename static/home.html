@@ -214,23 +214,24 @@
      颜色一律走主题令牌（--fg/--surface/--accent）：明暗两态自适应，
      不再出现「暗色下一团黑」。动效克制：路线行进、锚点雷达、描边入场、
      地标漂浮、钟摆、笔迹微动。系统开了「减少动态效果」时全部关闭。 */
-  .hero-card svg .flow{ animation: hero-flow 7s linear infinite; }
+  .hero-card svg .flow{ animation: hero-flow 5.5s linear infinite; }
   @keyframes hero-flow{ to{ stroke-dashoffset:-60; } }
   .hero-card svg .draw{
     stroke-dasharray:100;
-    animation: hero-draw 1.8s cubic-bezier(.6,0,.3,1) .3s both;
+    animation: hero-draw 1.8s cubic-bezier(.6,0,.3,1) .3s both, hero-breathe 5s ease-in-out 2.4s infinite;
   }
   @keyframes hero-draw{ from{ stroke-dashoffset:100; } to{ stroke-dashoffset:0; } }
+  @keyframes hero-breathe{ 0%,100%{ opacity:.55; } 50%{ opacity:.32; } }
   .hero-card svg .ping{
     transform-box:fill-box; transform-origin:center; opacity:0;
-    animation: hero-ping 3.2s ease-out infinite;
+    animation: hero-ping 2.6s ease-out infinite;
   }
   @keyframes hero-ping{
-    0%{ transform:scale(1); opacity:.5; } 70%,100%{ transform:scale(2); opacity:0; }
+    0%{ transform:scale(1); opacity:.65; } 70%,100%{ transform:scale(2); opacity:0; }
   }
   .hero-card svg .traveler{
     offset-path:path('M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112');
-    animation: hero-travel 9s ease-in-out infinite;
+    animation: hero-travel 6.5s ease-in-out infinite;
   }
   @keyframes hero-travel{
     0%{ offset-distance:0%; opacity:0; } 10%{ opacity:1; }
@@ -686,7 +687,7 @@
                 stroke="var(--accent)" stroke-width="5" stroke-linecap="round" opacity=".55"/>
           <!-- 旅行者：沿主路线巡游（CSS offset-path，reduced-motion 下隐藏） -->
           <g class="traveler" fill="none">
-            <circle r="9" stroke="var(--accent)" stroke-width="1.5" opacity=".4"/>
+            <circle r="9" stroke="var(--accent)" stroke-width="1.5" opacity=".55"/>
             <circle r="4.5" fill="var(--accent)" stroke="none"/>
           </g>
         </svg>

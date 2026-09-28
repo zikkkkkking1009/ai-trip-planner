@@ -426,11 +426,14 @@ def _serve_html(filename: str):
 
     这个项目的前端是「单文件、零构建、零 CDN」，所以不需要模板引擎——
     读文件原样返回即可，也便于把首页与规划器做成两个独立入口。
+    no-cache：页面会持续迭代（如 hero 动画），但 HTMLResponse 默认允许
+    启发式缓存，用户强刷前可能一直看旧版 —— 明确要求每次回源校验。
     """
     f = STATIC_DIR / filename
     if f.exists():
         from fastapi.responses import HTMLResponse
-        return HTMLResponse(f.read_text(encoding="utf-8"))
+        return HTMLResponse(f.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-cache"})
     raise HTTPException(404, f"static/{filename} 不存在")
 
 
