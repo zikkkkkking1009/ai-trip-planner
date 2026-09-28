@@ -356,3 +356,33 @@ def test_ws_unknown_task_sends_not_found(isolated):
     with client.websocket_connect("/ws/nope") as ws:
         msg = ws.receive_json()
     assert msg.get("status") == "not_found"
+
+
+def test_gzip_applied_to_pages_and_skipped_for_tiny_responses():
+    """响应压缩（gzip）：大页面压、小响应不压，且压完的内容必须与不压缩时逐字节一致。
+
+    为什么值得锁（2026-09-28 加）：
+    公网部署后带宽是第一瓶颈 —— 实测 `/` 87 KB、`/app` **223 KB**（单文件 SPA，JS/CSS 内联），
+    穿花生壳隧道只有 139~185 KB/s，打开规划页要 1.64s；gzip 实测把页面压到 1/3
+    （223→74 KB、87→28 KB）。但它是**完全看不见**的优化：中间件顺序写错、
+    或将来有人加一处 StreamingResponse，就会静默失效（甚至压坏流）。
+    """
+    # 1) 声明支持 gzip → 大页面必须带上 content-encoding
+    r_gz = client.get("/app", headers={"Accept-Encoding": "gzip"})
+    assert r_gz.status_code == 200
+    assert r_gz.headers.get("content-encoding") == "gzip", \
+        "带 Accept-Encoding: gzip 却没压缩 —— 检查 GZipMiddleware 是否被后来的中间件盖掉"
+
+    # 2) 声明不支持 → 绝不压缩（否则老客户端会拿到乱码）
+    r_plain = client.get("/app", headers={"Accept-Encoding": "identity"})
+    assert r_plain.status_code == 200
+    assert "content-encoding" not in r_plain.headers
+
+    # 3) 解压后的内容必须与不压缩时一致 —— 压坏了比不压更糟，这条比"有没有压"更重要
+    assert r_gz.content == r_plain.content, "gzip 解压后的内容与原文不一致"
+
+    # 4) 小于 minimum_size(1024) 的响应不压：/health 只有 127 字节，
+    #    压它反而更费 CPU 且体积可能变大
+    r_small = client.get("/health", headers={"Accept-Encoding": "gzip"})
+    assert r_small.status_code == 200
+    assert "content-encoding" not in r_small.headers, "小响应不该压（minimum_size 没生效？）"

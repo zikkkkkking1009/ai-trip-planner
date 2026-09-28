@@ -33,6 +33,7 @@ from pathlib import Path
 
 from fastapi import (Depends, FastAPI, HTTPException, Request, WebSocket,
                      WebSocketDisconnect)
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
@@ -78,6 +79,25 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="AI 行程规划 API", version="1.0.0", lifespan=lifespan)
+
+
+# 响应压缩（gzip）—— 映射到公网后**带宽是第一瓶颈**，这是性价比最高的一处改动。
+# 实测（2026-09-28）：
+#   · 页面未压缩：`/` 87 KB、`/app` **223 KB**（单文件 SPA，JS/CSS 全内联）
+#   · gzip 实测压缩比：/app 223 KB → 74 KB（3.08×）、/ 87 KB → 28 KB（3.15×）
+#   · 穿隧道实测速率 139~185 KB/s ⇒ 打开规划页 1.64s → 压缩后约 0.53s
+#   · 1 GB 月流量下可服务的完整会话数 约 3000 → **约 9700**
+#
+# ⚠️ 必须加在**内层**（也就是要写在下面 `@app.middleware("http")` 之前）—— 这点反直觉，实测踩过：
+#   Starlette 里「最后添加的在最外层」，若加在装饰器之后它就变成最外层，于是它看到的是经过
+#   BaseHTTPMiddleware 包装后的响应，而后者**会去掉 content-length** ⇒ gzip 无从判断大小，
+#   `minimum_size` 静默失效（实测 127 字节的 /health 也被压）。放到内层后它直接面对路由响应，
+#   能读到 content-length，阈值才真正生效（tests/test_api_endpoints.py 里有一条断言锁着这个行为）。
+#
+# minimum_size=1024：小于 1 KB 的响应压缩收益抵不上 CPU 开销（一次 /plan 的 JSON 只有 2.3 KB，
+#   压不压差别很小）；真正的大头是上面那两张 HTML。
+# ⚠️ 只对带 `Accept-Encoding: gzip` 的请求生效 —— 浏览器自动带，用 curl 验证要加 `--compressed`。
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 @app.middleware("http")
