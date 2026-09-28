@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-315%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-331%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -179,8 +179,8 @@ cp backend/.env.example backend/.env
 **测试与门禁命令**（均可无 Key 运行）：
 
 ```bash
-cd backend && python -m pytest -q          # 单元测试（315 passed；依赖高德的酒店用例无 AMAP_KEY 时跳过）
-cd .. && node tools/frontend_smoke.js      # 前端 jsdom 运行时冒烟（14 项）
+cd backend && python -m pytest -q          # 单元测试（331 passed；依赖高德的酒店用例无 AMAP_KEY 时跳过）
+cd .. && node tools/frontend_smoke.js      # 前端 jsdom 运行时冒烟（18 项）
 node tools/hotel_smoke.js                  # 酒店弹层 + 长图预览 + 主题切换 jsdom 冒烟（47 项）
 python tools/check_frontend.py             # 前端静态检查（10 项阻塞门禁）
 python tools/check_backend_health.py       # 后端五维健壮性审计（AST，无 Key 即可跑）
@@ -193,8 +193,8 @@ cd backend && mypy .                       # 类型检查（渐进式，当前 0
 > 只在本机跑：`node tools/contrast_runtime.js static/index.html static/home.html --all`
 > —— 它启真实浏览器渲染复核（需 playwright-core + 本机 Edge/Chrome），不进 CI（慢且脆）。
 
-- **测试与 CI**：**315 个单元测试**全过（对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / **接口级集成**），GitHub Actions 全绿
-- **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 14 项 + `hotel_smoke.js` 47 项）+ 无密钥的求解器 demo
+- **测试与 CI**：**331 个单元测试**全过（对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / **接口级集成**），GitHub Actions 全绿
+- **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 18 项 + `hotel_smoke.js` 47 项）+ 无密钥的求解器 demo
 - **静态检查策略**：ruff 只开**能抓真 bug 的规则**（`E4/E7/E9/F`），不堆风格规则——一上来开全量只会产出满屏 `# noqa`，门禁就没人看了；`main.py` 的 `E402` 是**有意豁免**（必须先加载 .env 再初始化日志），理由写在 `ruff.toml` 里。mypy 走**渐进式**（默认不进未标注函数体），先把已标注部分的真类型错误抓干净，**0 处 `# type: ignore`**
 - **缓存与限频**：通勤矩阵三级缓存（重复求解 API 调用降为 0）；高德 0.35s 节流
 - **快慢接口分离**：详情接口只返回毫秒级可达的高德数据，AI 评价走二次请求异步补，避免首屏等待
@@ -265,7 +265,7 @@ backend/
   media_cache.py          媒体缓存 key 规则（城市|景点名）与原子写
   reliability.py          统一超时与重试（LLM + 高德共用）
   logging_setup.py        日志配置与请求 ID 上下文
-  tests/                  315 个单元测试
+  tests/                  331 个单元测试
 static/index.html         路书前端（单文件，零构建，零 CDN）
 tools/                    检查与验证脚本（五维审计 / 前端静态检查 / 前端与酒店 jsdom 冒烟 / 多城市端到端）
 data/plans/               规划快照（软删除标记）
@@ -303,6 +303,7 @@ HANDOFF.md                新会话接上下文的第一份文件
 
 ## 更新日志
 
+- **v1.13（2026-09-28）**：**外部全项目审查修复（ZCode）** —— 两轮修复 13 文件 +744/-136，报告见 `docs/reviews/2026-09-28-zcode-review.md`。**High 6 条**：`/plans` 等接口的**路径穿越**（无鉴权 task_id 直接拼路径，`../x` 可读写目录外 .json → `_plan_snapshot_file()` 收口校验 12 位 hex）；详情卡标题**存储型 XSS**（`${name}` 漏 esc，中文探针抓不住、ASCII 载荷可注入）；`run_set_hotel` **阻塞事件循环**（async 里直接调带 0.35s 限频 + HTTP 的通勤查询，19 景点卡十几秒 → `asyncio.to_thread`）；**共享 `req_params` 引用被改写**（两任务共用同一 dict → `deepcopy`）；`pin_add` 主路径成功 return 前不落盘不记 chat_history（TTL 淘汰后下轮编辑丢记忆）；**图片灯箱整体失效**（`lbUrls` 从未赋值）。**Medium**：媒体缓存**合并写 + 线程锁**（endpoint 不持锁整份覆盖会抹掉预取的评价；`put_media` 改名 `update_media`）、favorites 读写锁 + 原子写 + 损坏容错（此前损坏直接 500）、`MANAGER.spawn()` 托管后台协程（修"僵尸 running 任务"永不淘汰）、`/extract` 改 **JSON body** + 12000 字上限（旧版 query 传文本，中文编码 ×9 字节撞网关请求行上限）、WS 改**增量消费**（原来每帧收全量 progress，O(n²)）、WS 断线兜底、pickHotel 轮询上限、CSS 笔误 `var(--surface)-space` ×5。**门禁**：pytest 315 → **331**（+17 条回归）、frontend_smoke 14 → **18**、前端静态新增 `check_css_invalid_props`（现为 10 项阻塞 + 2 项警告）；关键断言已反向验证（拿修复前旧版跑，恰好只挂新断言）。⚠️ **接口变化**：`/extract` 收 `{"text","city"}` JSON body；`media_cache.put_media()` 改名 `update_media()`（合并写）。遗留 Low 清单 10 项见报告第四节
 - **v1.12（2026-09-28）**：**修「少走路」偏好失效 + 切偏好的交互** —— ① **根因**：「少走路」唯一的杠杆是 `_drop_improve`（为省通勤放弃远景点），触发条件是 `通勤权重 × 省下分钟数 > 1000 × 景点分`；而权重 120 **只按 haversine 直线估算标定过**，线上走的是**高德真实驾车时长**（量级更小）⇒ 一次都不触发，**少走路和均衡结果一模一样**（西安 183.3 vs 183.3 分钟）。用真实通勤矩阵在西安 / 成都 / 杭州三城复测后重新标定为 **200**（西安 183→135、杭州 114→75、成都 114→57 分钟），并确认 haversine 口径下与 120 结果一致（不回退）。**测试缺口**：原 `test_less_walk_reduces_commute` 只跑 haversine 口径所以是绿的 —— 补上**真实通勤口径的回归测试**（无 `AMAP_KEY` 时跳过，要求差异 >5 分钟），并做了**反向验证**（权重改回 120 时它确实报红，且报的正是 183.3 vs 183.3）。② **交互**：切偏好不再弹桌宠说一大段「要我重新排一次吗？」（挡住结果区、且用户仍要自己去点「开始规划」），改为**就地一个「按新偏好重排」按钮**，一键即排；未规划过时不显示该按钮。测试 314 → **315**，冒烟 42 → **47**
 - **v1.11（2026-09-28）**：**票价不再把"未知"显示成"免费"** —— 根因是票价有两个含义不同的零：**已知免费** 与 **我们不知道**。高德免费接口**不返回票价**（景点 `biz_ext.cost` 实测为空数组），攻略没写价时 LLM 只能给 0，前端直接渲染成「总门票 ¥0」等于谎称免费。修法：`Spot` / `VisitedSpot` 各加一位 `ticket_known`（`PlanResult` 汇总为 `cost_known`），前端新增统一出口 `moneyTxt()`，**值为假时显示「票价待查」并隐去"每天约"这个推算值**，共替换 7 处硬写的 `¥N`（含分享长图）；后端在实体对齐后用本地票价表 `demo_data.ticket_of()` 回填（**仅精确名字匹配**，不做模糊匹配 —— 高德标准名与本地表不一致时宁可保持未知，如「秦始皇帝陵博物院」vs「秦始皇兵马俑博物馆」）。新增 `backend/tests/test_ticket.py`（7 条，锁住 0/None 语义与回填规则）；`hotel_smoke.js` 加 3 条运行时断言（已知显示金额 / 未知显示待查 / 源码无裸 `¥${...cost}`），并做了**反向验证**确认两条断言都会拦住回归 —— 反向验证时还发现静态断言的正则过严（`¥${x.toFixed(0)}` 漏网），已修正则。测试 307 → **314**
 - **v1.10（2026-09-28）**：**接口级集成测试补齐 + CI 补三道门 + 主题手动开关** —— **测试**：新增 `backend/tests/test_api_endpoints.py`（21 条），覆盖此前**零测试引用的 14 个接口**（`/demo/spots` `/demo/config` `/poi/detail` `/poi/reviews` `/plans` `DELETE /plans/{id}` `/plans/delete` `/favorites` `GET|POST` `/task/{id}` `/plan/simulate` `/plan/review` `/plan/edit` `/ws/{id}`），全程离线且**落盘路径重定向到 tmp**（不碰真实历史规划 / 收藏）；其中最要紧的是**「抓回来的数据属于别的城市时必须 404 且绝不写缓存」**这条回归（历史上出现过「四川博物院 存了西安的数据」，缓存一旦写脏就永久固化），用 spy 断言 `save_media` 根本没被调用；单元测试 286 → **307**。**CI**：补进三道门——两级**对比度门禁**（页面级 `check_contrast.py` + 规范级 `contrast-audit.py --check` 明暗双主题）与 **`hotel_smoke.js`（39 项运行时断言）**；同时修好 `hotel_smoke.js` 两处会让它**恒退出 1** 的 jsdom 能力缺口（补 `URL.createObjectURL` 打桩、把「点击 `<a href>` 触发的 navigation not implemented」列入白名单），否则接进 CI 会每次都红 —— 顺带明确只在本机跑 `contrast_runtime.js`（要 playwright + 真实浏览器，进 CI 又慢又脆）。**功能**：单天视图的**出行天气只显示当天**（与地图同口径，切天跟随，总览仍列全程）；**暗色主题加手动开关**（自动 → 亮 → 暗，`data-theme` + localStorage，暗色令牌只留一份；`head` 脚本仍读 `matchMedia`，所以靠模拟系统偏好的运行时门禁没有失效）
