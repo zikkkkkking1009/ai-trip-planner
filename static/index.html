@@ -494,6 +494,12 @@
   .pref:hover { background:var(--fill-2) }
   .pref.on { background:var(--accent-soft); color:var(--accent-deep); border-color:var(--accent-line); font-weight:600 }
   .pref-hint { font-size:12px; color:var(--muted-3); margin-top:6px; line-height:1.5 }
+  /* 切偏好后就地重排的按钮：次级信号（accent-soft），不抢「开始规划」的主色 CTA */
+  .pref-replan { display:inline-flex; align-items:center; gap:4px; margin-left:6px;
+    font-size:12px; font-weight:600; color:var(--accent-deep); background:var(--accent-soft);
+    border:1px solid var(--accent-line); border-radius:999px; padding:3px 10px;
+    cursor:pointer; font-family:inherit; vertical-align:middle; transition:var(--t) }
+  .pref-replan:hover { border-color:var(--accent); background:var(--fill-2) }
   .hotel-quick span { font-size:12px; padding:4px 10px; border-radius:999px;
                       background:var(--fill); color:var(--muted-2); cursor:pointer; border:1px solid var(--fill-2) }
   .hotel-quick span:hover { background:var(--fill-2); color:var(--fg) }
@@ -1395,6 +1401,12 @@ const _STAR_P = 'M8 2.6l1.6 3.3 3.6.5-2.6 2.6.6 3.6L8 10.9l-3.2 1.7.6-3.6L2.8 6.
 const ICON_STAR = _ic('<path d="' + _STAR_P + '" fill="currentColor"/>');
 const ICON_STAR_O = _ic('<path d="' + _STAR_P + '"/>');
 const ICON_SPARKLE = _ic('<path d="M8 2.2l1.3 3.5L12.8 7 9.3 8.3 8 11.8 6.7 8.3 3.2 7l3.5-1.3z"/>');
+// Lucide「refresh-cw」按 24→16 视窗换算（×2/3）。⚠️ 弧线的 large-arc/sweep 标志位是
+// 0/1 不是坐标，**不能被缩放** —— 用脚本批量缩放会把它们一起改掉，图标就废了。
+const ICON_REFRESH = _ic(
+  '<path d="M2 8a6 6 0 0 1 6-6 6.5 6.5 0 0 1 4.49 1.83L14 5.33"/>'
+  + '<path d="M14 2v3.33h-3.33"/><path d="M14 8a6 6 0 0 1-6 6 6.5 6.5 0 0 1-4.49-1.83L2 10.67"/>'
+  + '<path d="M5.33 10.67H2v3.33"/>');
 const ICON_CALENDAR = _ic('<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M5.5 2v2M10.5 2v2"/>');
 const ICON_CLOCK = _ic('<circle cx="8" cy="8" r="5.5"/><path d="M8 4.8V8l2.4 1.6"/>');
 const ICON_MONEY = _ic('<circle cx="8" cy="8" r="5.5"/><path d="M6.3 5.6 8 8l1.7-2.4M8 8v3M6 9.6h4M6 11h4"/>');
@@ -1567,6 +1579,7 @@ $('go').onclick = async () => {
         petMood('waving');                       // 招招手提醒你（petdex 的 Waving 态）
         setTimeout(() => petMood('idle'), 2400);
         refreshHints(); render(); ws.close(); $('go').disabled=false;
+        renderPrefHint();                        // 有行程了 → 偏好行出现「按新偏好重排」
         gpDone(true, '行程已生成'); }
       if (d.status==='failed') { log('失败', d.error); ws.close(); $('go').disabled=false;
         gpDone(false, d.error || '规划失败'); } };
@@ -2798,21 +2811,28 @@ function hideLoading() {
 let currentPref = 'balanced';
 const PREF_HINT = {
   balanced:   '按景点价值排，通勤顺路即可',
-  less_walk:  '通勤权重提高：实测少走约 17~25 分钟，代价是可能放弃 1 个远景点',
+  less_walk:  '通勤权重提高：实测总通勤少约 25~50 分钟，代价是可能放弃 1~2 个远的景点',
   save_money: '门票计入目标：实测门票省约一半，会跳过部分收费景点',
   more_spots: '每天多玩 1.5 小时（18:00 → 19:30），能多排 1 个左右',
 };
+// 已经排好行程时切偏好 → **就地给一个按钮**，不弹桌宠。
+// 为什么改掉原来那版：桌宠会弹出来盖住结果区，说一大段"要我重新排一次吗？"，
+// 但用户还是得自己去点「开始规划」—— 又挡视线又没用。现在点一下按钮就重排。
+function renderPrefHint() {
+  const hint = $('prefHint'); if (!hint) return;
+  const canReplan = !!(lastTaskId && plan);
+  hint.innerHTML = `<span>${esc(PREF_HINT[currentPref] || '')}</span>`
+    + (canReplan
+      ? `<button class="pref-replan" data-act="pref-replan"
+           title="按「${esc(PREF_LABEL[currentPref] || currentPref)}」重新排一次">
+           ${ICON_REFRESH} 按新偏好重排</button>`
+      : '');
+}
 function setPref(p) {
   currentPref = p;
   document.querySelectorAll('#prefRow .pref').forEach(
     el => el.classList.toggle('on', el.dataset.pref === p));
-  $('prefHint').textContent = PREF_HINT[p] || '';
-  // 已经排好行程时直接改偏好 → 让桌宠帮忙重排（走同一条对话链路）
-  if (lastTaskId && plan) {
-    petToggle(true);
-    petSay('bot', `偏好已切到「${(PREF_LABEL[p] || p)}」，要我按新偏好重新排一次吗？`
-      + '（也可以直接说「按这个重新排」）');
-  }
+  renderPrefHint();
 }
 const PREF_LABEL = {balanced:'均衡', less_walk:'少走路', save_money:'省钱', more_spots:'多玩'};
 document.querySelectorAll('#prefRow .pref').forEach(el => {
@@ -3594,6 +3614,7 @@ document.addEventListener('click', e => {
     case 'hotel-pick': pickHotel(d.name, Number(d.lat), Number(d.lon)); break;
     case 'hotel-gallery': openHotelGallery(Number(d.hi)); break;
     case 'hotel-more': if (hotelMoreHandler) hotelMoreHandler(); break;  // 分页：加载下一页
+    case 'pref-replan': if (!$('go').disabled) $('go').click(); break;   // 按新偏好重排
     case 'day':        toggleDay(Number(d.idx)); break;
     case 'view-map':   currentDay = Number(d.day); switchView('map'); break;  // 移动端：跳到已有地图视图看当天路线
     // ---- 空状态引导 ----

@@ -163,6 +163,25 @@ function leafletStub() {
     await sleep(10);
     check('点 3 次：回到跟随系统（清存储）', window.localStorage.getItem('theme') === null);
   }
+  // ---- 切换偏好：不弹桌宠，改为就地给「按新偏好重排」按钮 ----
+  // 回归背景：原来切偏好会弹出桌宠说一大段"要我重新排一次吗？"，挡住结果区，
+  // 但用户还是得自己去点「开始规划」—— 又挡视线又没用。
+  const petBefore = (d.getElementById('pet') || {}).className || '';
+  const lessWalk = d.querySelector('#prefRow .pref[data-pref="less_walk"]');
+  check('偏好行有「少走路」', !!lessWalk);
+  if (lessWalk) {
+    click(lessWalk);
+    await sleep(20);
+    check('切偏好后桌宠没有被弹出（不挡视线）',
+      !/open|show/.test((d.getElementById('pet') || {}).className || ''),
+      `pet.class=${(d.getElementById('pet') || {}).className || ''}`);
+    check('偏好说明就地更新', /少走路|通勤权重/.test(
+      (d.getElementById('prefHint') || {}).textContent || ''));
+    // 此时还没规划过（plan 为空）→ 不该显示重排按钮。规划后才有，见下面的断言。
+    check('未规划时不显示重排按钮',
+      !d.querySelector('#prefHint [data-act="pref-replan"]'));
+  }
+
   check('openHotelPicker 是全局函数', typeof window.openHotelPicker === 'function');
   window.openHotelPicker();
   await sleep(90);
@@ -250,6 +269,10 @@ function leafletStub() {
   check('票价未知时显示「票价待查」而非 ¥0',
     /票价待查/.test(chipTxt()) && !/总门票\s*¥0/.test(chipTxt()),
     chipTxt().trim().slice(0, 40));
+
+  // 规划完成后，偏好行应出现一键重排按钮（承接上面"未规划时不显示"的断言）
+  check('已规划后偏好行出现「按新偏好重排」按钮（一键即可，不用回去点开始规划）',
+    !!d.querySelector('#prefHint [data-act="pref-replan"]'));
 
   // 静态兜底：防止以后又有人直接写 ¥${xxx.cost} 绕过统一出口
   // 注意：`[^}]*` 要前后各留一段，否则 `¥${plan.total_cost.toFixed(0)}` 这种

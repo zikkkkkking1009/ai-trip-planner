@@ -127,3 +127,45 @@ def test_all_preferences_are_calibrated():
         w = PREFERENCES[name]
         assert max(w["commute"], w["cost"]) >= 50, \
             f"{name} 的权重过小，实测不会产生可感知差异（标定要求 ≥50）"
+
+
+# ---------------------------------------------------------------------------
+# ⚠️ 真实通勤口径的回归测试
+#
+# 上面所有用例走的是 `Solver(req)`，即**无 Key 时的 haversine 直线估算兜底**；
+# 线上跑的是**高德真实驾车时长**，两者量级不同 —— 「少走路」权重曾只按 haversine
+# 标定，结果在真实口径下**与均衡结果一模一样**（西安 183.3 vs 183.3 分钟），
+# 而上面那条 `test_less_walk_reduces_commute` 却是绿的。
+#
+# ⇒ 这条只用真实数据，无 AMAP_KEY 时跳过（与 test_hotels.py 同一套处理）。
+#   它是唯一能拦住这个 bug 的测试，别因为"CI 里会跳过"就删掉。
+# ---------------------------------------------------------------------------
+
+def _real_commute_fn():
+    """真实通勤矩阵；没有 AMAP_KEY 时返回 None（调用方负责 skip）。"""
+    from commute import load_env_file
+    import os
+    if not ((load_env_file() or {}).get("AMAP_KEY") or os.environ.get("AMAP_KEY")):
+        return None
+    from commute import CommuteMatrix
+    return CommuteMatrix().minutes
+
+
+@pytest.mark.skipif(_real_commute_fn() is None, reason="需要 AMAP_KEY（真实通勤口径）")
+def test_less_walk_differs_under_real_commute():
+    """真实驾车时长下，「少走路」必须比均衡**明显**少走 —— 只差 0.1 分钟等于没生效。"""
+    fn = _real_commute_fn()
+
+    def run(pref: str) -> float:
+        req = PlanRequest(city="西安", days=3, budget=None,
+                          spots=[s.model_copy() for s in XI_AN_SPOTS],
+                          preference=pref)
+        s = Solver(req, fn)
+        s.solve()
+        return s._global_commute()
+
+    base, less = run("balanced"), run("less_walk")
+    assert less < base - 5, (
+        f"少走路在真实通勤口径下没有生效：{base:.1f} → {less:.1f} 分钟。"
+        "这是权重标定问题 —— 权重是按 haversine 估算标定的，而真实驾车时长量级更小，"
+        "导致 _drop_improve 一次都不触发。改权重后请用真实通勤矩阵复测，别只看 haversine。")
