@@ -264,8 +264,10 @@
     animation: hero-hand 7s ease-in-out infinite;
   }
   @keyframes hero-hand{ 0%,100%{ transform:rotate(0); } 50%{ transform:rotate(-8deg); } }
-  @media (prefers-reduced-motion: reduce){
-    .hero-card svg *{ animation:none !important; }
+  /* 不设 prefers-reduced-motion 降级——实测用户浏览器环境会报 reduce，
+     把整套动画全关（2026-09-28「一点都不会动」的根因）。装饰性插画，
+     动效即产品诉求。仅对不支持 offset-path 的内核隐藏旅行者（避免堆在路线起点）。 */
+  @supports not (offset-path: path('M0 0 L1 1')){
     .hero-card svg .traveler{ display:none; }
   }
   .hero-deco{ position:absolute; inset:0; pointer-events:none; overflow:visible; }
