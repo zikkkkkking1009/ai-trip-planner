@@ -110,6 +110,10 @@ def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:
             stay_min=int(s.get("stay_min", 90)),
             score=float(s.get("rating", 7.0)),
             ticket=float(s.get("ticket", 0)),
+            # 攻略里没写票价时 LLM 一律填 0，这跟"该景点免费"是两回事。
+            # 所以 0 先记成**未知**，后面由 demo_data / 对齐结果回填；
+            # 回填不到就保持未知 —— 前端据此显示"票价待查"而不是谎称 ¥0。
+            ticket_known=float(s.get("ticket", 0) or 0) > 0,
             desc=str(s.get("note", "")),
         ))
     if not spots:

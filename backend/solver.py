@@ -479,7 +479,7 @@ class Solver:
                 vspots.append(VisitedSpot(
                     name=s.name, arrive_h=round(arrive, 2),
                     depart_h=round(depart, 2), ticket=s.ticket, desc=s.desc,
-                    image=s.image, intro=s.intro))
+                    image=s.image, intro=s.intro, ticket_known=s.ticket_known))
                 cost += s.ticket
                 active += s.stay_min
                 total_score += s.score

@@ -97,6 +97,18 @@ def demo_spots(city: str | None) -> list[Spot]:
     return list(DEMO_SPOTS.get(normalize_city(city), []))
 
 
+def ticket_of(city: str, name: str) -> float | None:
+    """演示数据里该景点的真实票价；**没收录这个景点返回 None**（= 未知）。
+
+    ⚠️ 0 和 None 含义不同：返回 0 是"已知免费"（如回民街），None 是"我们不知道"。
+    调错这两者的后果是把"不知道"显示成"免费"，属于典型的静默错误。
+    """
+    for s in demo_spots(city):
+        if s.name == name:
+            return s.ticket
+    return None
+
+
 def demo_cities() -> list[str]:
     """实际可演示的城市（按 DEMO_CITIES 顺序，缺数据的城市不出现）。"""
     return [c for c in DEMO_CITIES if DEMO_SPOTS.get(c)]

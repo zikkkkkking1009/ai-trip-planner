@@ -26,6 +26,9 @@ class Spot(BaseModel):
     stay_min: int = Field(ge=30, le=480)
     score: float = Field(ge=0)
     ticket: float = Field(ge=0, default=0)
+    # ticket 是否**已知**。False 表示我们没拿到票价，此时 ticket=0 不代表免费
+    # （见 VisitedSpot.ticket_known 的说明）。演示数据与手工构造的景点默认已知。
+    ticket_known: bool = True
     open_h: float = 8.0
     close_h: float = 18.0
     desc: str = ""               # 一句话介绍（LLM 抽取的 note / 演示数据预写）
@@ -72,6 +75,10 @@ class VisitedSpot(BaseModel):
     desc: str = ""
     image: str = ""
     intro: str = ""
+    # 票价是否**已知**。False = 我们不知道票价，ticket 里的 0 不代表"免费"。
+    # 为什么要单独一位：高德免费接口不给票价（`biz_ext.cost` 实测为空数组），
+    # 攻略里没写价格时 LLM 也只能给 0 —— 直接把 0 显示成"¥0"等于谎称免费。
+    ticket_known: bool = True
 
 
 class DayPlan(BaseModel):
@@ -97,3 +104,6 @@ class PlanResult(BaseModel):
     total_score: float
     unplanned: list[UnplannedSpot]
     check_report: dict        # 约束校验报告（见 constraint_check.py）
+    # 行程里**所有已排景点**的票价是否都已知。False 时 total_cost 只是"已知部分之和"，
+    # 前端必须显示"票价待查"而不是把它当最终数字（否则等于谎称免费/谎称总价）。
+    cost_known: bool = True

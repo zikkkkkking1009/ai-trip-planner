@@ -1383,6 +1383,13 @@ const ICON_TICKET = _ic('<rect x="2.5" y="4.5" width="11" height="7" rx="1.2"/>'
   + '<path d="M6.3 4.5v7" stroke-dasharray="1.5 1.5"/>');
 const ICON_WARN = _ic('<path d="M8 2.5 14.5 13.5h-13z"/><path d="M8 6.6v3"/><path d="M8 11.4v.1"/>');
 const ICON_X = _ic('<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>');
+// 票价显示。**未知时必须说"票价待查"，绝不能显示 ¥0** —— 那等于谎称免费。
+// 高德免费接口不给票价（biz_ext.cost 实测为空数组），攻略没写价时只能算未知。
+// known 为 undefined（老数据没有这个字段）时按"已知"处理，避免历史规划全变待查。
+const moneyTxt = (n, known) =>
+  known === false ? '票价待查' : '¥' + Number(n || 0).toFixed(0);
+// 一天/一整程的票价是否都已知（只看**已排上**的景点）
+const costKnown = (spots) => !(spots || []).some(v => v.ticket_known === false);
 // 五角星：实心版给「已收藏」，空心版给「未收藏」。path 级 fill="currentColor" 会覆盖 svg 的 fill="none"。
 const _STAR_P = 'M8 2.6l1.6 3.3 3.6.5-2.6 2.6.6 3.6L8 10.9l-3.2 1.7.6-3.6L2.8 6.4l3.6-.5z';
 const ICON_STAR = _ic('<path d="' + _STAR_P + '" fill="currentColor"/>');
@@ -1658,7 +1665,7 @@ function render() {
                     : apiCalls > 0 ? ICON_CAR + ' 通勤：高德真实驾车'
                     : ICON_CAR + ' 通勤：缓存命中';
   $('chips').innerHTML =
-    `<span class="chip">${ICON_TICKET} 总门票 ¥${plan.total_cost}</span>` +
+    `<span class="chip">${ICON_TICKET} 总门票 ${moneyTxt(plan.total_cost, plan.cost_known)}</span>` +
     `<span class="chip">${ICON_PIN} 已排 ${c.stats.spots_planned} 个</span>` +
     `<span class="chip">${commuteChip}</span>` +
     (plan.hotel ? `<span class="chip">${HOTEL_ICON} ${esc(plan.hotel.name)}</span>` : '') +
@@ -1797,7 +1804,7 @@ function renderOverview(plan) {
       <div class="ov-spots">${names}</div>
       <div class="ov-density"><div class="ov-density-bar" style="width:${density}%;background:${tint}"></div></div>
       <div class="ov-density-label">紧凑度 · ${d.spots.length} 个/天</div>
-      <div class="ov-sub">通勤 ${Math.round(d.commute_min)} 分钟 · 门票 ¥${esc(d.cost)}</div>
+      <div class="ov-sub">通勤 ${Math.round(d.commute_min)} 分钟 · 门票 ${moneyTxt(d.cost, costKnown(d.spots))}</div>
     </div>`;
   }).join('');
   return head + `<div class="ov-grid">${cards}</div>`;
@@ -1836,7 +1843,7 @@ function renderDayTimeline(day, dayIdx) {
     return card + commute;
   }).join('');
   const head = `<div class="dayhead"><div class="daytitle">${esc(dateOf(dayIdx))}</div>
-      <div class="daysub">门票 ¥${esc(day.cost)} · 通勤 ${esc(day.commute_min)} 分钟${hotel ? ' · ' + HOTEL_ICON + ' ' + hotel : ''}</div></div>`;
+      <div class="daysub">门票 ${moneyTxt(day.cost, costKnown(day.spots))} · 通勤 ${esc(day.commute_min)} 分钟${hotel ? ' · ' + HOTEL_ICON + ' ' + hotel : ''}</div></div>`;
   return `<div class="daywrap">
       <div class="tl">${head}<div class="tl-track">${items}</div></div>
       <div class="daymap">
@@ -2167,7 +2174,7 @@ function renderPlans() {
       : ` data-act="plan" data-plan="${esc(p.task_id)}"`;
     return `<div class="ucard${sel ? ' selected' : ''}"${act}>${check}
       <div class="info"><div class="t">${esc(p.city) || '行程'} · ${p.spots_planned || '?'} 个景点</div>
-      <div class="s">${when} · 门票 ¥${p.total_cost ?? '-'}${p.hotel ? ' · ' + HOTEL_ICON + ' ' + esc(p.hotel) : ''}</div></div>
+      <div class="s">${when} · 门票 ${moneyTxt(p.total_cost, p.cost_known)}${p.hotel ? ' · ' + HOTEL_ICON + ' ' + esc(p.hotel) : ''}</div></div>
       <div style="color:var(--muted-3)">›</div></div>`;
   }).join('');
 }
@@ -2232,7 +2239,7 @@ function openPlanModal(taskId) {
         <button onclick="this.closest('.cal-overlay').remove()" style="background:var(--fill);border:none;
           border-radius:50%;width:30px;height:30px;cursor:pointer">${ICON_X}</button></div>
       <div style="padding:0 16px 10px;overflow-y:auto;flex:1">
-        <div style="color:var(--muted-2);font-size:13px">门票 ¥${r0.total_cost}
+        <div style="color:var(--muted-2);font-size:13px">门票 ${moneyTxt(r0.total_cost, r0.cost_known)}
           · ${r0.check_report.stats.spots_planned} 个景点
           ${r0.hotel ? ' · ' + HOTEL_ICON + ' ' + esc(r0.hotel.name) : ''}</div>
         ${daysHtml}
@@ -2923,12 +2930,14 @@ function renderReview(d) {
   const score = (d.score == null) ? ''
     : `<div class="rv-score">${d.score}<small>/10</small></div>`;
   // 总花费：门票是**真实数据**；交通费用没有可靠单价，不编（明确标注"不含交通"）
+  // 票价未知时不能写 ¥0（= 谎称免费），改说"票价待查"并隐去"每天约"这个推算值
   const ticket = Number(plan?.total_cost || 0);
+  const tKnown = plan?.cost_known !== false;
   const nDays = (plan?.days || []).length || 1;
   const commute = (plan?.days || []).reduce((s, x) => s + (x.commute_min || 0), 0);
   const money = `<div class="rv-money">
-      ${ICON_MONEY} 总花费 <b>¥${ticket.toFixed(0)}</b><span>（门票，不含交通餐饮）</span>
-      <span>· 每天约 ¥${(ticket / nDays).toFixed(0)}</span>
+      ${ICON_MONEY} 总花费 <b>${tKnown ? '¥' + ticket.toFixed(0) : '票价待查'}</b><span>（门票，不含交通餐饮）</span>
+      ${tKnown ? `<span>· 每天约 ¥${(ticket / nDays).toFixed(0)}</span>` : ''}
       <span>· 通勤合计 ${Math.round(commute)} 分钟</span>
     </div>`;
   const hl = (d.highlights || [])
@@ -3272,7 +3281,7 @@ function drawPlanCanvas() {
 
   const spotCount = days.reduce((s, d) => s + (d.spots || []).length, 0);
   blocks.push({ type: 'meta', lines: [
-    `${spotCount} 个景点 · 总门票 ¥${Number(plan.total_cost || 0).toFixed(0)}` +
+    `${spotCount} 个景点 · 总门票 ${moneyTxt(plan.total_cost, plan.cost_known)}` +
     ` · 通勤合计 ${Math.round(days.reduce((s, d) => s + (d.commute_min || 0), 0))} 分钟`] });
 
   if (review && review.summary) {
@@ -3283,7 +3292,7 @@ function drawPlanCanvas() {
 
   days.forEach(d => {
     blocks.push({ type: 'day', label: `Day ${d.day}`,
-                  meta: `门票 ¥${Number(d.cost || 0).toFixed(0)} · 通勤 ${Math.round(d.commute_min || 0)} 分钟` });
+                  meta: `门票 ${moneyTxt(d.cost, costKnown(d.spots))} · 通勤 ${Math.round(d.commute_min || 0)} 分钟` });
     (d.spots || []).forEach(s => {
       probe.font = `400 25px ${SHARE_FONT}`;
       const lines = wrapLines(probe, s.name, SHARE_W - SHARE_PAD * 2 - 150);

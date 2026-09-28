@@ -483,4 +483,17 @@ def align_spot(spot, aligner: POIAligner, city: str):
     if r.best and not r.needs_review:
         spot.lat, spot.lon = r.best.lat, r.best.lon
         spot.name = r.best.name  # 统一成标准名，方便地图渲染与通勤查询
+
+    # 票价回填：高德免费接口不给票价（biz_ext.cost 实测为空数组），攻略没写价时
+    # LLM 也只能给 0。这里用**我们自己的演示数据**的真实票价补上（名字已标准化，
+    # 命中率最高）。写成"不知道"比写成"免费"诚实。
+    if not spot.ticket_known:
+        from demo_data import ticket_of
+        t = ticket_of(city, spot.name)
+        if t is not None:
+            log.info("票价回填 %r@%s：未知 → %.0f 元（来自演示数据）",
+                     spot.name, city, t)
+            spot.ticket, spot.ticket_known = t, True
+        else:
+            log.debug("票价未知且演示数据未收录：%r@%s", spot.name, city)
     return spot, r

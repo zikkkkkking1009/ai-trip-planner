@@ -60,14 +60,19 @@ function makeFetchStub(counter) {
   };
 }
 
+// 需要测不同分支（如票价未知）时，往这里塞覆盖字段
+let planOverride = {};
+
 function fakePlan() {
-  return {
+  const base = {
     city: '西安', total_cost: 30, total_score: 8, hotel: null,
+    cost_known: true,
     check_report: { passed: true, violations: [],
       stats: { spots_planned: 1, commute_api: { api_calls: 0 }, cache_hit_rate: 1 } },
     unplanned: [], reply: '', changes: [],
     days: [1, 2, 3].map(n => ({ day: n, commute_min: 12, cost: 30, active_min: 60, spots: [] })),
   };
+  return Object.assign(base, planOverride);
 }
 
 // jsdom 不会加载 <script src=...leaflet.js>，给个最小桩，免得调用处抛错
@@ -225,9 +230,38 @@ function leafletStub() {
   check('未规划时选酒店**不调** /hotel/set（只暂存）', counter.set === 0, `set_calls=${counter.set}`);
   check('选完后弹层关闭', !d.getElementById('hotelModal'));
 
-  // ---- 长图预览 ----
-  d.getElementById('go').click();          // 走一次规划，让页面内部 plan 非空
+  // ---- 票价显示：已知 vs 未知（未知时**绝不能**显示 ¥0 = 谎称免费）----
+  planOverride = {};
+  d.getElementById('go').click();
   await sleep(80);
+  const chipTxt = () => (d.getElementById('chips') || {}).textContent || '';
+  check('票价已知时显示金额', /总门票\s*¥30/.test(chipTxt()), chipTxt().trim().slice(0, 40));
+
+  planOverride = {
+    total_cost: 0, cost_known: false,
+    days: [1, 2, 3].map(n => ({
+      day: n, commute_min: 12, cost: 0, active_min: 60,
+      spots: [{ name: '某景点', ticket: 0, ticket_known: false,
+                arrive_h: 9, depart_h: 10 }],
+    })),
+  };
+  d.getElementById('go').click();
+  await sleep(80);
+  check('票价未知时显示「票价待查」而非 ¥0',
+    /票价待查/.test(chipTxt()) && !/总门票\s*¥0/.test(chipTxt()),
+    chipTxt().trim().slice(0, 40));
+
+  // 静态兜底：防止以后又有人直接写 ¥${xxx.cost} 绕过统一出口
+  // 注意：`[^}]*` 要前后各留一段，否则 `¥${plan.total_cost.toFixed(0)}` 这种
+  // 带方法调用的写法会漏过去（反向验证时踩过：正则太严 = 断言形同虚设）
+  check('票价显示走统一出口 moneyTxt（源码无裸 ¥${...cost}）',
+    !/¥\$\{[^}]*(total_cost|\.cost)[^}]*\}/.test(fs.readFileSync(HTML_PATH, 'utf8')));
+
+  planOverride = {};                        // 复位，长图用已知票价的那版
+  d.getElementById('go').click();
+  await sleep(80);
+
+  // ---- 长图预览 ----
   let dl = 0;
   window.drawPlanCanvas = () => ({
     toDataURL: () => 'data:image/png;base64,AAAA',

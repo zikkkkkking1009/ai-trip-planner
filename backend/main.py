@@ -147,9 +147,16 @@ def make_plan(req: PlanRequest) -> PlanResult:
     report["stats"]["commute_api"] = cm.stats
     report["stats"]["cache_hit_rate"] = round(cm.hit_rate(), 3)
 
+    # 只要还有一个已排景点的票价未知，总价就只是"已知部分之和" —— 必须如实告知
+    cost_known = all(v.ticket_known for d in day_plans for v in d.spots)
+    if not cost_known:
+        log.warning("票价未知：%d 个景点的票价没拿到，total_cost 仅是已知部分之和",
+                    sum(1 for d in day_plans for v in d.spots if not v.ticket_known))
+
     return PlanResult(
         city=req.city, days=day_plans, total_cost=total_cost,
         total_score=total_score, unplanned=unplanned, check_report=report,
+        cost_known=cost_known,
     )
 
 
