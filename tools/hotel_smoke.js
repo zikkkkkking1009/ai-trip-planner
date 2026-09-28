@@ -163,6 +163,15 @@ function leafletStub() {
     await sleep(10);
     check('点 3 次：回到跟随系统（清存储）', window.localStorage.getItem('theme') === null);
   }
+
+  // ---- 访问令牌：导航入口 + WS 走查询参数 ----
+  // 令牌注入由 <head> 的 window.fetch 包装层完成（详见 frontend_smoke.js）；
+  // 这里只验「入口存在」与「WS URL 追加 ?token=」两条。
+  check('导航有令牌按钮 #tokenBtn', !!d.getElementById('tokenBtn'));
+  window.setAppToken('T');
+  check('设置令牌后 WS URL 含 ?token=T',
+    window.wsUrl('/ws/smoke') === '/ws/smoke?token=T', window.wsUrl('/ws/smoke'));
+  window.setAppToken('');                  // 复位：本文件其余断言与令牌无关
   // ---- 切换偏好：不弹桌宠，改为就地给「按新偏好重排」按钮 ----
   // 回归背景：原来切偏好会弹出桌宠说一大段"要我重新排一次吗？"，挡住结果区，
   // 但用户还是得自己去点「开始规划」—— 又挡视线又没用。
