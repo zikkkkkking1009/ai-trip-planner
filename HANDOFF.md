@@ -2,7 +2,7 @@
 
 > 用途：**新会话读这一份就能无损接上下文**。
 > ✅ **2026-09-24 已同步**：**SSH 已配好**（`~/.ssh/id_ed25519`，remote 已切 `git@github.com:zikkkkkking1009/ai-trip-planner.git`），58 个提交已推上远程 `main`（`f79fa7f..5f86b91`）。以后 `git push` 免交互。
-> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 348**、接口 **20 → 26**、前端冒烟 **12 → 22+49**（详见二、六节）。
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 349**、接口 **20 → 26**、前端冒烟 **12 → 22+48**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -17,7 +17,7 @@ cd "D:\workby room\ai-trip-planner"
 # 启动服务（当前应有实例在跑，先探测再决定是否重启）
 cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-# 单元测试（348 个）
+# 单元测试（349 个）
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
 # 前端静态检查（共 10 项：语法 / 遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义变量 / 文档完整性 + 对比度达标 + 无容器级硬编码颜色）——在项目根目录跑
@@ -28,7 +28,7 @@ cd "D:\workby room\ai-trip-planner"
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" tools/check_contrast.py
 node tools/contrast_runtime.js static/index.html static/home.html --all
 
-# 前端运行时冒烟（jsdom，22 项断言；另有 hotel_smoke.js 49 项，见第六节）
+# 前端运行时冒烟（jsdom，22 项断言；另有 hotel_smoke.js 48 项，见第六节）
 cd "D:\workby room\ai-trip-planner" && node tools/frontend_smoke.js
 cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 ```
@@ -57,7 +57,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | 求解耗时 | 均值 **501ms**（CP-SAT 均值 4.18s） | 同上 |
 | 实体对齐 F1 | **100%**（20 条标注，转人工率 15%；改进前 90%/20%） | `python eval_aligner.py` |
 | 三方对照（朴素 / 求解器 / LLM 直排） | 求解器 100% 无冲突、0 预算违规；LLM 直排质量分 0.921 但违规 8 次 | `backend/eval_results.json` |
-| 单元测试 | **348 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
+| 单元测试 | **349 个**全过（另 1 skipped：无 AMAP_KEY 时跳过的酒店用例） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **7 项**全绿；冒烟 **14/14**（行程渲染）+ **30/30**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态） | `tools/` |
 | 接口数 | **26 个**（13 GET / 11 POST / 1 DELETE / 1 WS；含新增 `/hotel/recommend` 与 `/meta`） | `backend/main.py` |
 
@@ -178,7 +178,7 @@ B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化�
 
 | 工具 | 作用 | 命令 |
 |------|------|------|
-| `pytest` | **348** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
+| `pytest` | **349** 个单元测试（酒店用例无 `AMAP_KEY` 时跳过） | `python -m pytest backend/tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查 **10 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / **对比度达标** / **无容器级硬编码颜色**）；设计稿 HTML 也一并检查配色 | `python tools/check_frontend.py` |
 | `tools/check_contrast.py` | **页面级对比度门禁**（读 static/ 里真实的 `:root` / 暗色块，按「角色 × 参照底」断言 WCAG） | `python tools/check_contrast.py` |
 | `tools/contrast_runtime.js` | **浏览器运行时对比度实测**（真渲染，非推算）；`--all` 跑明暗两套 | `node tools/contrast_runtime.js static/index.html static/home.html --all` |
@@ -255,7 +255,7 @@ B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化�
   WS 增量消费（O(n²)→游标）、WS 断线兜底、CSS 笔误 ×5。
 - ⚠️ **接口变化**：`/extract` 现在收 `{"text","city"}` JSON body；`media_cache.put_media()` 已改名
   `update_media()` 且语义变为合并写。
-- 门禁：pytest **348** / 冒烟 **22+49** / 新增 `check_css_invalid_props`（前端静态现为 10 项阻塞 + 2 项警告）。
+- 门禁：pytest **349** / 冒烟 **22+48** / 新增 `check_css_invalid_props`（前端静态现为 10 项阻塞 + 2 项警告）。
 - Low 清单（10 项，量级小）与后续建议见报告第四节；**鉴权与多用户**是公开部署前的必做项（报告 §五.4）。
 
 ## 附：2026-09-28 部署阶段一（访问令牌 + 限流）
@@ -271,7 +271,30 @@ B8 部署（**用户已明确推迟**，理由：功能还不够扎实、泛化�
   同一人；② XFF 取**最后一个**（标准反代是追加式，第一个是攻击者可伪造的）
 - 前端：包 `window.fetch` 只对**同源**注入（跨域绝不加）；导航栏令牌面板；401/429/4401 各有提示
 - 测试：`backend/tests/test_auth.py` 17 条，含「遍历真实路由表」的门禁型用例
-- 门禁：pytest **348** / 前端静态 10 项阻塞 + 2 警告 / 冒烟 **22+49** / ruff、mypy 0
+- 门禁：pytest **349** / 前端静态 10 项阻塞 + 2 警告 / 冒烟 **22+48** / ruff、mypy 0
 - 待用户操作：注册贝锐 + 实名认证 + 装客户端 + 加隧道（内网主机 `127.0.0.1`、端口 `8000`）
 - 注意：`--host` 用 **127.0.0.1**（原计划写 0.0.0.0，没必要且会暴露给局域网）；
   docker-compose 的 `ports` 已收紧为 `127.0.0.1:8000:8000`
+
+## 附：2026-09-28 首页 hero 动效排查（用户反馈「大图变不成动态」）
+
+Zcode 已改 5 次（`8ca1adc` → `5dfd694` → `4be0c8d` → `a7bf812` → `4607f28`）未解决。
+
+- **结论：动画从来没坏。** 真实 Edge 实测：动画在跑、时长正常（`.flow` 5.5s / `.traveler` 7s），
+  1.1 秒内有 6 个属性在变；隧道吐的页面与本地逐字节相同（83003 B），排除缓存。
+  问题是**幅度**：hero 卡片可见变化像素仅 **2.59%/1.3s**，且多为低对比度的虚线位移
+  —— 肉眼读成一张静态插画。
+- **推翻一个错误前提**：`4607f28` 以「用户浏览器环境报 reduce」为由删掉无障碍降级。
+  用**有头** Edge 读系统设置实测 `prefers-reduced-motion: reduce = false`
+  （headless 不读系统设置、会假报 no-preference），前提不成立 ⇒ 已恢复降级。
+  ⚠️ 而且**必须**恢复：新关键帧 100% 是 `opacity:0`，那条全局降级会把整条主路线抹掉。
+- **改法**（`static/home.html`）：主路线改「**自绘**」（底下 `.ghost` 常驻虚线表示"未完成"）
+  + 保留整条虚线行进 + 彗星段 12→38、线宽 3.5→5 + 锚点按笔尖顺序依次点亮（0/2.1/4.2s）
+  + 整幅插画缓慢推移（`hero-drift`，幅度压在 padding 26px 之内、不溢出白卡）。
+- **实测**：逐窗变化率均值 **2.61% → 6.00%**（峰值 6.77%），2.3 倍；各相位 4.6~6.9% 均匀。
+- **新增 `tools/hero_motion_check.js`**（**本地**门禁，不进 CI — 需真实浏览器）：覆盖一个周期
+  逐窗比像素，断言均值 ≥ 4%；含「冻结全部动画后必须 ≈ 0」的**自校验对照组**
+  （证明这把尺子量的是运动而不是噪声）。**已反向验证**：对旧版（2.79%）判红 exit 1。
+- **口径勘误（两层错）**：① worker 自报 hotel_smoke `47→49` —— 它的提交确实到 49，但之后
+  Zcode 的 `a7bf812`（主题断言二态化）把它降到 **48**，文档一直没跟上；② pytest `348` → **349**。
+  README 中英 + HANDOFF 共 20 处数字已全部校正。

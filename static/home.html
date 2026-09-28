@@ -214,16 +214,40 @@
      颜色一律走主题令牌（--fg/--surface/--accent）：明暗两态自适应，
      不再出现「暗色下一团黑」。动效克制：路线行进、锚点雷达、描边入场、
      地标漂浮、钟摆、笔迹微动。系统开了「减少动态效果」时全部关闭。 */
-  .hero-card svg .flow{ animation: hero-flow 5.5s linear infinite; }
+  /* 主路线「自绘」循环：底下 .ghost 是常驻虚线（未完成），上面 .flow 逐段画出来
+     （正在生成行程）——这是全卡面积最大、对比度最高的一处运动，也是「动态」的主要来源。
+     为什么换掉原来的「虚线行进」：原来只有 11px/s 的虚线段位移 + 一小截 3.5px 宽的彗星，
+     2026-09-28 实测全卡可见变化像素仅 2.59%/1.3s，肉眼读成静态插画。
+     周期 6.4s：0~66% 画出 → 66~90% 停留 → 90~100% 淡出后重来（淡出是为了藏住跳回开头）。 */
+  .hero-card svg .ghost{ stroke-dasharray:7 8; opacity:.2; animation: hero-flow 5.5s linear infinite; }
   @keyframes hero-flow{ to{ stroke-dashoffset:-60; } }
-  /* 彗星流光：一段亮色沿路径周期扫过（pathLength=100 归一化，dash 循环无缝） */
+  .hero-card svg .flow{
+    stroke-dasharray:100 100; stroke-dashoffset:100;
+    animation: hero-route 6.4s cubic-bezier(.42,0,.35,1) infinite;
+  }
+  @keyframes hero-route{
+    0%{ stroke-dashoffset:100; opacity:1; }
+    66%{ stroke-dashoffset:0; opacity:1; }
+    90%{ stroke-dashoffset:0; opacity:1; }
+    100%{ stroke-dashoffset:0; opacity:0; }
+  }
+  /* 整幅插画缓慢推移：局部微动再精致也撑不起「大图是动态的」这个观感 ——
+     局部（彗星/锚点）变化面积只占 ~2.5%，全卡共同位移才是面积最大的那一档。
+     幅度刻意压在 padding(26px) 之内，不会溢出白卡。 */
+  .hero-card svg{ animation: hero-drift 9s ease-in-out infinite; }
+  @keyframes hero-drift{
+    0%,100%{ transform:translate3d(0,0,0) scale(1); }
+    50%{ transform:translate3d(-7px,-9px,0) scale(1.03); }
+  }
+  /* 彗星流光：一段亮色沿路径周期扫过（pathLength=100 归一化，dash 循环无缝）。
+     段长 12→38、线宽 3.5→5：原来那一小截太短太细，是「看不见」的第二个原因。 */
   .hero-card svg .comet{
-    stroke-dasharray:12 88;
-    animation: hero-comet 4.5s linear infinite;
+    stroke-dasharray:38 62;
+    animation: hero-comet 3.2s linear infinite;
   }
   .hero-card svg .comet2{
-    stroke-dasharray:16 84;
-    animation: hero-comet 5.2s linear 1.2s infinite;
+    stroke-dasharray:38 62;
+    animation: hero-comet 3.8s linear 1.2s infinite;
   }
   @keyframes hero-comet{ to{ stroke-dashoffset:-100; } }
   .hero-card svg .draw{
@@ -232,20 +256,39 @@
   }
   @keyframes hero-draw{ from{ stroke-dashoffset:100; } to{ stroke-dashoffset:0; } }
   @keyframes hero-breathe{ 0%,100%{ opacity:.55; } 50%{ opacity:.32; } }
+  /* 锚点「依次点亮」：雷达圈扩散 + 内芯闪一下 accent。周期与 hero-route 同为 6.4s，
+     靠 animation-delay 错开（SVG 里给 0 / 2.1 / 4.2s），笔尖画到哪、哪个锚点亮。 */
   .hero-card svg .ping{
     transform-box:fill-box; transform-origin:center; opacity:0;
-    animation: hero-ping 2.6s ease-out infinite;
+    animation: hero-ping 6.4s ease-out infinite;
   }
   @keyframes hero-ping{
-    0%{ transform:scale(1); opacity:.7; } 70%,100%{ transform:scale(2.2); opacity:0; }
+    0%{ transform:scale(1); opacity:0; }
+    3%{ transform:scale(1); opacity:.85; }
+    22%{ transform:scale(2.9); opacity:0; }
+    100%{ transform:scale(2.9); opacity:0; }
   }
+  .hero-card svg .dot{
+    transform-box:fill-box; transform-origin:center;
+    animation: hero-dot 6.4s ease-out infinite;
+  }
+  @keyframes hero-dot{
+    0%{ fill:var(--fg); transform:scale(1); }
+    6%{ fill:var(--accent); transform:scale(2.1); }
+    20%,100%{ fill:var(--fg); transform:scale(1); }
+  }
+  /* 旅行者（纸飞机）与自绘同步：同一 6.4s、同一缓动，于是它始终骑在笔尖上 ——
+     「路线被画出来、飞机飞过去」合成一个动作，比两段各跑各的更容易看懂。 */
   .hero-card svg .traveler{
     offset-path:path('M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112');
-    animation: hero-travel 7s cubic-bezier(.4,0,.6,1) infinite;
+    animation: hero-travel 6.4s cubic-bezier(.42,0,.35,1) infinite;
   }
   @keyframes hero-travel{
-    0%{ offset-distance:0%; opacity:0; } 8%{ opacity:1; }
-    92%{ opacity:1; } 100%{ offset-distance:100%; opacity:0; }
+    0%{ offset-distance:0%; opacity:0; }
+    6%{ opacity:1; }
+    66%{ offset-distance:100%; opacity:1; }
+    88%{ offset-distance:100%; opacity:1; }
+    100%{ offset-distance:100%; opacity:0; }
   }
   .hero-card svg .float-a, .hero-card svg .float-b, .hero-card svg .float-c{
     transform-box:fill-box; transform-origin:center;
@@ -264,10 +307,26 @@
     animation: hero-hand 7s ease-in-out infinite;
   }
   @keyframes hero-hand{ 0%,100%{ transform:rotate(0); } 50%{ transform:rotate(-8deg); } }
-  /* 不设 prefers-reduced-motion 降级——实测用户浏览器环境会报 reduce，
-     把整套动画全关（2026-09-28「一点都不会动」的根因）。装饰性插画，
-     动效即产品诉求。仅对不支持 offset-path 的内核隐藏旅行者（避免堆在路线起点）。 */
+  /* 不支持 offset-path 的内核隐藏旅行者（避免堆在路线起点）。 */
   @supports not (offset-path: path('M0 0 L1 1')){
+    .hero-card svg .traveler{ display:none; }
+  }
+  /* 减弱动效降级：把上面这套自绘/流光定格成一帧静态插画。
+     为什么不能只靠页面底部那条全局降级：它把 animation-duration 压到 .001ms，
+     动画会瞬间跑到 100% 关键帧 —— 而 hero-route 的 100% 是 opacity:0，
+     等于把整条主路线抹掉。所以这里显式把路线定在「已画完」这一帧。
+
+     ⚠️ 2026-09-28 勘误：上一版这里写成「不设降级」，理由是"用户浏览器环境报 reduce"。
+     用有头 Edge 读系统设置实测（headless 不读系统设置，会假报 no-preference）：
+     prefers-reduced-motion:reduce = false —— 该前提不成立，故恢复本段。
+     动效不足的根因是幅度太小（见 .flow 上方注释），不是被这条降级关掉的。 */
+  @media (prefers-reduced-motion:reduce){
+    .hero-card svg{ animation:none !important; transform:none !important; }
+    .hero-card svg .ghost{ animation:none !important; }
+    .hero-card svg .flow{ animation:none !important; stroke-dashoffset:0 !important; opacity:1 !important; }
+    .hero-card svg .comet, .hero-card svg .comet2{ animation:none !important; opacity:0 !important; }
+    .hero-card svg .ping{ animation:none !important; opacity:0 !important; }
+    .hero-card svg .dot{ animation:none !important; fill:var(--fg) !important; transform:none !important; }
     .hero-card svg .traveler{ display:none; }
   }
   .hero-deco{ position:absolute; inset:0; pointer-events:none; overflow:visible; }
@@ -652,11 +711,14 @@
             <path d="M28 96 h60 v-38 h76 v54 h58" stroke-width="1.6" opacity=".22"/>
             <path d="M28 214 h88 v-46 h72" stroke-width="1.6" opacity=".22"/>
             <path d="M40 330 h64 v-52 h92 v40 h52" stroke-width="1.6" opacity=".22"/>
-            <!-- 主路线：虚线行进中 + 一段 accent 彗星扫过 -->
-            <path id="heroRoute" class="flow" d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112"
-                  stroke-dasharray="7 8" stroke-width="2.6"/>
+            <!-- 主路线：底下 .ghost 是常驻虚线（未完成），上面 .flow 逐段自绘（正在生成行程）；
+                 再叠一段 accent 彗星沿路径扫过 -->
+            <path class="ghost" d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112"
+                  stroke-width="2.6"/>
+            <path id="heroRoute" class="flow" pathLength="100"
+                  d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112" stroke-width="2.6"/>
             <path class="comet" pathLength="100" d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112"
-                  stroke="var(--accent)" stroke-width="3.5"/>
+                  stroke="var(--accent)" stroke-width="5"/>
             <!-- 地标线稿（轻漂浮） -->
             <g class="float-a">
               <path d="M212 300 v-34 h34 v34 M219 266 v-14 h20 v14"/>
@@ -673,21 +735,21 @@
               <path class="clock-hand" d="M70 70 v-12" fill="none"/>
               <path d="M70 70 l9 6"/>
             </g>
-            <!-- 锚点：底圈随主题 + 内芯 + 雷达脉冲 -->
+            <!-- 锚点：底圈随主题 + 内芯 + 雷达脉冲；延迟按笔尖经过顺序 0 / 2.1 / 4.2s -->
             <g>
               <circle class="ping" cx="64" cy="322" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4"/>
               <circle cx="64" cy="322" r="9" fill="var(--surface)"/>
-              <circle cx="64" cy="322" r="3.4" fill="var(--fg)"/>
+              <circle class="dot" cx="64" cy="322" r="3.4" fill="var(--fg)"/>
             </g>
             <g>
-              <circle class="ping" cx="122" cy="200" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4" style="animation-delay:1s"/>
+              <circle class="ping" cx="122" cy="200" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4" style="animation-delay:2.1s"/>
               <circle cx="122" cy="200" r="9" fill="var(--surface)"/>
-              <circle cx="122" cy="200" r="3.4" fill="var(--fg)"/>
+              <circle class="dot" cx="122" cy="200" r="3.4" fill="var(--fg)" style="animation-delay:2.1s"/>
             </g>
             <g>
-              <circle class="ping" cx="196" cy="112" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4" style="animation-delay:2s"/>
+              <circle class="ping" cx="196" cy="112" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4" style="animation-delay:4.2s"/>
               <circle cx="196" cy="112" r="9" fill="var(--surface)"/>
-              <circle cx="196" cy="112" r="3.4" fill="var(--fg)"/>
+              <circle class="dot" cx="196" cy="112" r="3.4" fill="var(--fg)" style="animation-delay:4.2s"/>
             </g>
             <!-- 角落笔迹：轻微摆动 -->
             <g class="hand" stroke-width="2.4">
