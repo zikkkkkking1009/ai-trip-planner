@@ -88,12 +88,12 @@ async def request_context(request: Request, call_next):
     t0 = time.time()
 
     path = request.url.path
-    if path.startswith(RATE_LIMIT_PATHS):
+    if is_costly_path(path):
         ip = client_ip(request)
         if rate_limit_hit(ip, t0):
             request_id_var.reset(token)
-            log.warning("限流命中 ip=%s path=%s（>%d 次/分钟）",
-                        ip, path, RATE_LIMIT_PER_MIN)
+            log.warning("限流命中 ip=%s path=%s（>%d 次/分钟）转发头=%s",
+                        ip, path, RATE_LIMIT_PER_MIN, forwarding_headers(request))
             return JSONResponse(
                 {"detail": f"请求过于频繁：每分钟最多 {RATE_LIMIT_PER_MIN} 次，请稍后再试"},
                 status_code=429, headers={"X-Request-Id": rid})
@@ -181,11 +181,34 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
-# 可用环境变量覆盖（见 .env.example）：朋友多/带宽小就调小
-RATE_LIMIT_PER_MIN = _int_env("RATE_LIMIT_PER_MIN", 30)
-RATE_LIMIT_PATHS = (
-    "/plan", "/extract", "/hotel/", "/poi/", "/weather",
-)
+# 可用环境变量覆盖（见 .env.example）。
+#
+# ⚠️ 默认值为什么是 120 而不是 30：实测（2026-09-28，花生壳免费 HTTPS 映射）
+# **上游一个转发头都不发**（XFF / X-Real-IP / Forwarded 全无），所以 `client_ip()`
+# 拿到的恒为 127.0.0.1 ⇒ 这个限流**不是"每 IP"，而是"全场共享一个桶"**。
+# 30 次/分钟 全场共享的话，两三个朋友同时规划就会互相打到 429（而且提示很莫名）。
+# 120 仍然能挡住"脚本跑飞烧 Key"（配合高德侧 3 QPS 节流），又不会误伤朋友。
+# 换成会透传真实 IP 的隧道/反代后，`client_ip()` 会自动开始按人计数，届时可调回小值。
+RATE_LIMIT_PER_MIN = _int_env("RATE_LIMIT_PER_MIN", 120)
+
+# 只对**会花钱/触发外部调用**的路径计数。
+RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather")
+
+
+def is_costly_path(path: str) -> bool:
+    """是否是"花钱路径"。
+
+    用 `path == p or path.startswith(p + "/")` 而不是裸 `startswith(p)`：
+    裸前缀会把 **`/plans`（只读的历史列表）**也算成 `/plan`，白白吃掉额度。
+    做减法很重要 —— 额度是全场共享的，省下的额度就是朋友能用的额度。
+    """
+    for p in RATE_LIMIT_PREFIXES:
+        if p.endswith("/"):
+            if path.startswith(p):
+                return True
+        elif path == p or path.startswith(p + "/"):
+            return True
+    return False
 _rate_hits: dict[str, deque[float]] = defaultdict(deque)
 _rate_lock = threading.Lock()
 
@@ -209,12 +232,31 @@ def client_ip(request: Request) -> str:
     """
     peer = request.client.host if request.client else "-"
     if peer in ("127.0.0.1", "::1"):
+        # 两种常见写法都认：X-Forwarded-For（追加式）与 X-Real-IP（覆盖式）。
+        # 实测（2026-09-28，花生壳免费 HTTPS 映射）：**它两个都不发**，
+        # 隧道来的请求解析出来仍是 127.0.0.1 ⇒ 限流实际是"全场共享一份额度"。
+        # 这段代码留着是为了换隧道/加反代时能自动生效。
         xff = request.headers.get("x-forwarded-for", "")
         if xff:
             last = xff.split(",")[-1].strip()
             if last:
                 return last
+        real = request.headers.get("x-real-ip", "").strip()
+        if real:
+            return real
     return peer
+
+
+def forwarding_headers(request: Request) -> str:
+    """把与"真实来源"相关的头拼成一行，供限流日志用。
+
+    为什么值得单独记：限流一旦按错的身份计数（例如隧道不透传 IP，所有人都被算成一个），
+    表现是"大家莫名其妙一起被限流"，而只看 `ip=127.0.0.1` 根本判断不出原因。
+    把原始头记下来，一眼就能看出是"上游没发"还是"我们读错了"。
+    """
+    keys = ("x-forwarded-for", "x-real-ip", "forwarded", "x-forwarded-host")
+    got = {k: request.headers[k] for k in keys if k in request.headers}
+    return str(got) if got else "（上游未发任何转发头）"
 
 
 def rate_limit_hit(ip: str, now: float) -> bool:

@@ -155,6 +155,22 @@ def test_rate_limit_returns_429(monkeypatch):
     assert codes[0] != 429, "第 1 次就被限流了，阈值算错"
 
 
+def test_costly_path_matching_is_exact_not_naive_prefix():
+    """额度是**全场共享**的（隧道不透传 IP），所以"少算"和"算错"都要防。
+
+    裸 `startswith('/plan')` 会把只读的历史列表 `/plans` 也算进额度 ——
+    那是纯磁盘读、不花钱，白白吃掉大家的额度。
+    """
+    for p in ("/plan", "/plan/async", "/plan/edit", "/extract",
+              "/poi/detail", "/poi/reviews", "/hotel/search",
+              "/hotel/recommend", "/hotel/set", "/weather"):
+        assert main.is_costly_path(p), f"{p} 应该计入额度（它会花钱）"
+    for p in ("/plans", "/plans/delete", "/plans/abc", "/task/000000000000",
+              "/meta", "/health", "/cities", "/favorites", "/demo/spots",
+              "/static/app.js", "/app", "/ws/000000000000"):
+        assert not main.is_costly_path(p), f"{p} 不该计入额度（免费或只读）"
+
+
 def test_rate_limit_does_not_count_cheap_paths(monkeypatch):
     """静态/健康检查不占额度 —— 否则页面正常浏览会把用户自己限掉。"""
     monkeypatch.setattr(main, "_rate_hits", defaultdict(deque))

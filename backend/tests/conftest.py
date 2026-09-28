@@ -10,6 +10,22 @@ import selftest
 
 
 @pytest.fixture(autouse=True)
+def isolated_app_token(monkeypatch):
+    """默认关掉访问令牌，让测试不受开发机 `backend/.env` 影响。
+
+    为什么必须做（2026-09-28 真实踩到）：部署时往 `.env` 写了 `APP_TOKEN`，
+        而 main.py 在 import 阶段就把 .env 灌进 os.environ ⇒ 整个测试套件的请求
+        全被 401 拦下，**33 个用例同时变红**，看上去像代码坏了，实际只是本机配了令牌。
+
+    这与「本机 .env 有真 AMAP_KEY / LLM Key」是同一类问题 —— 测试的正确性不能取决于
+    跑测试的人碰巧在 .env 里配了什么。要测令牌行为的用例（test_auth.py）自己
+    用 monkeypatch 把它设回来。
+    """
+    import main
+    monkeypatch.setattr(main, "APP_TOKEN", "")
+
+
+@pytest.fixture(autouse=True)
 def isolated_rate_limit(monkeypatch):
     """默认关闭限流，避免测试套件把自己的额度打满。
 
