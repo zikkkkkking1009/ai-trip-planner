@@ -210,6 +210,53 @@
     padding:26px; aspect-ratio:3/4; display:flex; align-items:center; justify-content:center;
   }
   .hero-card svg{ width:100%; height:auto; display:block; }
+  /* ---- hero 插画动效 ----
+     颜色一律走主题令牌（--fg/--surface/--accent）：明暗两态自适应，
+     不再出现「暗色下一团黑」。动效克制：路线行进、锚点雷达、描边入场、
+     地标漂浮、钟摆、笔迹微动。系统开了「减少动态效果」时全部关闭。 */
+  .hero-card svg .flow{ animation: hero-flow 7s linear infinite; }
+  @keyframes hero-flow{ to{ stroke-dashoffset:-60; } }
+  .hero-card svg .draw{
+    stroke-dasharray:100;
+    animation: hero-draw 1.8s cubic-bezier(.6,0,.3,1) .3s both;
+  }
+  @keyframes hero-draw{ from{ stroke-dashoffset:100; } to{ stroke-dashoffset:0; } }
+  .hero-card svg .ping{
+    transform-box:fill-box; transform-origin:center; opacity:0;
+    animation: hero-ping 3.2s ease-out infinite;
+  }
+  @keyframes hero-ping{
+    0%{ transform:scale(1); opacity:.5; } 70%,100%{ transform:scale(2); opacity:0; }
+  }
+  .hero-card svg .traveler{
+    offset-path:path('M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112');
+    animation: hero-travel 9s ease-in-out infinite;
+  }
+  @keyframes hero-travel{
+    0%{ offset-distance:0%; opacity:0; } 10%{ opacity:1; }
+    85%{ opacity:1; } 100%{ offset-distance:100%; opacity:0; }
+  }
+  .hero-card svg .float-a, .hero-card svg .float-b, .hero-card svg .float-c{
+    transform-box:fill-box; transform-origin:center;
+  }
+  .hero-card svg .float-a{ animation: hero-float 5.5s ease-in-out infinite; }
+  .hero-card svg .float-b{ animation: hero-float 6.5s ease-in-out .8s infinite; }
+  .hero-card svg .float-c{ animation: hero-float 7.5s ease-in-out 1.6s infinite; }
+  @keyframes hero-float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-4px); } }
+  .hero-card svg .clock-hand{
+    transform-box:fill-box; transform-origin:50% 100%;
+    animation: hero-clock 20s linear infinite;
+  }
+  @keyframes hero-clock{ to{ transform:rotate(360deg); } }
+  .hero-card svg .hand{
+    transform-box:fill-box; transform-origin:center;
+    animation: hero-hand 7s ease-in-out infinite;
+  }
+  @keyframes hero-hand{ 0%,100%{ transform:rotate(0); } 50%{ transform:rotate(-8deg); } }
+  @media (prefers-reduced-motion: reduce){
+    .hero-card svg *{ animation:none !important; }
+    .hero-card svg .traveler{ display:none; }
+  }
   .hero-deco{ position:absolute; inset:0; pointer-events:none; overflow:visible; }
 
   /* ===== 通用区块 =====
@@ -586,34 +633,61 @@
 
       <div class="hero-card" data-od-id="hero-art">
         <svg viewBox="0 0 300 400" role="img" aria-label="行程路线示意图">
-          <g fill="none" stroke="#111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <g fill="none" stroke="var(--fg)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <!-- 地图底：折线路径 -->
-            <path d="M28 96 h60 v-38 h76 v54 h58" stroke-width="1.6" opacity=".35"/>
-            <path d="M28 214 h88 v-46 h72" stroke-width="1.6" opacity=".35"/>
-            <path d="M40 330 h64 v-52 h92 v40 h52" stroke-width="1.6" opacity=".35"/>
-            <!-- 主路线：虚线 + 三个锚点 -->
-            <path d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112"
+            <path d="M28 96 h60 v-38 h76 v54 h58" stroke-width="1.6" opacity=".22"/>
+            <path d="M28 214 h88 v-46 h72" stroke-width="1.6" opacity=".22"/>
+            <path d="M40 330 h64 v-52 h92 v40 h52" stroke-width="1.6" opacity=".22"/>
+            <!-- 主路线：虚线行进中 -->
+            <path id="heroRoute" class="flow" d="M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112"
                   stroke-dasharray="7 8" stroke-width="2.6"/>
-            <circle cx="64" cy="322" r="9" fill="#fff"/>
-            <circle cx="122" cy="200" r="9" fill="#fff"/>
-            <circle cx="196" cy="112" r="9" fill="#fff"/>
-            <circle cx="64" cy="322" r="3.4" fill="#111"/>
-            <circle cx="122" cy="200" r="3.4" fill="#111"/>
-            <circle cx="196" cy="112" r="3.4" fill="#111"/>
-            <!-- 建筑/地标线稿 -->
-            <path d="M212 300 v-34 h34 v34 M219 266 v-14 h20 v14"/>
-            <path d="M40 150 l14 -18 l14 18 z"/>
-            <path d="M226 196 h30 M241 196 v-22"/>
-            <!-- 钟面（时间窗） -->
-            <circle cx="70" cy="70" r="22"/>
-            <path d="M70 70 v-12 M70 70 l9 6"/>
+            <!-- 地标线稿（轻漂浮） -->
+            <g class="float-a">
+              <path d="M212 300 v-34 h34 v34 M219 266 v-14 h20 v14"/>
+            </g>
+            <g class="float-b">
+              <path d="M40 150 l14 -18 l14 18 z"/>
+            </g>
+            <g class="float-c">
+              <path d="M226 196 h30 M241 196 v-22"/>
+            </g>
+            <!-- 钟面（时间窗）：钟摆缓转 -->
+            <g class="float-a">
+              <circle cx="70" cy="70" r="22"/>
+              <path class="clock-hand" d="M70 70 v-12" fill="none"/>
+              <path d="M70 70 l9 6"/>
+            </g>
+            <!-- 锚点：底圈随主题 + 内芯 + 雷达脉冲 -->
+            <g>
+              <circle class="ping" cx="64" cy="322" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4"/>
+              <circle cx="64" cy="322" r="9" fill="var(--surface)"/>
+              <circle cx="64" cy="322" r="3.4" fill="var(--fg)"/>
+            </g>
+            <g>
+              <circle class="ping" cx="122" cy="200" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4" style="animation-delay:1s"/>
+              <circle cx="122" cy="200" r="9" fill="var(--surface)"/>
+              <circle cx="122" cy="200" r="3.4" fill="var(--fg)"/>
+            </g>
+            <g>
+              <circle class="ping" cx="196" cy="112" r="9" fill="none" stroke="var(--accent)" stroke-width="1.4" style="animation-delay:2s"/>
+              <circle cx="196" cy="112" r="9" fill="var(--surface)"/>
+              <circle cx="196" cy="112" r="3.4" fill="var(--fg)"/>
+            </g>
+            <!-- 角落笔迹：轻微摆动 -->
+            <g class="hand" stroke-width="2.4">
+              <path d="M42 42 l8 -8 M52 50 l8 -8"/>
+            </g>
+            <g class="hand" stroke-width="2.4" style="animation-delay:2.5s">
+              <path d="M248 344 l8 -8 M258 352 l8 -8"/>
+            </g>
           </g>
-          <!-- 强调笔触：整页 accent 用量之一 -->
-          <path d="M30 250 C 70 232, 132 236, 168 262" fill="none"
+          <!-- 强调笔触：入场描边 + 缎带（accent 用量纪律不变） -->
+          <path class="draw" pathLength="100" d="M30 250 C 70 232, 132 236, 168 262" fill="none"
                 stroke="var(--accent)" stroke-width="5" stroke-linecap="round" opacity=".55"/>
-          <g stroke="#111" stroke-width="2.4" stroke-linecap="round">
-            <path d="M42 42 l8 -8 M52 50 l8 -8"/>
-            <path d="M248 344 l8 -8 M258 352 l8 -8"/>
+          <!-- 旅行者：沿主路线巡游（CSS offset-path，reduced-motion 下隐藏） -->
+          <g class="traveler" fill="none">
+            <circle r="9" stroke="var(--accent)" stroke-width="1.5" opacity=".4"/>
+            <circle r="4.5" fill="var(--accent)" stroke="none"/>
           </g>
         </svg>
       </div>
