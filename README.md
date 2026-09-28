@@ -190,6 +190,10 @@ cd backend && ruff check .                 # 静态检查（pyflakes + pycodesty
 cd backend && mypy .                       # 类型检查（渐进式，当前 0 条、0 处 type: ignore）
 ```
 
+> 本地与 CI 都需 **Node 22**：jsdom 30.x 的传递依赖 undici 用了 Node 22 才有的 API，
+> 在 Node 20 上 `require('jsdom')` 会直接崩（2026-09-28 CI 连挂 10 次就是这个）。
+> CI 里 jsdom 已钉到 `30.1.1`；要复现 CI 环境就用 `npx -y node@20 tools/frontend_smoke.js`。
+
 > **只在本机跑**（都要真实浏览器，不进 CI：慢且脆。前置：本机 8000 在跑）：
 > - `node tools/contrast_runtime.js static/index.html static/home.html --all` —— 对比度真渲染复核
 > - `node tools/hero_motion_check.js` —— 首页 hero 插画「动效是否肉眼可辨」（覆盖一个周期逐窗比像素，正常与 reduce 双环境均值均须 ≥4%）

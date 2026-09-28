@@ -165,6 +165,11 @@ cd backend && mypy .                       # type check (gradual; 0 findings and
 python tools/check_backend_health.py       # backend five-dimension robustness audit (AST, keyless)
 ```
 
+> Both local and CI need **Node 22**: a transitive dependency of jsdom 30.x (undici) uses an API
+> that only exists in Node 22, so under Node 20 `require('jsdom')` crashes outright (that is what
+> broke CI 10 times in a row on 2026-09-28). CI pins jsdom to `30.1.1`; to reproduce the CI
+> environment run `npx -y node@20 tools/frontend_smoke.js`.
+
 - **Tests and CI**: **349 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather / hotel endpoints), GitHub Actions green
 - **Nine CI gates**: unit tests + **frontend static check** (10 blocking gates: syntax / variable shadowing / hardcoded coordinates / attribute escaping / CSS self-reference / undefined CSS variables / document integrity) + **two-level contrast gates** (page-level token parsing + spec-level light/dark) + **backend five-dimension robustness audit** + **ruff lint** + **mypy type check** + **jsdom runtime smoke** (`frontend_smoke.js` 22 assertions + `hotel_smoke.js` 48 assertions) + a keyless solver demo
 - **Static-check strategy**: ruff enables only **bug-catching rules** (`E4/E7/E9/F`) rather than every style rule — turning everything on at once produces a wall of `# noqa` and the gate stops being read. `main.py`'s `E402` is an **intentional exemption** (`.env` must load before logging is initialised); the reason is recorded in `ruff.toml`. mypy runs **gradually** (bodies of unannotated functions are not checked by default), so genuine type errors in annotated code surface first — **zero `# type: ignore`**

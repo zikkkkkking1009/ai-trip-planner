@@ -355,3 +355,29 @@ SPI_GETMENUANIMATION       = 0
 - 新增接口级断言 4 条（`tests/test_api_endpoints.py`）；pytest 349 → **350**
 - 容量结论：**同时在线 3~5 人舒适 / 10 人明显慢 / 20 人接近上限**；
   **真正的日天花板在高德·LLM 平台的配额**（要登录控制台看），不在代码里
+
+## 附：2026-09-28 CI 连挂 10 次的修复（Node 20 vs jsdom 30.x）
+
+现象：`#82`~`#91` 全部失败，且都挂在同一步 `Frontend runtime smoke test (jsdom)`；
+本地跑同一条命令却 22/22 通过。**与我们的代码改动无关。**
+
+根因：CI 里 `npm install jsdom`（没钉版本）装到 jsdom 30.x，它带的 undici 用了
+Node 22 才有的 `webidl.util.markAsUncloneable`；而 CI 的 `node-version` 是 20
+⇒ `require('jsdom')` 直接 `TypeError`，冒烟**连一条断言都没跑到**。开发机是 Node 22，
+所以本地一直绿、CI 一路红 —— 这类"只在 CI 复现"的最费时间。
+
+排查过程（记录下来）：
+1. GitHub API 取 run 列表 → 定位首个失败 run 与失败步骤
+   （⚠️ **job 日志接口要 admin 权限，未登录拿不到，403**；annotations 同理）
+2. 本地对齐 CI 的三个差异逐个排除：LF 行尾（干净克隆）、干净 jsdom、**Node 版本**
+3. `npx -y node@20 tools/frontend_smoke.js` → **复现同样的 TypeError**
+4. 把 jsdom 钉到 30.1.1 再用 Node 20 跑 → **照样崩** ⇒ 光钉版本没用，必须升 Node
+
+修复（`.github/workflows/ci.yml`）：
+- `node-version: "20"` → `"22"`（附根因注释与复现命令）
+- jsdom 钉到 `30.1.1`：不钉的话上游一发新版就可能让 CI 突然红，且报错是 Node 内部栈、
+  完全看不出跟业务代码有关
+- 两个 jsdom 冒烟步骤补「失败时把尾巴丢进 `::error::` annotation」（与 pytest 那步同款）
+  —— **这次排查最大的障碍就是 Actions 日志要登录才看得到**，以后失败原因直接出现在摘要上
+
+验证：run **#92 = success**，15 个步骤全部 ✓（无 skipped）。提交 `128f52e`。
