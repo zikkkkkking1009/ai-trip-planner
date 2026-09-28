@@ -22,14 +22,18 @@ import json
 import logging
 import os
 import re
+import secrets
 import sys
 import threading
 import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (Depends, FastAPI, HTTPException, Request, WebSocket,
+                     WebSocketDisconnect)
+from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
 from commute import CommuteMatrix, load_env_file
@@ -78,10 +82,22 @@ app = FastAPI(title="AI 行程规划 API", version="1.0.0", lifespan=lifespan)
 
 @app.middleware("http")
 async def request_context(request: Request, call_next):
-    """为每个请求注入 request_id，并记录耗时——日志可按 ID 串起完整链路。"""
+    """为每个请求注入 request_id、限流，并记录耗时——日志可按 ID 串起完整链路。"""
     rid = new_request_id()
     token = request_id_var.set(rid)
     t0 = time.time()
+
+    path = request.url.path
+    if path.startswith(RATE_LIMIT_PATHS):
+        ip = client_ip(request)
+        if rate_limit_hit(ip, t0):
+            request_id_var.reset(token)
+            log.warning("限流命中 ip=%s path=%s（>%d 次/分钟）",
+                        ip, path, RATE_LIMIT_PER_MIN)
+            return JSONResponse(
+                {"detail": f"请求过于频繁：每分钟最多 {RATE_LIMIT_PER_MIN} 次，请稍后再试"},
+                status_code=429, headers={"X-Request-Id": rid})
+
     try:
         response = await call_next(request)
     except Exception:
@@ -106,6 +122,108 @@ FAV_FILE = DATA_DIR / "favorites.json"
 # 媒体缓存（spot_media.json）的读写统一走 media_cache 模块（key 规则 = 「城市|景点名」）
 
 _TASK_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+
+
+# ---------- 访问令牌（公开部署闸门） ----------
+#
+# 为什么需要：全站原先是"演示定位 = 无鉴权"，但一旦映射到公网，收藏/历史是**全局共享**的，
+# 而且任何人拿到链接都能触发 LLM 与高德调用 —— 等于把Key 交给陌生人烧。
+#
+# 配置方式：`backend/.env` 里写 `APP_TOKEN=<随机串>`（.env.example 有一键生成命令）。
+# **未配置时放行**（本地开发 / CI 不受影响），但启动时会打醒目告警，/meta 也会回 `token_required=false`
+# 让部署者一眼看出"还没上锁"。
+APP_TOKEN: str = os.environ.get("APP_TOKEN", "").strip()
+
+if not APP_TOKEN:
+    log.warning("APP_TOKEN 未配置：接口**无鉴权**。本地开发无妨；"
+                "映射到公网前请务必在 backend/.env 里设置（见 .env.example）")
+else:
+    log.info("APP_TOKEN 已启用：受保护接口需要 X-App-Token 头")
+
+
+def verify_token(request: Request) -> None:
+    """FastAPI 依赖：校验 `X-App-Token` 头（也接受 `Authorization: Bearer <token>`）。
+
+    - 用 `secrets.compare_digest` 而不是 `==`：避免按字符短路带来的时序侧信道。
+    - 未配置 APP_TOKEN 时直接放行（见上面说明）。
+    """
+    if not APP_TOKEN:
+        return
+    got = request.headers.get("X-App-Token", "").strip()
+    if not got:
+        auth = request.headers.get("Authorization", "")
+        if auth[:7].lower() == "bearer ":
+            got = auth[7:].strip()
+    if not secrets.compare_digest(got, APP_TOKEN):
+        raise HTTPException(401, "需要访问令牌：请在页面右上角填入，或带 X-App-Token 头")
+
+
+def ws_token_ok(websocket: WebSocket) -> bool:
+    """WebSocket 没法自定义 header（浏览器 WebSocket API 不支持），所以令牌走查询参数。
+
+    失败时调用方要 `close(code=4401)` —— 前端据此提示重新输入令牌（见 index.html）。
+    """
+    if not APP_TOKEN:
+        return True
+    return secrets.compare_digest(websocket.query_params.get("token", ""), APP_TOKEN)
+
+
+# ---------- 每 IP 限流（不引入依赖，内存计数） ----------
+#
+# 为什么要有：令牌挡得住陌生人，挡不住"拿到令牌的人手抖/脚本"把 Key 烧光。
+# 只对**会触发 LLM / 高德调用**的路径计数，静态页面与 /health 不占额度。
+def _int_env(name: str, default: int) -> int:
+    """读整型环境变量；坏值退回默认（不让一个笔误把服务起不来）。"""
+    try:
+        return int(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        log.warning("%s 不是整数，使用默认值 %d", name, default)
+        return default
+
+
+# 可用环境变量覆盖（见 .env.example）：朋友多/带宽小就调小
+RATE_LIMIT_PER_MIN = _int_env("RATE_LIMIT_PER_MIN", 30)
+RATE_LIMIT_PATHS = (
+    "/plan", "/extract", "/hotel/", "/poi/", "/weather",
+)
+_rate_hits: dict[str, deque[float]] = defaultdict(deque)
+_rate_lock = threading.Lock()
+
+
+def client_ip(request: Request) -> str:
+    """取真实客户端 IP。
+
+    ⚠️ **这是隧道场景的关键点**：花生壳这类内网穿透的请求都从**本机**发起，
+    `request.client.host` 恒为 127.0.0.1 —— 直接按它限流会把所有朋友算成同一个人
+    （30 次/分钟 被全场共享）。真实 IP 在 `X-Forwarded-For` 里。
+
+    但 XFF 是**可伪造**的，不能无条件相信：只在"直连方是回环"（即请求来自本机隧道
+    客户端）时才采信 XFF。这样局域网里的机器即使伪造 XFF 也只会被按自己的真实 IP 限流。
+    """
+    peer = request.client.host if request.client else "-"
+    if peer in ("127.0.0.1", "::1"):
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            first = xff.split(",")[0].strip()
+            if first:
+                return first
+    return peer
+
+
+def rate_limit_hit(ip: str, now: float) -> bool:
+    """记一次命中；超过阈值返回 True（调用方回 429）。滑动窗口 60 秒。"""
+    with _rate_lock:
+        dq = _rate_hits[ip]
+        while dq and now - dq[0] > 60.0:
+            dq.popleft()
+        if len(dq) >= RATE_LIMIT_PER_MIN:
+            return True
+        dq.append(now)
+        # 顺手清理长期空闲的键，避免内存随 IP 数无限增长
+        if len(_rate_hits) > 4096:
+            for k in [k for k, v in _rate_hits.items() if not v][:1024]:
+                _rate_hits.pop(k, None)
+        return False
 
 
 def _plan_snapshot_file(task_id: object) -> Path | None:
@@ -161,7 +279,7 @@ def health() -> dict:
     return _service_status()
 
 
-@app.post("/plan", response_model=PlanResult)
+@app.post("/plan", dependencies=[Depends(verify_token)], response_model=PlanResult)
 def make_plan(req: PlanRequest) -> PlanResult:
     """排期主接口。有 AMAP_KEY 时通勤走高德真实数据（带缓存），否则估算降级。"""
     if not req.spots:
@@ -193,7 +311,7 @@ EXTRACT_MAX_CHARS = 12000
 EDIT_INSTRUCTION_MAX_CHARS = 2000
 
 
-@app.post("/extract")
+@app.post("/extract", dependencies=[Depends(verify_token)])
 def extract(body: dict) -> dict:
     """攻略文本 → LLM 抽取（含城市识别）→ 实体对齐到高德 POI（坐标校正为真实值）。
 
@@ -293,7 +411,7 @@ def list_cities() -> dict:
             "centers": {c: city_center(c) for c in demo_cities()}}
 
 
-@app.get("/weather")
+@app.get("/weather", dependencies=[Depends(verify_token)])
 def get_weather(city: str, start: str, end: str) -> dict:
     """行程期间的按天天气（可选增强）。
 
@@ -362,6 +480,9 @@ def meta() -> dict:
         "configured": selftest.configured(),
         "probe": {"state": probe["state"], "age_s": selftest.probe_age_s(),
                   "stale": bool(probe["stale"]), "reasons": probe["reasons"]},
+        # 部署闸门状态：一眼看出"还没上锁"。只回布尔，不回令牌本身。
+        "token_required": bool(APP_TOKEN),
+        "rate_limit_per_min": RATE_LIMIT_PER_MIN,
         "cities": len(CITY_CENTERS),
         "spots": {"total": sum(len(demo_spots(c)) for c in city_list),
                   "by_city": {c: len(demo_spots(c)) for c in city_list}},
@@ -373,7 +494,7 @@ def meta() -> dict:
 
 # ---------- 用户页：历史规划 + 收藏 ----------
 
-@app.get("/plans")
+@app.get("/plans", dependencies=[Depends(verify_token)])
 def list_plans() -> dict:
     """历史规划列表（落盘持久化，重启不丢）。"""
     plans = []
@@ -421,7 +542,7 @@ def save_plan_snapshot(task) -> None:
                     task.id, type(e).__name__, e)
 
 
-@app.get("/poi/detail")
+@app.get("/poi/detail", dependencies=[Depends(verify_token)])
 def poi_detail(name: str, city: str = "") -> dict:
     """快接口：图片组/介绍/营业时间/地址，毫秒级返回。
 
@@ -455,7 +576,7 @@ def poi_detail(name: str, city: str = "") -> dict:
     return out
 
 
-@app.get("/poi/reviews")
+@app.get("/poi/reviews", dependencies=[Depends(verify_token)])
 def poi_reviews(name: str, city: str = "") -> dict:
     """评价摘要（AI 生成，首次约 3s，之后走缓存）。前端二次拉取用。
 
@@ -514,7 +635,7 @@ def _hotel_card(c: dict) -> dict:
     }
 
 
-@app.post("/hotel/search")
+@app.post("/hotel/search", dependencies=[Depends(verify_token)])
 def hotel_search(body: dict) -> dict:
     """酒店搜索（携程式选择器用）：名称/区域均可。"""
     from editor import poi_search, text_search
@@ -553,7 +674,7 @@ def hotel_search(body: dict) -> dict:
     return {"results": [_hotel_card(c) for c in cands], "city": city, "page": page}
 
 
-@app.post("/hotel/recommend")
+@app.post("/hotel/recommend", dependencies=[Depends(verify_token)])
 def hotel_recommend(body: dict) -> dict:
     """打开酒店选择器时的**默认推荐**：不需要关键词，按给定中心返回附近住宿。
 
@@ -584,7 +705,7 @@ def hotel_recommend(body: dict) -> dict:
     return {"results": [_hotel_card(c) for c in cands], "city": city, "page": page}
 
 
-@app.post("/hotel/set")
+@app.post("/hotel/set", dependencies=[Depends(verify_token)])
 async def hotel_set(body: dict) -> dict:
     """界面选择酒店 → 设住宿锚点 → 异步重排（返回新 task_id）。"""
     from tasks import MANAGER, run_set_hotel
@@ -613,7 +734,7 @@ def _soft_delete_plan(f) -> bool:
     return True
 
 
-@app.delete("/plans/{task_id}")
+@app.delete("/plans/{task_id}", dependencies=[Depends(verify_token)])
 def delete_plan(task_id: str) -> dict:
     """删除单个历史规划（软删除，标记而非抹掉，可恢复）。"""
     f = _plan_snapshot_file(task_id)
@@ -625,7 +746,7 @@ def delete_plan(task_id: str) -> dict:
     return {"deleted": task_id}
 
 
-@app.post("/plans/delete")
+@app.post("/plans/delete", dependencies=[Depends(verify_token)])
 def delete_plans_batch(body: dict) -> dict:
     """批量删除（我的页管理模式）。"""
     ids = body.get("task_ids") or []
@@ -641,13 +762,13 @@ def delete_plans_batch(body: dict) -> dict:
     return {"deleted": deleted, "count": len(deleted)}
 
 
-@app.get("/favorites")
+@app.get("/favorites", dependencies=[Depends(verify_token)])
 def get_favorites() -> dict:
     """收藏的景点列表（按收藏时间倒序）。"""
     return {"favorites": _load_favorites()}
 
 
-@app.post("/favorites")
+@app.post("/favorites", dependencies=[Depends(verify_token)])
 def mod_favorites(body: dict) -> dict:
     """新增或取消收藏（body.action = add / remove）。"""
     action = body.get("action")
@@ -693,7 +814,7 @@ def demo_config() -> dict:
             "subdomains": "1234", "attribution": "© 高德地图", "gcj": True}
 
 
-@app.post("/plan/async")
+@app.post("/plan/async", dependencies=[Depends(verify_token)])
 async def create_async_plan(req: PlanRequest) -> dict:
     """异步排期：立即返回 task_id，后台跑完整流水线（不再被网关 504）。"""
     if not req.spots:
@@ -705,7 +826,7 @@ async def create_async_plan(req: PlanRequest) -> dict:
             "poll_url": f"/task/{task.id}"}
 
 
-@app.get("/task/{task_id}")
+@app.get("/task/{task_id}", dependencies=[Depends(verify_token)])
 def get_task(task_id: str) -> dict:
     """轮询接口；历史任务（内存已清）从磁盘快照兜底。"""
     from tasks import MANAGER
@@ -748,7 +869,7 @@ def _load_task_payload(task_id: str) -> tuple[dict | None, dict, dict]:
     return snap.get("result"), (snap.get("params") or {}), spot_by_name
 
 
-@app.post("/plan/simulate")
+@app.post("/plan/simulate", dependencies=[Depends(verify_token)])
 def simulate_task(body: dict) -> dict:
     """N3 稳健性模拟：给停留与通勤加噪声，返回「按时完成概率 + 风险点」。
 
@@ -795,7 +916,7 @@ def simulate_task(body: dict) -> dict:
             "noise": sim.noise, "seed": sim.seed}
 
 
-@app.post("/plan/review")
+@app.post("/plan/review", dependencies=[Depends(verify_token)])
 def review_task(body: dict) -> dict:
     """AI 总评：对整个行程给一次综合评价（分数 / 总评 / 亮点 / 提醒）。
 
@@ -825,7 +946,7 @@ def review_task(body: dict) -> dict:
     return out
 
 
-@app.post("/plan/edit")
+@app.post("/plan/edit", dependencies=[Depends(verify_token)])
 async def edit_plan(body: dict) -> dict:
     """对话式修改：{"task_id": 基准任务, "instruction": "明天下午加个咖啡馆"}。
 
@@ -861,6 +982,14 @@ async def edit_plan(body: dict) -> dict:
 async def ws_task(websocket: WebSocket, task_id: str) -> None:
     """WebSocket 实时推送：进度更新时发增量，任务结束时发终态。"""
     from tasks import MANAGER
+    if not ws_token_ok(websocket):
+        # ⚠️ 必须先 accept 再 close：在 accept 之前 close，Starlette 会直接以
+        # HTTP 403 拒绝握手，浏览器拿不到 4401 这个业务码，前端就没法区分
+        # "令牌不对" 和 "网络断了"（两者提示完全不同）。
+        await websocket.accept()
+        await websocket.close(code=4401)
+        log.warning("WS 拒绝：令牌缺失或不匹配 task=%s", task_id)
+        return
     await websocket.accept()
     last_version = -1
     try:
