@@ -143,7 +143,10 @@ function leafletStub() {
   // ---- 酒店弹层 ----
   check('首屏右栏非空（空状态引导卡）', initView.trim().length > 10, initView.trim().slice(0, 18));
 
-  // ---- 主题切换：自动 → 亮 → 暗 → 自动 ----
+  // ---- 主题切换：二态，点一下必翻转 ----
+  // 2026-09-28 改：旧三态循环（自动→亮→暗→自动）在系统本身是深色偏好时，
+  // 「暗→自动」无可见变化，用户要点两下才能切到亮 —— 用户要求二态。
+  // 未选择过时的首帧「跟随系统」行为保持不变，这里只锁点击后的翻转语义。
   const themeBtn = d.getElementById('themeBtn');
   const rootEl = d.documentElement;
   check('导航有主题切换按钮', !!themeBtn);
@@ -151,17 +154,21 @@ function leafletStub() {
     ['light', 'dark'].includes(rootEl.getAttribute('data-theme')),
     `data-theme=${rootEl.getAttribute('data-theme')}`);
   if (themeBtn) {
-    click(themeBtn);                       // 自动 → 亮
+    const before1 = rootEl.getAttribute('data-theme');
+    click(themeBtn);
     await sleep(10);
-    check('点 1 次：写入显式「亮」', window.localStorage.getItem('theme') === 'light',
-      `saved=${window.localStorage.getItem('theme')}`);
-    click(themeBtn);                       // 亮 → 暗
+    const after1 = rootEl.getAttribute('data-theme');
+    check('点 1 次：主题翻转且写入显式存储',
+      after1 !== before1 && ['light', 'dark'].includes(after1)
+        && window.localStorage.getItem('theme') === after1,
+      `saved=${window.localStorage.getItem('theme')} data-theme=${after1}`);
+    click(themeBtn);
     await sleep(10);
-    check('点 2 次：切到暗色', rootEl.getAttribute('data-theme') === 'dark',
-      `data-theme=${rootEl.getAttribute('data-theme')}`);
-    click(themeBtn);                       // 暗 → 跟随系统
-    await sleep(10);
-    check('点 3 次：回到跟随系统（清存储）', window.localStorage.getItem('theme') === null);
+    const after2 = rootEl.getAttribute('data-theme');
+    check('点 2 次：切回原主题（二态往返，每击必生效）',
+      after2 !== after1 && after2 === before1
+        && window.localStorage.getItem('theme') === after2,
+      `saved=${window.localStorage.getItem('theme')} data-theme=${after2}`);
   }
 
   // ---- 访问令牌：导航入口 + WS 走查询参数 ----
