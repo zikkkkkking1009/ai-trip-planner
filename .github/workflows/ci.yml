@@ -23,7 +23,13 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # ⚠️ 必须是 22，不能是 20 —— 2026-09-28 CI 连挂 10 次（#82~#91）就是这个原因：
+          # jsdom 30.x 的传递依赖 undici 用了 Node 22 才有的 webidl.util.markAsUncloneable，
+          # 在 Node 20 上 require('jsdom') 直接 TypeError 崩掉，冒烟步骤连断言都没跑到。
+          # ⚠️ 开发机是 Node 22 ⇒ 本地一直绿、CI 一路红，这种"只在 CI 复现"的最难查。
+          # 实测：把 jsdom 钉到 30.1.1 在 Node 20 上**照样崩** ⇒ 光钉版本没用，只能升 Node。
+          # 排查手法：npx -y node@20 tools/frontend_smoke.js（用 CI 那个版本跑一遍）。
+          node-version: "22"
 
       - name: Frontend static check (syntax + shadowing guard)
         run: python tools/check_frontend.py
@@ -44,16 +50,32 @@ jobs:
       - name: Backend robustness audit (timeout/retry/state/log/cost)
         run: python tools/check_backend_health.py
 
+      # 首页/规划页的运行时断言（jsdom）。为什么失败时要往 annotation 里丢尾巴：
+      # 2026-09-28 这次挂了 10 次，而 Actions 日志要登录才看得到 —— 光是"看不到错"就拖了很久。
+      # 写法与下面 pytest 那步一致，让失败原因直接出现在 Actions 摘要上。
       - name: Frontend runtime smoke test (jsdom)
         run: |
-          npm install jsdom --no-save --prefix tools
-          NODE_PATH=tools/node_modules node tools/frontend_smoke.js
+          # 钉住 jsdom 版本：之前不钉，上游一发新版就可能让 CI 突然红，
+          # 而且报错是 undici/Node 的内部栈、完全看不出跟我们代码有关。
+          npm install jsdom@30.1.1 --no-save --prefix tools
+          NODE_PATH=tools/node_modules node tools/frontend_smoke.js > smoke_frontend.log 2>&1 || {
+            echo "FRONTEND SMOKE FAILED, dumping tail to annotation..."
+            python -c "import urllib.parse; print('::error::' + urllib.parse.quote(open('smoke_frontend.log', encoding='utf-8', errors='ignore').read()[-1500:]))"
+            exit 1
+          }
+          tail -n 3 smoke_frontend.log
 
       # 酒店选择器 + 长图 + 主题切换的运行时断言。
       # 立这道门的原因（真实事故）：「点搜索」曾因把 click 事件当 page 传给后端
       # 而 500 —— 静态检查和单元测试都发现不了，只有真跑一遍并断言 DOM 才抓得到。
       - name: Hotel picker runtime smoke test (jsdom)
-        run: NODE_PATH=tools/node_modules node tools/hotel_smoke.js
+        run: |
+          NODE_PATH=tools/node_modules node tools/hotel_smoke.js > smoke_hotel.log 2>&1 || {
+            echo "HOTEL PICKER SMOKE FAILED, dumping tail to annotation..."
+            python -c "import urllib.parse; print('::error::' + urllib.parse.quote(open('smoke_hotel.log', encoding='utf-8', errors='ignore').read()[-1500:]))"
+            exit 1
+          }
+          tail -n 3 smoke_hotel.log
 
       # ruff / mypy（C3）。为什么必须进 CI：
       # 「缺常量导致接口 500」这类问题能靠肉眼 review 漏掉、也能被单元测试漏掉，
