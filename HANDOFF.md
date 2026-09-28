@@ -284,10 +284,9 @@ Zcode 已改 5 次（`8ca1adc` → `5dfd694` → `4be0c8d` → `a7bf812` → `46
   1.1 秒内有 6 个属性在变；隧道吐的页面与本地逐字节相同（83003 B），排除缓存。
   问题是**幅度**：hero 卡片可见变化像素仅 **2.59%/1.3s**，且多为低对比度的虚线位移
   —— 肉眼读成一张静态插画。
-- **推翻一个错误前提**：`4607f28` 以「用户浏览器环境报 reduce」为由删掉无障碍降级。
-  用**有头** Edge 读系统设置实测 `prefers-reduced-motion: reduce = false`
-  （headless 不读系统设置、会假报 no-preference），前提不成立 ⇒ 已恢复降级。
-  ⚠️ 而且**必须**恢复：新关键帧 100% 是 `opacity:0`，那条全局降级会把整条主路线抹掉。
+- ⚠️ **本节结论后来被推翻，以文末「21:5x 补记（勘误）」为准**：当时判"用户环境不报 reduce"，
+  依据是用**有头** Edge 实测 `reduce=false` —— **那个依据是错的**：Playwright 默认把
+  reducedMotion 模拟成 no-preference，"用 Playwright 测 reduce"永远测不到。
 - **改法**（`static/home.html`）：主路线改「**自绘**」（底下 `.ghost` 常驻虚线表示"未完成"）
   + 保留整条虚线行进 + 彗星段 12→38、线宽 3.5→5 + 锚点按笔尖顺序依次点亮（0/2.1/4.2s）
   + 整幅插画缓慢推移（`hero-drift`，幅度压在 padding 26px 之内、不溢出白卡）。
@@ -298,3 +297,46 @@ Zcode 已改 5 次（`8ca1adc` → `5dfd694` → `4be0c8d` → `a7bf812` → `46
 - **口径勘误（两层错）**：① worker 自报 hotel_smoke `47→49` —— 它的提交确实到 49，但之后
   Zcode 的 `a7bf812`（主题断言二态化）把它降到 **48**，文档一直没跟上；② pytest `348` → **349**。
   README 中英 + HANDOFF 共 20 处数字已全部校正。
+
+## 附：21:5x 补记（勘误）—— hero 动效的最终定案
+
+用户随后甩了一段 6.33s 的录屏（`Delta Force 2026.09.28 - 22.09.42.10.mp4`），一句"哪里动了？？"。
+**录屏与"用系统 API 读设置"两条证据合起来，把上一节的结论整条推翻了。**
+
+### 录屏怎么读的（没有 ffmpeg，用浏览器当解码器）
+Edge 能解 H.264 ⇒ 起一个**支持 HTTP Range** 的本地服务喂视频，`<video>` 精确 seek + canvas 逐帧导出。
+⚠️ 坑：`python -m http.server` **不支持 Range**，Chromium 靠 206 才能 seek ⇒ 每次取到的都是同一帧，
+全帧差异算出来 0.00%，差点得出"视频是静止的"错误结论。
+**识破办法：看文件体积** —— 9.7 MB / 6.33s ≈ 12 Mbps，纯静止画面 H.264 只会压到几百 KB。
+
+### 录屏给出的结论
+- 路线是**整条实线**（无"自绘"未尽段、无彗星、无漂移）⇒ 正是当时那段 reduce 降级渲染出来的静态帧；
+- `0.15s` 与 `1.36s` 两帧逐像素 **0.00%** 变化（同一块区域开发机上是 6%/0.8s）⇒ 他那台机器上它是死的。
+
+### 真正的根因（推翻了上一节的判断）
+```
+SPI_GETCLIENTAREAANIMATION = 0      ← Windows「动画效果」是关的
+SPI_GETMENUANIMATION       = 0
+```
+**Chromium 判定 `prefers-reduced-motion` 读的就是它** ⇒ 站长浏览器**恒报 reduce**。
+上一节判"前提不成立"的**依据是错的**：**Playwright 默认把 reducedMotion 模拟成 no-preference**，
+所以"用 Playwright 去测 reduce"永远测不到 —— 反过来说，**想测 reduce 必须显式传
+`{ reducedMotion: 'reduce' }`；想读系统真值必须读 `SPI_GETCLIENTAREAANIMATION`**（ctypes 可读；
+`reg.exe` 被本机安全策略拉黑，别绕）。
+
+### 定案与实现
+**hero 插画【有意】不遵守 reduce**（动效是这张卡的产品诉求），手法是给它的 **14 条** animation
+声明加 `!important` —— `.hero-card svg .x` 的特异性 0,2,1 高于全局 `*{animation-duration:.001ms!important}`
+的 0,0,0，同为 `!important` 时前者胜。其余动效（滚动淡入 / 主题切换 / 桌宠 / 视图过渡）**照旧**尊重偏好。
+
+### 门禁随之升级为双环境（这是这次最该留下的东西）
+`tools/hero_motion_check.js` 现在跑两个环境：`no-preference` 与**显式 `reduce`**，都要 ≥4%。
+- **反向验证**：对上一版跑 → `reduce` 行判红 `exit 1`，实测 **0.00%**（正常行 5.87%）——**正好复现用户现象**。
+- 修好后：正常 5.90% / reduce 5.91%，对照组 0.00%。
+- ⚠️ 对照组也得跟着改：hero 加了 `!important` 之后，原来"注入 `*{animation:none!important}`"的
+  冻结手法**压不过 hero 的 `!important`**，对照组会假红（6.18%）。改用
+  `document.getAnimations().forEach(a => a.pause())` —— 不受选择器特异性影响。
+
+### 两条通用教训
+1. **"用 Playwright 验证媒体查询"要当心它自己的默认模拟**，错的不是页面而是尺子；
+2. **对照组的实现方式会随被测代码的优先级变化而失效** —— 对照组自己也需要被 review。

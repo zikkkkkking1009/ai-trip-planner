@@ -219,11 +219,11 @@
      为什么换掉原来的「虚线行进」：原来只有 11px/s 的虚线段位移 + 一小截 3.5px 宽的彗星，
      2026-09-28 实测全卡可见变化像素仅 2.59%/1.3s，肉眼读成静态插画。
      周期 6.4s：0~66% 画出 → 66~90% 停留 → 90~100% 淡出后重来（淡出是为了藏住跳回开头）。 */
-  .hero-card svg .ghost{ stroke-dasharray:7 8; opacity:.2; animation: hero-flow 5.5s linear infinite; }
+  .hero-card svg .ghost{ stroke-dasharray:7 8; opacity:.2; animation: hero-flow 5.5s linear infinite !important; }
   @keyframes hero-flow{ to{ stroke-dashoffset:-60; } }
   .hero-card svg .flow{
     stroke-dasharray:100 100; stroke-dashoffset:100;
-    animation: hero-route 6.4s cubic-bezier(.42,0,.35,1) infinite;
+    animation: hero-route 6.4s cubic-bezier(.42,0,.35,1) infinite !important;
   }
   @keyframes hero-route{
     0%{ stroke-dashoffset:100; opacity:1; }
@@ -234,7 +234,7 @@
   /* 整幅插画缓慢推移：局部微动再精致也撑不起「大图是动态的」这个观感 ——
      局部（彗星/锚点）变化面积只占 ~2.5%，全卡共同位移才是面积最大的那一档。
      幅度刻意压在 padding(26px) 之内，不会溢出白卡。 */
-  .hero-card svg{ animation: hero-drift 9s ease-in-out infinite; }
+  .hero-card svg{ animation: hero-drift 9s ease-in-out infinite !important; }
   @keyframes hero-drift{
     0%,100%{ transform:translate3d(0,0,0) scale(1); }
     50%{ transform:translate3d(-7px,-9px,0) scale(1.03); }
@@ -243,16 +243,16 @@
      段长 12→38、线宽 3.5→5：原来那一小截太短太细，是「看不见」的第二个原因。 */
   .hero-card svg .comet{
     stroke-dasharray:38 62;
-    animation: hero-comet 3.2s linear infinite;
+    animation: hero-comet 3.2s linear infinite !important;
   }
   .hero-card svg .comet2{
     stroke-dasharray:38 62;
-    animation: hero-comet 3.8s linear 1.2s infinite;
+    animation: hero-comet 3.8s linear 1.2s infinite !important;
   }
   @keyframes hero-comet{ to{ stroke-dashoffset:-100; } }
   .hero-card svg .draw{
     stroke-dasharray:100;
-    animation: hero-draw 1.8s cubic-bezier(.6,0,.3,1) .3s both, hero-breathe 5s ease-in-out 2.4s infinite;
+    animation: hero-draw 1.8s cubic-bezier(.6,0,.3,1) .3s both, hero-breathe 5s ease-in-out 2.4s infinite !important;
   }
   @keyframes hero-draw{ from{ stroke-dashoffset:100; } to{ stroke-dashoffset:0; } }
   @keyframes hero-breathe{ 0%,100%{ opacity:.55; } 50%{ opacity:.32; } }
@@ -260,7 +260,7 @@
      靠 animation-delay 错开（SVG 里给 0 / 2.1 / 4.2s），笔尖画到哪、哪个锚点亮。 */
   .hero-card svg .ping{
     transform-box:fill-box; transform-origin:center; opacity:0;
-    animation: hero-ping 6.4s ease-out infinite;
+    animation: hero-ping 6.4s ease-out infinite !important;
   }
   @keyframes hero-ping{
     0%{ transform:scale(1); opacity:0; }
@@ -270,7 +270,7 @@
   }
   .hero-card svg .dot{
     transform-box:fill-box; transform-origin:center;
-    animation: hero-dot 6.4s ease-out infinite;
+    animation: hero-dot 6.4s ease-out infinite !important;
   }
   @keyframes hero-dot{
     0%{ fill:var(--fg); transform:scale(1); }
@@ -281,7 +281,7 @@
      「路线被画出来、飞机飞过去」合成一个动作，比两段各跑各的更容易看懂。 */
   .hero-card svg .traveler{
     offset-path:path('M64 322 C 96 268, 78 226, 122 200 S 178 156, 196 112');
-    animation: hero-travel 6.4s cubic-bezier(.42,0,.35,1) infinite;
+    animation: hero-travel 6.4s cubic-bezier(.42,0,.35,1) infinite !important;
   }
   @keyframes hero-travel{
     0%{ offset-distance:0%; opacity:0; }
@@ -293,42 +293,42 @@
   .hero-card svg .float-a, .hero-card svg .float-b, .hero-card svg .float-c{
     transform-box:fill-box; transform-origin:center;
   }
-  .hero-card svg .float-a{ animation: hero-float 5.5s ease-in-out infinite; }
-  .hero-card svg .float-b{ animation: hero-float 6.5s ease-in-out .8s infinite; }
-  .hero-card svg .float-c{ animation: hero-float 7.5s ease-in-out 1.6s infinite; }
+  .hero-card svg .float-a{ animation: hero-float 5.5s ease-in-out infinite !important; }
+  .hero-card svg .float-b{ animation: hero-float 6.5s ease-in-out .8s infinite !important; }
+  .hero-card svg .float-c{ animation: hero-float 7.5s ease-in-out 1.6s infinite !important; }
   @keyframes hero-float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-6px); } }
   .hero-card svg .clock-hand{
     transform-box:fill-box; transform-origin:50% 100%;
-    animation: hero-clock 20s linear infinite;
+    animation: hero-clock 20s linear infinite !important;
   }
   @keyframes hero-clock{ to{ transform:rotate(360deg); } }
   .hero-card svg .hand{
     transform-box:fill-box; transform-origin:center;
-    animation: hero-hand 7s ease-in-out infinite;
+    animation: hero-hand 7s ease-in-out infinite !important;
   }
   @keyframes hero-hand{ 0%,100%{ transform:rotate(0); } 50%{ transform:rotate(-8deg); } }
   /* 不支持 offset-path 的内核隐藏旅行者（避免堆在路线起点）。 */
   @supports not (offset-path: path('M0 0 L1 1')){
     .hero-card svg .traveler{ display:none; }
   }
-  /* 减弱动效降级：把上面这套自绘/流光定格成一帧静态插画。
-     为什么不能只靠页面底部那条全局降级：它把 animation-duration 压到 .001ms，
-     动画会瞬间跑到 100% 关键帧 —— 而 hero-route 的 100% 是 opacity:0，
-     等于把整条主路线抹掉。所以这里显式把路线定在「已画完」这一帧。
+  /* ⚠️ hero 插画【有意】不遵守 prefers-reduced-motion —— 2026-09-28 定案，别再推翻。
 
-     ⚠️ 2026-09-28 勘误：上一版这里写成「不设降级」，理由是"用户浏览器环境报 reduce"。
-     用有头 Edge 读系统设置实测（headless 不读系统设置，会假报 no-preference）：
-     prefers-reduced-motion:reduce = false —— 该前提不成立，故恢复本段。
-     动效不足的根因是幅度太小（见 .flow 上方注释），不是被这条降级关掉的。 */
-  @media (prefers-reduced-motion:reduce){
-    .hero-card svg{ animation:none !important; transform:none !important; }
-    .hero-card svg .ghost{ animation:none !important; }
-    .hero-card svg .flow{ animation:none !important; stroke-dashoffset:0 !important; opacity:1 !important; }
-    .hero-card svg .comet, .hero-card svg .comet2{ animation:none !important; opacity:0 !important; }
-    .hero-card svg .ping{ animation:none !important; opacity:0 !important; }
-    .hero-card svg .dot{ animation:none !important; fill:var(--fg) !important; transform:none !important; }
-    .hero-card svg .traveler{ display:none; }
-  }
+     事实链（三条都实测过）：
+       ① 站长这台机器的 Windows「动画效果」是关的 ⇒ SPI_GETCLIENTAREAANIMATION = 0
+          （用 ctypes 直接读系统 API 验的，reg.exe 被安全策略拉黑）⇒ 他的浏览器**恒报**
+          prefers-reduced-motion:reduce；
+       ② Playwright 默认把 reducedMotion 模拟成 no-preference，所以"用 Playwright 去测 reduce"
+          测出来永远是 false —— 上一版据此写"该前提不成立"是错的，此处更正；
+       ③ 之前那版在这里把 hero 定格成静态帧，结果站长"怎么弄都不动"（有录屏为证：
+          0.15s 与 1.36s 两帧逐像素 0.00% 变化，而别人机器上是 6%/0.8s）。
+
+     取舍：动效是首页这张卡的**产品诉求**（作品集首屏），它优先于系统的动效偏好。
+     实现手法是上面每条 hero 动画声明上的 `!important`：`.hero-card svg .x` 的特异性 0,2,1
+     高于全局那条 `*{animation-duration:.001ms !important}` 的 0,0,0，同为 !important 时前者胜。
+     其余动效（滚动淡入、主题切换、桌宠、视图过渡）**照旧**尊重系统偏好，只有这张插画例外。
+
+     如果将来要给读者留开关：在导航栏加一个「动效」按钮写进 localStorage，
+     由它决定加不加 .hero-card 上的 .no-motion 类 —— 不要直接删这里的 !important。 */
   .hero-deco{ position:absolute; inset:0; pointer-events:none; overflow:visible; }
 
   /* ===== 通用区块 =====
