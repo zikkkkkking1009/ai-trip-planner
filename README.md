@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-307%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-314%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -179,9 +179,9 @@ cp backend/.env.example backend/.env
 **测试与门禁命令**（均可无 Key 运行）：
 
 ```bash
-cd backend && python -m pytest -q          # 单元测试（307 passed；依赖高德的酒店用例无 AMAP_KEY 时跳过）
+cd backend && python -m pytest -q          # 单元测试（314 passed；依赖高德的酒店用例无 AMAP_KEY 时跳过）
 cd .. && node tools/frontend_smoke.js      # 前端 jsdom 运行时冒烟（14 项）
-node tools/hotel_smoke.js                  # 酒店弹层 + 长图预览 + 主题切换 jsdom 冒烟（39 项）
+node tools/hotel_smoke.js                  # 酒店弹层 + 长图预览 + 主题切换 jsdom 冒烟（42 项）
 python tools/check_frontend.py             # 前端静态检查（10 项阻塞门禁）
 python tools/check_backend_health.py       # 后端五维健壮性审计（AST，无 Key 即可跑）
 python tools/check_contrast.py             # 页面级对比度门禁（解析两页 :root 令牌，零依赖）
@@ -193,8 +193,8 @@ cd backend && mypy .                       # 类型检查（渐进式，当前 0
 > 只在本机跑：`node tools/contrast_runtime.js static/index.html static/home.html --all`
 > —— 它启真实浏览器渲染复核（需 playwright-core + 本机 Edge/Chrome），不进 CI（慢且脆）。
 
-- **测试与 CI**：**307 个单元测试**全过（对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / **接口级集成**），GitHub Actions 全绿
-- **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 14 项 + `hotel_smoke.js` 39 项）+ 无密钥的求解器 demo
+- **测试与 CI**：**314 个单元测试**全过（对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / **接口级集成**），GitHub Actions 全绿
+- **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 14 项 + `hotel_smoke.js` 42 项）+ 无密钥的求解器 demo
 - **静态检查策略**：ruff 只开**能抓真 bug 的规则**（`E4/E7/E9/F`），不堆风格规则——一上来开全量只会产出满屏 `# noqa`，门禁就没人看了；`main.py` 的 `E402` 是**有意豁免**（必须先加载 .env 再初始化日志），理由写在 `ruff.toml` 里。mypy 走**渐进式**（默认不进未标注函数体），先把已标注部分的真类型错误抓干净，**0 处 `# type: ignore`**
 - **缓存与限频**：通勤矩阵三级缓存（重复求解 API 调用降为 0）；高德 0.35s 节流
 - **快慢接口分离**：详情接口只返回毫秒级可达的高德数据，AI 评价走二次请求异步补，避免首屏等待
@@ -265,7 +265,7 @@ backend/
   media_cache.py          媒体缓存 key 规则（城市|景点名）与原子写
   reliability.py          统一超时与重试（LLM + 高德共用）
   logging_setup.py        日志配置与请求 ID 上下文
-  tests/                  307 个单元测试
+  tests/                  314 个单元测试
 static/index.html         路书前端（单文件，零构建，零 CDN）
 tools/                    检查与验证脚本（五维审计 / 前端静态检查 / 前端与酒店 jsdom 冒烟 / 多城市端到端）
 data/plans/               规划快照（软删除标记）
@@ -280,7 +280,7 @@ HANDOFF.md                新会话接上下文的第一份文件
 
 - **持久层是 JSON 文件**，无数据库与用户体系 → `/plans` 与 `/favorites` 是全局的，多用户隔离待补（ROADMAP 的 B1/B2）
 - **尚未部署上线**：Dockerfile / docker-compose 已就绪，缺一次平台侧创建（需要账号 + 密钥注入）
-- **演示数据的门票与停留时长是近似值**：坐标来自高德真实抓取，但票价 / 停留为演示参数；抽取路径的 `ticket` 若攻略没写则为 0。**高德 `place/text` 接口不返回票价**（8 个知名收费景点实测覆盖率 0%），所以「从高德补票价」这条路不成立，去处是本地票价表或不假装已知
+- **票价区分「已知免费」与「未知」，绝不把后者显示成 ¥0**：高德免费接口**不返回票价**（景点 `biz_ext.cost` 实测为空数组，酒店 `lowest_price` 同理），攻略没写价时 LLM 只能给 0 —— 直接显示等于谎称免费。所以 `Spot` / `VisitedSpot` 各带一位 `ticket_known`，值为假时前端统一显示「**票价待查**」；已知票价会先用本地票价表（`demo_data`）回填（按**精确名字**匹配，不做模糊匹配 —— 宁可少填也不把别处票价按错）。**已知局限**：高德标准名与本地表未必一致（如「秦始皇帝陵博物院」vs「秦始皇兵马俑博物馆」），故回填覆盖率不是 100%
 - **酒店没有真实房价**：高德免费接口不返回房价（`biz_ext.lowest_price` / `cost` 为空），也未接入 OTA 数据源 —— 卡片上的评分、档位、区域、距离、电话是真实的，但**价格字段留空即不显示**；同样拿不到点评数、房型、可订状态与取消政策（不估算、不编造）
 - **对齐标注集只有 22 条**：F1 100% 的统计意义有限，需扩到 100~200 条（ROADMAP 的 A3）
 - **稳健性模拟的噪声参数是估计值**：停留用三角分布、通勤用对数正态，参数未经真实日志标定 ⇒ **绝对概率不能当精确值**（不同参数下跨度可达 48.9pp），但风险点的相对排序对参数不敏感，主打「建议」而非百分比
@@ -302,6 +302,7 @@ HANDOFF.md                新会话接上下文的第一份文件
 
 ## 更新日志
 
+- **v1.11（2026-09-28）**：**票价不再把"未知"显示成"免费"** —— 根因是票价有两个含义不同的零：**已知免费** 与 **我们不知道**。高德免费接口**不返回票价**（景点 `biz_ext.cost` 实测为空数组），攻略没写价时 LLM 只能给 0，前端直接渲染成「总门票 ¥0」等于谎称免费。修法：`Spot` / `VisitedSpot` 各加一位 `ticket_known`（`PlanResult` 汇总为 `cost_known`），前端新增统一出口 `moneyTxt()`，**值为假时显示「票价待查」并隐去"每天约"这个推算值**，共替换 7 处硬写的 `¥N`（含分享长图）；后端在实体对齐后用本地票价表 `demo_data.ticket_of()` 回填（**仅精确名字匹配**，不做模糊匹配 —— 高德标准名与本地表不一致时宁可保持未知，如「秦始皇帝陵博物院」vs「秦始皇兵马俑博物馆」）。新增 `backend/tests/test_ticket.py`（7 条，锁住 0/None 语义与回填规则）；`hotel_smoke.js` 加 3 条运行时断言（已知显示金额 / 未知显示待查 / 源码无裸 `¥${...cost}`），并做了**反向验证**确认两条断言都会拦住回归 —— 反向验证时还发现静态断言的正则过严（`¥${x.toFixed(0)}` 漏网），已修正则。测试 307 → **314**
 - **v1.10（2026-09-28）**：**接口级集成测试补齐 + CI 补三道门 + 主题手动开关** —— **测试**：新增 `backend/tests/test_api_endpoints.py`（21 条），覆盖此前**零测试引用的 14 个接口**（`/demo/spots` `/demo/config` `/poi/detail` `/poi/reviews` `/plans` `DELETE /plans/{id}` `/plans/delete` `/favorites` `GET|POST` `/task/{id}` `/plan/simulate` `/plan/review` `/plan/edit` `/ws/{id}`），全程离线且**落盘路径重定向到 tmp**（不碰真实历史规划 / 收藏）；其中最要紧的是**「抓回来的数据属于别的城市时必须 404 且绝不写缓存」**这条回归（历史上出现过「四川博物院 存了西安的数据」，缓存一旦写脏就永久固化），用 spy 断言 `save_media` 根本没被调用；单元测试 286 → **307**。**CI**：补进三道门——两级**对比度门禁**（页面级 `check_contrast.py` + 规范级 `contrast-audit.py --check` 明暗双主题）与 **`hotel_smoke.js`（39 项运行时断言）**；同时修好 `hotel_smoke.js` 两处会让它**恒退出 1** 的 jsdom 能力缺口（补 `URL.createObjectURL` 打桩、把「点击 `<a href>` 触发的 navigation not implemented」列入白名单），否则接进 CI 会每次都红 —— 顺带明确只在本机跑 `contrast_runtime.js`（要 playwright + 真实浏览器，进 CI 又慢又脆）。**功能**：单天视图的**出行天气只显示当天**（与地图同口径，切天跟随，总览仍列全程）；**暗色主题加手动开关**（自动 → 亮 → 暗，`data-theme` + localStorage，暗色令牌只留一份；`head` 脚本仍读 `matchMedia`，所以靠模拟系统偏好的运行时门禁没有失效）
 - **v1.9（2026-09-24）**：**酒店选择器重做 + modern-minimal 视觉统一 + 一轮用户面前端修复** —— 酒店选择器从「先搜索再看」改为**携程式打开即推荐**附近酒店（可搜索收窄、**分页「加载更多」**每页 25 条），卡片补齐**评分 / 档位（经济·舒适·高档·豪华·民宿，按高德 keytag 归一）/ 区域 / 到行程中心的真实距离 / 地址 / 电话 / 多图画廊**，支持「推荐 / 距离近→远 / 评分优先」排序与档位、评分筛选、一键更换（当前酒店高亮）；**如实标注没有真实房价**（高德免费接口 `biz_ext.lowest_price` 为空、无 OTA 数据源），价格留空即不显示、绝不编造；**左栏表单、右栏结果区、「我的」页与日历弹层统一到 OpenDesign `modern-minimal`**（发丝描边、去卡片阴影、紧字距、等宽数字、字重收敛；曾试做的「对话框」左栏经用户否决后 **revert**）；**全站图标由 emoji 换成线性 SVG**（统一 16 视窗 / `currentColor` / 1.8px 描边，酒店图标用 Lucide `hotel` 造型；保留桌宠 🐋 与代码注释里的 emoji）；**用户面文案去黑话**（hero 副标题、说明 chip、识别提示改白话，规划进度条阶段名换友好文案，折叠日志仍保留原始阶段名）；**地图每日配色由「同一色相改明度」改为 7 个不同色相**（蓝 / 橙 / 青绿 / 紫 / 玫红 / 黄绿 / 靛，地图 / 图例 / 时间线 / 总览共用）；**分享长图改为先弹预览浮层再「下载 / 取消」**（原来点一下静默下载），canvas 头改现代简洁排版；**修复**：① 首次打开右栏空白（初始化漏调 `renderItin`）②「先选酒店再规划」被前端门槛拦住（并让后端 `/plan` **透传并回显** `hotel`）③ 酒店搜索把 click 事件当 `page` 传给后端导致 500 ④ 酒店 `intro` 误取高德多段类别的第一段、把酒店描述成「餐饮服务」；**后端**新增 `POST /hotel/recommend`，`/hotel/search` 与它都支持 `page`，POI 查询新增 `types` / `extensions` / `offset` 并统一 `_poi_row()` 规整与 `_grade()` 档位归一；**测试**新增 `tools/hotel_smoke.js`（jsdom 运行时冒烟 30 项，覆盖酒店弹层 + 长图预览 + 地图视图 + 首屏空状态）与 `backend/tests/test_hotels.py`（23 条：档位归一 / 类别取值 / 分页 / 坏参数 / 空 query），单元测试 260 → **286**，接口 25 → **26**
 - **v1.8（2026-09-23）**：**Key 可用性自检**——首页「服务状态」原先只看环境变量非空就显示「已配置」，填一个过期 Key 也会亮绿；现在改为**启动时后台真实探测一次**（高德打一次距离接口、LLM 各探主/快通道、max_tokens=1），结果缓存 6 小时，状态扩成 **missing / ok / invalid / unreachable** 四态——**网络不通与 Key 无效分开报**（修复动作完全相反）；快通道指向别家却没配对应 Key 的配置矛盾**不发请求**就能静态判定；新增命令行入口 `python backend/selftest.py`（拿到 Key 先验再启服务）；规划器修掉一枚会在降级时撒谎的硬编码 chip「高德真实通勤」（改为按本次行程实际用量生成）；已知局限补上 LLM 缺失那条；测试 238 → **260**
