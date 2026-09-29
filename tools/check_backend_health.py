@@ -290,6 +290,7 @@ REQUIRED_CONSTS = {
 # 2026-09-23 移除了 tasks.py / main.py：它们是运行时业务模块，曾借此藏住 3 处硬编码西安坐标。
 CITY_LITERAL_ALLOW = {
     "cities.py", "demo_data.py", "models.py",
+    "food_seeds.py",   # 城市特色美食种子表：按城市名索引就是它的数据结构（同 demo_data）
     "fetch_spot_details.py", "editor.py", "extractor.py",  # 提示词里有示例（「西安必吃啥」等）
     "run_demo.py", "run_demo_amap.py", "evaluation.py", "bench_models.py", "eval_simulation.py", "eval_preference.py", "eval_cluster.py",
 }

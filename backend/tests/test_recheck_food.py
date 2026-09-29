@@ -239,17 +239,22 @@ def test_food_recommend_calls_amap_and_caches(food_dir, with_token, monkeypatch)
                    headers={"X-App-Token": TOKEN})
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["cached"] is False and len(d["items"]) == 1
-    it = d["items"][0]
-    assert it["name"] == "老李家泡馍" and it["image"].endswith(".jpg")
-    assert it["intro"] == "清真菜" and it["rating"] == "4.8"
+    assert d["cached"] is False
+    # 高德命中 1 条（严格餐饮过滤）+ 西安种子补足到 ≥8（种子也会搜图打上游）
+    amap_part = [x for x in d["items"] if x.get("source") == "高德开放平台"]
+    seed_part = [x for x in d["items"] if x.get("source") == "内置特色"]
+    assert len(amap_part) == 1 and amap_part[0]["name"] == "老李家泡馍"
+    assert amap_part[0]["image"].endswith(".jpg") and amap_part[0]["rating"] == "4.8"
+    assert amap_part[0]["intro"] == "清真菜"
+    assert len(seed_part) >= 7 and len(d["items"]) >= 8
     # 餐饮分类大类 + 图文字段
     assert calls and calls[0].get("types") == "150000"
     assert calls[0].get("extensions") == "all"
     # 第二次：缓存命中，不再打上游
+    n_calls = len(calls)
     r = client.get("/food/recommend", params={"city": "西安"},
                    headers={"X-App-Token": TOKEN})
-    assert r.json()["cached"] is True and len(calls) == 1
+    assert r.json()["cached"] is True and len(calls) == n_calls
 
 
 def test_food_recommend_empty_upstream_gives_reason(food_dir, with_token, monkeypatch):
@@ -259,7 +264,11 @@ def test_food_recommend_empty_upstream_gives_reason(food_dir, with_token, monkey
     r = client.get("/food/recommend", params={"city": "西安"},
                    headers={"X-App-Token": TOKEN})
     d = r.json()
-    assert d["items"] == [] and "Key" in d["reason"] or "配额" in d["reason"]
+    # 上游空：仍有内置特色兜底（不编造图片，image 为空串走首字占位）
+    seeds = [x for x in d["items"] if x.get("source") == "内置特色"]
+    assert len(seeds) >= 7
+    assert all(x.get("image") == "" for x in seeds)
+    assert d["reason"], "上游不可用必须给出 reason 而非静默"
 
 
 def test_food_old_list_file_still_readable(food_dir, with_token):

@@ -1135,13 +1135,37 @@ def food_remove(body: dict) -> dict:
     return {"entries": doc["entries"]}
 
 
+def _is_food_poi(type_str: object) -> bool:
+    """高德 POI 是否真是吃的：主判据 = 标准大类「餐饮服务」；
+    type 缺失时用菜系关键词兜底。硬闸剔除书店/停车场/购物/交通
+    （用户实测混入过非餐饮——推荐卡片只该有吃的）。"""
+    t = str(type_str or "")
+    if "餐饮服务" in t:
+        return True
+    if not t:
+        return False
+    bad = ("购物", "交通", "停车", "书店", "超市", "银行", "药店", "邮局",
+           "风景名胜", "住宿", "医疗", "汽车")
+    if any(b in t for b in bad):
+        return False
+    good = ("小吃", "美食", "餐厅", "面馆", "粥", "糕", "火锅", "烧烤",
+            "快餐", "咖啡", "茶馆", "饮品", "甜品")
+    return any(g in t for g in good)
+
+
 @app.get("/food/recommend", dependencies=[Depends(verify_token)])
 def food_recommend(city: str) -> dict:
-    """按城市推荐当地美食（高德餐饮 POI：店名/图片/评分/地址）。
+    """按城市推荐当地美食（带图/评分/地址）。
 
-    结果缓存进该城市美食文件的 recommended（TTL 7 天）——重复调用零配额。
-    无 Key / 上游失败时返回空 items + reason（不编造店名与图片）。
+    来源两层（每条带 source）：
+    1. 高德「餐饮服务」大类实搜（严格过滤非餐饮：书店/停车场一律剔除）——真实店铺；
+    2. 内置特色种子（本地人尽皆知的吃食，见 food_seeds.py）补足到 8 条，
+       种子按名字搜高德取代表店实景图，搜不到用首字占位（**不编图**）。
+    结果缓存进该城市美食文件 recommended（TTL 7 天），重复调用零配额。
+    上游整体失败时仍返回种子（无图也如实标注），reason 说明高德不可用。
     """
+    from food_seeds import seed_food
+
     f = _food_file(city)
     if f is None:
         raise HTTPException(400, "city 不合法")
@@ -1149,39 +1173,81 @@ def food_recommend(city: str) -> dict:
         doc = _food_doc(f)
     rec = doc.get("recommended")
     ttl = 7 * 86400
-    if rec and isinstance(rec.get("ts"), (int, float))             and time.time() - rec["ts"] < ttl and isinstance(rec.get("items"), list):
+    if rec and isinstance(rec.get("ts"), (int, float))             and time.time() - rec["ts"] < ttl and isinstance(rec.get("items"), list)             and rec["items"]:
         return {"city": city, "items": rec["items"], "cached": True}
 
     from editor import text_search
     c = normalize_city(city) or DEFAULT_CITY
-    # 高德 POI 分类：150000 = 餐饮服务（同 100000=住宿服务的分类体系）
-    rows = text_search("美食", c, types="150000", extensions="all",
-                       offset=15, page=1)
-    if not rows:   # 分类码万一过期/过严，退回不限类别但换更准的词
-        rows = text_search("特色小吃", c, extensions="all", offset=15, page=1)
-    items = []
-    for r in rows:
-        if not r.get("name"):
-            continue
-        photos = r.get("photos") or []
-        items.append({
-            "name": r.get("name", ""),
-            "image": r.get("image") or (photos[0] if photos else ""),
-            "rating": r.get("rating", ""),
-            "address": r.get("address", ""),
-            "price": r.get("price", ""),
-            "intro": (r.get("type_str") or "").split(";")[-1],
-        })
     reason = ""
+    amap_items = []
+    try:
+        # 高德 POI 分类：150000 = 餐饮服务（同 100000=住宿服务体系）
+        rows = text_search("美食", c, types="150000", extensions="all",
+                           offset=20, page=1)
+        rows += text_search("小吃", c, types="150000", extensions="all",
+                            offset=10, page=1)
+        seen = set()
+        for r in rows:
+            nm = r.get("name") or ""
+            if not nm or nm in seen:
+                continue
+            if not _is_food_poi(r.get("type_str")):
+                continue      # 硬闸1：type 非餐饮一律不进
+            if any(b in nm for b in ("停车场", "书店", "超市", "银行", "加油站",
+                                     "服务区", "地铁", "公厕")):
+                continue      # 硬闸2：店名本身就不像吃的地方（高德名常混入地标词）
+            seen.add(nm)
+            photos = r.get("photos") or []
+            amap_items.append({
+                "name": nm,
+                "image": r.get("image") or (photos[0] if photos else ""),
+                "rating": r.get("rating", ""),
+                "address": r.get("address", ""),
+                "price": r.get("price", ""),
+                "intro": (r.get("type_str") or "").split(";")[-1],
+                "source": "高德开放平台",
+            })
+    except Exception as e:
+        log.warning("美食推荐高德搜索失败 city=%s: %s: %s", city, type(e).__name__, e)
+        reason = "高德搜索暂不可用（" + type(e).__name__ + "）——以下为内置特色"
+
+    # 种子补足：按名搜高德取代表店实景图（每条限频 0.35s，缓存后零成本）
+    items = list(amap_items)
+    seen = {x["name"] for x in items}
+    for sd in seed_food(c):
+        if len(items) >= 10:
+            break
+        if sd["name"] in seen:
+            continue
+        entry = dict(sd, image="", rating="", address="", price="")
+        try:
+            hits = text_search(sd["name"], c, extensions="all", offset=1, page=1)
+            h = next((x for x in hits
+                      if x.get("name") and _is_food_poi(x.get("type_str"))), None)
+            if h:
+                photos = h.get("photos") or []
+                entry["image"] = h.get("image") or (photos[0] if photos else "")
+                entry["address"] = h.get("address", "")
+                entry["rating"] = h.get("rating", "")
+                entry["intro"] = sd["intro"] + "（高德可搜到：" + h.get("name", "") + "）"
+        except Exception:
+            pass    # 配图失败就用首字占位，介绍仍在
+        items.append(entry)
+        seen.add(sd["name"])
+
+    amap_items.sort(key=lambda x: (float(x["rating"]) if x["rating"] else 0),
+                    reverse=True)   # 有分且分高的排前
+    if not amap_items and not reason:
+        reason = "高德未返回可用的餐饮结果（未配 Key / 配额 / 该城暂无）——以下为内置特色"
     if not items:
-        reason = "上游没返回结果（未配高德 Key 或配额耗尽）——手动记录仍然可用"
-    else:
-        with _food_lock:
-            doc["recommended"] = {"ts": int(time.time()), "items": items}
-            try:
-                _food_write(f, doc)
-            except OSError as e:
-                log.warning("美食推荐缓存写失败 %s: %s", f.name, e)
+        reason = reason or "上游没返回结果（未配高德 Key 或配额耗尽）"
+    with _food_lock:
+        doc = _food_doc(f)
+        doc["recommended"] = {"ts": int(time.time()), "items": items}
+        try:
+            _food_write(f, doc)
+        except OSError as e:
+            log.warning("美食推荐缓存写失败 %s: %s", f.name, e)
     return {"city": city, "items": items, "cached": False, "reason": reason}
 
 
