@@ -212,7 +212,7 @@ def _int_env(name: str, default: int) -> int:
 RATE_LIMIT_PER_MIN = _int_env("RATE_LIMIT_PER_MIN", 120)
 
 # 只对**会花钱/触发外部调用**的路径计数。
-RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather")
+RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather", "/food")
 
 
 def is_costly_path(path: str) -> bool:
@@ -1016,6 +1016,126 @@ def review_task(body: dict) -> dict:
         raise HTTPException(503, str(e))
     out["digest"] = digest        # 便于前端展示与排查"它是基于什么评的"
     return out
+
+
+@app.post("/plan/recheck", dependencies=[Depends(verify_token)])
+def recheck_plan(body: dict) -> dict:
+    """结果侧确定性编辑：前端提交「每天放哪些名字（可覆盖 stay_min）」，
+    通勤/时间线/成本/校验**全部服务端重算**（见 tasks.recheck_task 的信任边界）。
+
+    语义：装不下时间窗的景点剔除进 unplanned（与主排期一致），不 500；
+    任务不在内存/未完成 → 404；成员非法 → 400（带出错名字）。
+    """
+    task_id = str(body.get("task_id") or "")
+    days = body.get("days")
+    if not task_id or not isinstance(days, list) or not days:
+        raise HTTPException(400, "需要 task_id 与 days 数组")
+    from tasks import recheck_task
+    try:
+        snap = recheck_task(task_id, days)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if snap is None:
+        raise HTTPException(404, "任务不存在或未完成（编辑要求任务在内存中；"
+                                "可从「我的」载入历史后重新规划）")
+    return snap
+
+
+# ---------- 美食情报卡（按城市持续追加的数据资产） ----------
+FOOD_DIR = DATA_DIR / "food"
+_food_lock = threading.Lock()
+# 城市名做文件名：字符白名单（normalize_city 不设防，这里必须自己挡住路径穿越）
+_FOOD_CITY_RE = re.compile(r"^[一-龥A-Za-z0-9· ]{1,24}$")
+_FOOD_MAX = 200          # 单城市条数上限（防一个文件无限膨胀）
+_FOOD_NAME_MAX = 40      # 店名
+_FOOD_NOTE_MAX = 140     # 一句话备注
+
+
+def _food_file(city: object) -> Path | None:
+    c = str(city or "").strip()
+    if not _FOOD_CITY_RE.fullmatch(c):
+        return None
+    return FOOD_DIR / f"{c}.json"
+
+
+def _food_read(f: Path) -> list[dict]:
+    if not f.exists():
+        return []
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, OSError) as e:
+        log.warning("美食卡读取失败 %s: %s: %s", f.name, type(e).__name__, e)
+        return []
+
+
+@app.get("/food", dependencies=[Depends(verify_token)])
+def food_list(city: str) -> dict:
+    """按城市列出美食情报卡（用户数据，与 /favorites 同口径需令牌）。
+    未知/非法城市返回空列表，不是 500。"""
+    f = _food_file(city)
+    return {"city": city, "entries": [] if f is None else _food_read(f)}
+
+
+@app.post("/food", dependencies=[Depends(verify_token)])
+def food_add(body: dict) -> dict:
+    """记一条美食（按城市持续追加）。同名去重更新（note 以新盖旧），上限 200 条。"""
+    name = str(body.get("name") or "").strip()
+    note = str(body.get("note") or "").strip()
+    if not name or len(name) > _FOOD_NAME_MAX:
+        raise HTTPException(400, f"name 必填且不超过 {_FOOD_NAME_MAX} 字")
+    if len(note) > _FOOD_NOTE_MAX:
+        raise HTTPException(400, f"note 不超过 {_FOOD_NOTE_MAX} 字")
+    f = _food_file(body.get("city"))
+    if f is None:
+        raise HTTPException(400, "city 不合法")
+    with _food_lock:
+        entries = _food_read(f)
+        rows = [e for e in entries if str(e.get("name")) != name]
+        rows.append({"name": name, "note": note, "ts": int(time.time())})
+        if len(rows) > _FOOD_MAX:
+            rows = rows[-_FOOD_MAX:]
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_name(f.name + ".tmp")
+        tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=1),
+                       encoding="utf-8")
+        os.replace(tmp, f)
+    return {"entries": rows}
+
+
+@app.post("/food/remove", dependencies=[Depends(verify_token)])
+def food_remove(body: dict) -> dict:
+    """删一条美食（同风格于 /plans/delete：POST + body）。"""
+    name = str(body.get("name") or "")
+    f = _food_file(body.get("city"))
+    if f is None:
+        raise HTTPException(400, "city 不合法")
+    with _food_lock:
+        rows = [e for e in _food_read(f) if str(e.get("name")) != name]
+        if f.exists():
+            tmp = f.with_name(f.name + ".tmp")
+            tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=1),
+                           encoding="utf-8")
+            os.replace(tmp, f)
+    return {"entries": rows}
+
+
+@app.get("/poi/search", dependencies=[Depends(verify_token)])
+def poi_search(q: str, city: str = "", limit: int = 8) -> dict:
+    """景点关键词搜索（Step2 挑选用）：复用高德文本搜索，返回可直接入列的最小字段。
+
+    会打高德配额 ⇒ 需令牌 + /poi/ 前缀限流；空 query 400，limit 收进 1..20。
+    """
+    q = (q or "").strip()
+    if not q:
+        raise HTTPException(400, "q 为空")
+    n = max(1, min(20, int(limit) if str(limit).lstrip("-").isdigit() else 8))
+    from editor import text_search
+    rows = text_search(q, normalize_city(city) or DEFAULT_CITY,
+                       offset=n, page=1)
+    return {"results": [
+        {k: r.get(k) for k in ("name", "lat", "lon", "type_str", "rating")}
+        for r in rows[:n]]}
 
 
 @app.post("/plan/edit", dependencies=[Depends(verify_token)])

@@ -691,3 +691,139 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
             await one(n)
 
     await asyncio.gather(*(guarded(n) for n in dict.fromkeys(names)))
+
+
+# ---------------------------------------------------------------- 结果侧确定性编辑
+def recheck_task(task_id: str, day_specs: list[dict]) -> dict | None:
+    """结果侧编辑的重算入口：客户端只提交「每天按什么顺序放哪些名字（可覆盖
+    stay_min）」，通勤 / 时间线 / 成本 / 校验**全部服务端重算** —— 不信客户端
+    传来的任何数值（唯一信任的是名字在 request_spots 里这一事实）。
+
+    语义与主排期一致：装不下时间窗的景点**剔除**进 unplanned，不硬塞也不 500。
+    任务必须在内存且已完成；返回更新后的 task.snapshot()，否则返回 None（调用方 404）。
+    """
+    from models import Hotel, Spot as SpotModel, VisitedSpot
+
+    task = MANAGER.get(task_id)
+    if task is None or task.status != "completed" or not task.result:
+        return None
+    spot_by_name = {s["name"]: SpotModel(**s) for s in (task.request_spots or [])}
+    if not spot_by_name:
+        return None
+
+    params = task.req_params or {}
+    hotel = Hotel(**params["hotel"]) if params.get("hotel") else None
+    start_h = float(params.get("daily_start_h", 9.0))
+    end_h = float(params.get("daily_end_h", 18.0))
+    cm = CommuteMatrix()
+
+    if not isinstance(day_specs, list) or not day_specs:
+        raise ValueError("days 不能为空")
+    new_days: list[dict] = []
+    arranged: set[str] = set()
+    dropped: list[dict] = []
+
+    for spec in day_specs:
+        if not isinstance(spec, dict):
+            raise ValueError("days 的每一项必须是对象")
+        rows = spec.get("spots")
+        if not isinstance(rows, list) or len(rows) > 50:
+            raise ValueError("每天的 spots 必须是不超过 50 项的数组")
+        # 1) 成员校验 + 停留覆盖（clamp 进 Spot(ge=30, le=480) 同界）
+        seq: list[SpotModel] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError("spots 每项必须是 {name, stay_min?} 对象")
+            name = str(row.get("name") or "")
+            if name not in spot_by_name:
+                raise ValueError(f"未知景点「{name}」")
+            if name in arranged:
+                raise ValueError(f"景点「{name}」被安排了多次")
+            base = spot_by_name[name]
+            stay = row.get("stay_min")
+            if stay is None:
+                seq.append(base)
+                continue
+            try:
+                stay_i = int(stay)
+            except (TypeError, ValueError):
+                raise ValueError(f"「{name}」的 stay_min 不是整数")
+            seq.append(base.model_copy(
+                update={"stay_min": max(30, min(480, stay_i))}))
+        arranged.update(s.name for s in seq)
+
+        # 2) 时间线 + 真实通勤：一遍走完；装不下时间窗的剔除（与主排期同口径）
+        vs_list, kept = [], []
+        t = start_h
+        prev: SpotModel | Hotel | None = hotel
+        for s in seq:
+            if prev is not None:
+                t += cm.minutes(prev, s) / 60.0
+            arrive = t
+            start = max(arrive, s.open_h)
+            depart = start + s.stay_min / 60.0
+            if depart > s.close_h + 1e-9 or depart > end_h + 1e-9:
+                dropped.append({"name": s.name, "reason": "重排后超出时间窗，已移出"})
+                continue    # 剔除该点，时间不推进，继续尝试后续点
+            vs_list.append(VisitedSpot(
+                name=s.name, arrive_h=round(arrive, 3), depart_h=round(depart, 3),
+                ticket=s.ticket, desc=s.desc, image=s.image, intro=s.intro,
+                ticket_known=s.ticket_known))
+            kept.append(s)
+            t = depart
+            prev = s
+
+        # 3) 当天通勤合计（与主排期同口径：含酒店往返两段）
+        commute = 0.0
+        if hotel is not None and kept:
+            commute += cm.minutes(hotel, kept[0])
+        for a, b in zip(kept, kept[1:]):
+            commute += cm.minutes(a, b)
+        if hotel is not None and kept:
+            commute += cm.minutes(kept[-1], hotel)
+        new_days.append({
+            "day": len(new_days) + 1,
+            "spots": [v.model_dump() for v in vs_list],
+            "commute_min": round(commute, 1),
+            "cost": round(sum(s.ticket for s in kept), 1),
+            "active_min": round(sum(s.stay_min for s in kept), 1),
+        })
+
+    # 4) 汇总：unplanned = 上一份 ∪ 本次剔除 ∪ 没进任何一天的（按名字去重）
+    planned = {v["name"] for day in new_days for v in day["spots"]}
+    unplanned, seen = [], set()
+    for u in (task.result.get("unplanned") or []) + dropped +             [{"name": n, "reason": "已从行程中移除"}
+             for n in sorted(spot_by_name) if n not in planned]:
+        nm = u.get("name")
+        if nm and nm not in seen:
+            seen.add(nm)
+            unplanned.append(u)
+
+    total_cost = round(sum(d["cost"] for d in new_days), 1)
+    cost_known = all(v["ticket_known"] for day in new_days for v in day["spots"])
+    total_score = round(sum(spot_by_name[v["name"]].score
+                            for day in new_days for v in day["spots"]), 1)
+
+    from models import PlanRequest as PR
+    req = PR(city=params.get("city", DEFAULT_CITY),
+             days=max(1, len(new_days)), budget=params.get("budget"),
+             daily_start_h=start_h, daily_end_h=end_h,
+             spots=list(spot_by_name.values()), hotel=hotel)
+    report = check_plan(req, [DayPlan(**d) for d in new_days], total_cost)
+    report["stats"]["commute_api"] = cm.stats
+    report["stats"]["cache_hit_rate"] = round(cm.hit_rate(), 3)
+
+    task.result = {
+        **{k: v for k, v in task.result.items()
+           if k not in ("days", "total_cost", "total_score", "unplanned",
+                        "check_report", "cost_known")},
+        "days": new_days, "total_cost": total_cost, "cost_known": cost_known,
+        "total_score": total_score, "unplanned": unplanned,
+        "check_report": report,
+    }
+    task.version += 1
+    from main import save_plan_snapshot
+    save_plan_snapshot(task)
+    log.info("结果侧编辑重算完成 task_id=%s days=%d placed=%d dropped=%d",
+             task.id, len(new_days), len(planned), len(dropped))
+    return task.snapshot()
