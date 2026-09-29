@@ -699,6 +699,23 @@
   .wizard-bar .wstep:disabled{ opacity:.4; cursor:default; }
   .wizard-bar .wline{ width:34px; height:1px; background:var(--border); }
 
+  /* 打印版：只保留行程内容（日历/打印按钮触发 window.print） */
+  @media print {
+    .site-nav, .wizard-bar, .col-left, #pet, #petPanel, .seg, .daymap,
+    .token-panel, .maptip, .tl-edit { display:none !important; }
+    .layout { display:block; padding:0; }
+    #stage3 { display:block !important; }
+    .page > header.hero { padding:10px 0; }
+    #aurora, .aurora-canvas { display:none !important; }
+    body { background:#fff; }
+  }
+
+  /* 美食卡的输入行（ucard 族内联表单） */
+  .food-add{ display:flex; gap:8px; margin-top:10px; }
+  .food-add input{ flex:1; min-width:0; padding:7px 9px; font-size:13px;
+    border:1px solid var(--border); background:var(--bg); color:var(--fg); }
+  .food-add input:first-child{ flex:1.2; }
+
   /* 结果侧编辑：时间线卡片内的操作组（默认低对比，hover 提亮） */
   .tl-edit{ display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; align-items:center;
     opacity:.5; transition:opacity var(--t-fast) var(--e); }
@@ -1363,6 +1380,10 @@
       <div class="s" onclick="switchView('map')"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5 6 3l4 1.5 3.5-1.5v9L10 13.5 6 12l-3.5 1.5z"/><path d="M6 3v9M10 4.5v9"/></svg></span> 地图</div>
       <div class="s s-copy" id="copyBtn" onclick="copyPlanText()"
            title="把当前视图的行程复制为纯文本（总览=全部天，单天=仅当天）"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="9" rx="1.4"/><path d="M10.5 5.5v-2a1.4 1.4 0 0 0-1.4-1.4H3.9a1.4 1.4 0 0 0-1.4 1.4v6.2a1.4 1.4 0 0 0 1.4 1.4h1.6"/></svg></span> 复制</div>
+      <div class="s s-ics" onclick="exportIcs()"
+           title="导出 .ics 日历文件，可导入手机日历按点提醒"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4"/><path d="M2.5 6.5h11M5.5 2v2M10.5 2v2"/></svg></span> 日历</div>
+      <div class="s s-print" onclick="window.print()"
+           title="打印版行程（浏览器打印 → 可存 PDF）"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6V2.5h7V6M4.5 12.5h7V13.5h-7zM3 6h10a1 1 0 0 1 1 1v4h-2v2H4v-2H2V7a1 1 0 0 1 1-1z"/></svg></span> 打印</div>
       <div class="s s-share" onclick="shareImage()"
            title="导出竖版长图（含 AI 总评与每天安排），可发朋友圈或当简历附件"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h2.7l1-1.6h3.6l1 1.6h2.7v7h-11z"/><circle cx="8" cy="9" r="2.4"/></svg></span> 长图</div>
     </div>
@@ -1373,6 +1394,9 @@
 
     <!-- AI 总评（增强），由 loadReview() 填充 -->
     <div id="reviewBox"></div>
+
+    <!-- 美食情报卡：按城市持续追加的数据资产（总览专属，与天气/总评同显隐） -->
+    <div id="foodBox"></div>
 
     <!-- N3 稳健性模拟（按时概率 + 风险点），由 loadRobustness() 填充；默认折叠 -->
     <details class="robust-details" id="robustDetails" style="display:none">
@@ -1443,7 +1467,10 @@
       </div>
     </div>
     <div class="usection">
-      <h2><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l1.6 3.3 3.6.5-2.6 2.6.6 3.6L8 10.9l-3.2 1.7.6-3.6L2.8 6.4l3.6-.5z" fill="currentColor"/></svg></span> 收藏的景点</h2>
+      <h2><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6l1.6 3.3 3.6.5-2.6 2.6.6 3.6L8 10.9l-3.2 1.7.6-3.6L2.8 6.4l3.6-.5z" fill="currentColor"/></svg></span> 收藏的景点
+        <button data-act="favs-to-plan" style="background:var(--accent-soft);color:var(--accent-deep);
+          border:1px solid var(--accent-line);font-size:12.5px;padding:4px 12px;cursor:pointer;
+          font-weight:600">按收藏挑景点 →</button></h2>
       <div id="favsList"><div class="uempty">加载中…</div></div>
     </div>
   </div>
@@ -2048,6 +2075,7 @@ function render() {
   loadRobustness();      // N3：异步算稳健性（不阻塞上面的渲染）
   loadReview();          // AI 总评（同样异步，放在稳健性之上）
   loadWeather();         // 出行天气（可选增强，失败只降级成一条说明）
+  loadFood();          // 本城美食卡（总览专属，失败静默）
 }
 
 // ---- 空状态：首次进入 / 删完行程后右栏的引导卡 ----
@@ -2088,7 +2116,7 @@ function renderEmpty() {
 // 点进具体一天只看当天的内容（用户 2026-09-28 要求）。地图视图同理按天判定。
 function syncOverviewModules() {
   const ov = currentDay === 0;
-  ['weatherBox', 'reviewBox'].forEach(id => {
+  ['weatherBox', 'reviewBox', 'foodBox'].forEach(id => {
     const el = $(id); if (el) el.style.display = ov ? '' : 'none';
   });
   const rob = $('robustDetails');
@@ -2454,6 +2482,143 @@ function edMoveTo(dayNo, k, toDay) {
     from.spots.splice(k, 1);
     to.spots.push(v);
   });
+}
+
+
+// ================= 导出：.ics 日历 + 打印 =================
+function exportIcs() {
+  if (!plan || !plan.days || !plan.days.length) { log('导出', '还没有行程'); return; }
+  const baseStr = (($('startDate') || {}).value) || iso(new Date());
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = (dateStr, h) =>
+    dateStr.replace(/-/g, '') + 'T' + pad(Math.floor(h)) + pad(Math.round((h % 1) * 60)) + '00';
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0',
+    'PRODID:-//lusu//trip plan//CN', 'CALSCALE:GREGORIAN'];
+  plan.days.forEach((d, i) => {
+    const dt = new Date(baseStr + 'T00:00:00');
+    dt.setDate(dt.getDate() + i);
+    const dateStr = dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+    for (const v of d.spots) {
+      if (v.arrive_h == null || v.depart_h == null) continue;
+      lines.push('BEGIN:VEVENT',
+        'UID:' + (lastTaskId || 'plan') + '-' + i + '-' + lines.length + '@lusu',
+        'DTSTART:' + stamp(dateStr, v.arrive_h),
+        'DTEND:' + stamp(dateStr, v.depart_h),
+        'SUMMARY:' + String(v.name || '').replace(/[,;\\]/g, ' '),
+        'DESCRIPTION:' + (v.desc || '').replace(/[,;\\]/g, ' '),
+        'END:VEVENT');
+    }
+  });
+  lines.push('END:VCALENDAR');
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (plan.city || '行程') + '-' + plan.days.length + '天.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  log('导出', '日历文件已生成（' + plan.days.reduce((n, d) => n + d.spots.length, 0) + ' 个日程），可导入手机日历');
+}
+
+// ================= 「我的」页：收藏转行程 =================
+async function favsToPlan() {
+  try {
+    const r = await fetch('/favorites');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = ((await r.json()).favorites || [])
+      .filter(f => isFinite(Number(f.lat)) && isFinite(Number(f.lon)));
+    if (!rows.length) {
+      alert('收藏里还没有带坐标的景点 —— 先在行程里点 ☆ 收藏几个');
+      return;
+    }
+    if (spots.length && !confirm('用 ' + rows.length + ' 个收藏景点替换当前已选（' + spots.length + ' 个）？'))
+      return;
+    spots = rows.map((f, i) => ({
+      source_id: 100000 + i, name: f.name, lat: Number(f.lat), lon: Number(f.lon),
+      stay_min: 60, score: 8, ticket: 0, ticket_known: false,
+      open_h: 8, close_h: 18, desc: f.intro || f.desc || '', image: f.image || '', intro: '' }));
+    // 收藏来自各城：让本城预置列表回归当前城市（loadDemoSpots 会把 spots 重置为全选 ——
+    // 所以先落收藏，再异步加载预置回来时以收藏为准：demoAll 更新但 spots 不动）
+    switchPage('plan');
+    setStep(2);
+    renderWizRight();
+    log('挑点', '已把 ' + spots.length + ' 个收藏景点放进待规划列表');
+  } catch (e) {
+    log('挑点', '收藏读取失败：' + e.message);
+  }
+}
+
+// ================= 美食情报卡（按城市） =================
+let foodRows = [];
+
+async function loadFood() {
+  try {
+    const r = await fetch('/food?city=' + encodeURIComponent(currentCity));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    foodRows = d.entries || [];
+    renderFood();
+  } catch (e) { foodRows = []; renderFood(e.message); }
+}
+
+function renderFood(err) {
+  const box = $('foodBox');
+  if (!box) return;
+  if (err) {
+    box.innerHTML = '';
+    return;
+  }
+  box.classList.add('on');
+  const rows = foodRows.map((f, i) =>
+    `<div class="ucard" style="cursor:default">
+      <div class="info"><div class="t">${esc(f.name)}</div>
+      <div class="s">${esc(f.note || '（没写备注）')}</div></div>
+      <button class="del" data-act="food-del" data-i="${esc(i)}" aria-label="删除">${ICON_X}</button>
+    </div>`).join('');
+  box.innerHTML = `<div class="rv-card food-card">
+    <div class="rv-title">${ICON_MONEY ? '🍜' : ''} 本地美食 · ${esc(currentCity)}
+      <span class="pmeta" style="font-weight:400">（按城市持续记，换城市各记各的）</span></div>
+    ${rows || '<div class="pickempty">还没有记录 —— 下面记下第一顿。</div>'}
+    <div class="food-add">
+      <input id="foodName" placeholder="店名/小吃（≤40字）" maxlength="40">
+      <input id="foodNote" placeholder="一句话（人均/排队/避雷）" maxlength="140">
+      <button class="padd" data-act="food-add">记下</button>
+    </div>
+    <div id="foodMsg" class="pmeta"></div>
+  </div>`;
+}
+
+async function foodAdd() {
+  const name = (($('foodName') || {}).value || '').trim();
+  const note = (($('foodNote') || {}).value || '').trim();
+  const msg = $('foodMsg');
+  if (!name) { if (msg) msg.textContent = '先填店名'; return; }
+  try {
+    const r = await fetch('/food', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: currentCity, name, note }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+    foodRows = d.entries || [];
+    renderFood();
+    log('美食', '已记下「' + name + '」（' + esc(currentCity) + '）');
+  } catch (e) {
+    if (msg) msg.textContent = '记失败：' + e.message;
+  }
+}
+
+async function foodDel(i) {
+  const f = foodRows[i];
+  if (!f) return;
+  try {
+    const r = await fetch('/food/remove', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: currentCity, name: f.name }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+    foodRows = d.entries || [];
+    renderFood();
+    log('美食', '已删除「' + f.name + '」');
+  } catch (e) { log('美食', '删除失败：' + e.message); }
 }
 
 function renderItin() {
@@ -4424,6 +4589,13 @@ document.addEventListener('click', e => {
     case 'wiz-go':     if (spots.length) $('go').click(); break;
     case 'pick-add':   addRemotePoi(Number(d.i)); break;
     case 'pick-remove':togglePick(d.name); break;
+    case 'ed-del':      edDelete(Number(d.day), Number(d.k)); break;
+    case 'ed-up':       edSwap(Number(d.day), Number(d.k), -1); break;
+    case 'ed-down':     edSwap(Number(d.day), Number(d.k), 1); break;
+    case 'ed-stay':     edStay(Number(d.day), Number(d.k), Number(d.delta)); break;
+    case 'favs-to-plan':favsToPlan(); break;
+    case 'food-add':    foodAdd(); break;
+    case 'food-del':    foodDel(Number(d.i)); break;
     case 'empty-extract': {
       // 把折叠的攻略识别 details 展开并触发提取（让已有逻辑接管）
       const gb = $('guideBox'); if (gb) gb.open = true;
