@@ -1155,14 +1155,12 @@ def _is_food_poi(type_str: object) -> bool:
 
 @app.get("/food/recommend", dependencies=[Depends(verify_token)])
 def food_recommend(city: str) -> dict:
-    """按城市推荐当地美食（带图/评分/地址）。
+    """按城市推荐美食（用户定案：**只出美食本体，不出饭店**）。
 
-    来源两层（每条带 source）：
-    1. 高德「餐饮服务」大类实搜（严格过滤非餐饮：书店/停车场一律剔除）——真实店铺；
-    2. 内置特色种子（本地人尽皆知的吃食，见 food_seeds.py）补足到 8 条，
-       种子按名字搜高德取代表店实景图，搜不到用首字占位（**不编图**）。
+    展示主体 = 内置特色种子（food_seeds.py，25 城公开常识菜名+一句介绍）；
+    高德只当**图源**：按菜名搜代表店的实景图（严格餐饮过滤，搜不到用首字占位，
+    绝不编图、绝不把搜到的饭店本身放进列表）。
     结果缓存进该城市美食文件 recommended（TTL 7 天），重复调用零配额。
-    上游整体失败时仍返回种子（无图也如实标注），reason 说明高德不可用。
     """
     from food_seeds import seed_food
 
@@ -1179,68 +1177,31 @@ def food_recommend(city: str) -> dict:
     from editor import text_search
     c = normalize_city(city) or DEFAULT_CITY
     reason = ""
-    amap_items = []
-    try:
-        # 高德 POI 分类：150000 = 餐饮服务（同 100000=住宿服务体系）
-        rows = text_search("美食", c, types="150000", extensions="all",
-                           offset=20, page=1)
-        rows += text_search("小吃", c, types="150000", extensions="all",
-                            offset=10, page=1)
-        seen = set()
-        for r in rows:
-            nm = r.get("name") or ""
-            if not nm or nm in seen:
-                continue
-            if not _is_food_poi(r.get("type_str")):
-                continue      # 硬闸1：type 非餐饮一律不进
-            if any(b in nm for b in ("停车场", "书店", "超市", "银行", "加油站",
-                                     "服务区", "地铁", "公厕")):
-                continue      # 硬闸2：店名本身就不像吃的地方（高德名常混入地标词）
-            seen.add(nm)
-            photos = r.get("photos") or []
-            amap_items.append({
-                "name": nm,
-                "image": r.get("image") or (photos[0] if photos else ""),
-                "rating": r.get("rating", ""),
-                "address": r.get("address", ""),
-                "price": r.get("price", ""),
-                "intro": (r.get("type_str") or "").split(";")[-1],
-                "source": "高德开放平台",
-            })
-    except Exception as e:
-        log.warning("美食推荐高德搜索失败 city=%s: %s: %s", city, type(e).__name__, e)
-        reason = "高德搜索暂不可用（" + type(e).__name__ + "）——以下为内置特色"
-
-    # 种子补足：按名搜高德取代表店实景图（每条限频 0.35s，缓存后零成本）
-    items = list(amap_items)
-    seen = {x["name"] for x in items}
-    for sd in seed_food(c):
-        if len(items) >= 10:
-            break
-        if sd["name"] in seen:
-            continue
-        entry = dict(sd, image="", rating="", address="", price="")
+    seeds = seed_food(c)
+    if not seeds:
+        return {"city": city, "items": [], "cached": False,
+                "reason": "该城市还没有内置特色数据"}
+    items = []
+    for sd in seeds:
+        entry = {"name": sd["name"], "intro": sd["intro"],
+                 "source": "内置特色", "image": "", "rating": "",
+                 "address": "", "price": ""}
         try:
-            hits = text_search(sd["name"], c, extensions="all", offset=1, page=1)
+            # 给这道菜配一张代表店实景图（同名店搜图，非饭店推荐）
+            hits = text_search(sd["name"], c, extensions="all", offset=3, page=1)
             h = next((x for x in hits
-                      if x.get("name") and _is_food_poi(x.get("type_str"))), None)
+                      if x.get("name") and _is_food_poi(x.get("type_str"))
+                      and not any(b in (x.get("name") or "")
+                                  for b in ("停车场", "书店", "超市", "银行",
+                                            "加油站", "服务区", "地铁"))), None)
             if h:
                 photos = h.get("photos") or []
                 entry["image"] = h.get("image") or (photos[0] if photos else "")
-                entry["address"] = h.get("address", "")
-                entry["rating"] = h.get("rating", "")
-                entry["intro"] = sd["intro"] + "（高德可搜到：" + h.get("name", "") + "）"
+                entry["ref"] = h.get("name", "")   # 图源参考店（仅详情展示用）
         except Exception:
-            pass    # 配图失败就用首字占位，介绍仍在
+            pass    # 图搜失败就用首字占位，介绍仍在
         items.append(entry)
-        seen.add(sd["name"])
 
-    amap_items.sort(key=lambda x: (float(x["rating"]) if x["rating"] else 0),
-                    reverse=True)   # 有分且分高的排前
-    if not amap_items and not reason:
-        reason = "高德未返回可用的餐饮结果（未配 Key / 配额 / 该城暂无）——以下为内置特色"
-    if not items:
-        reason = reason or "上游没返回结果（未配高德 Key 或配额耗尽）"
     with _food_lock:
         doc = _food_doc(f)
         doc["recommended"] = {"ts": int(time.time()), "items": items}

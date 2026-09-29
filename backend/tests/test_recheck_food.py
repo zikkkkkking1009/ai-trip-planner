@@ -222,17 +222,17 @@ def test_poi_search_gated_and_shaped(monkeypatch, with_token):
 
 # ---------------------------------------------------------------- /food/recommend
 
-def test_food_recommend_calls_amap_and_caches(food_dir, with_token, monkeypatch):
-    """首次调用打高德（餐饮分类 + extensions=all），结果缓存后第二次不再调上游。"""
+def test_food_recommend_is_food_only(food_dir, with_token, monkeypatch):
+    """纯美食契约：列表只出内置特色菜名（**不出饭店**），高德仅作为配图来源。"""
     import editor
-    calls = []
 
-    def fake_ts(q, city, **kw):
-        calls.append(kw)
-        return [{"name": "老李家泡馍", "image": "http://img/x.jpg",
-                 "rating": "4.8", "address": "回坊 1 号", "price": "¥25",
-                 "type_str": "餐饮服务;清真菜;清真菜"},
-                {"name": "", "address": "空名应被跳过"}]
+    def fake_ts(query, city, **kw):
+        # 按菜名搜代表店 → 返回带图的同名餐饮 POI（配图用途）
+        return [{"name": query + "（代表店）", "image": "http://img/" +
+                 str(abs(hash(query)))[:6] + ".jpg",
+                 "type_str": "餐饮服务;地方菜", "address": "某路 1 号",
+                 "rating": "4.5"},
+                {"name": "停车场旁超市", "type_str": "购物服务;超市"}]
 
     monkeypatch.setattr(editor, "text_search", fake_ts)
     r = client.get("/food/recommend", params={"city": "西安"},
@@ -240,35 +240,33 @@ def test_food_recommend_calls_amap_and_caches(food_dir, with_token, monkeypatch)
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["cached"] is False
-    # 高德命中 1 条（严格餐饮过滤）+ 西安种子补足到 ≥8（种子也会搜图打上游）
-    amap_part = [x for x in d["items"] if x.get("source") == "高德开放平台"]
-    seed_part = [x for x in d["items"] if x.get("source") == "内置特色"]
-    assert len(amap_part) == 1 and amap_part[0]["name"] == "老李家泡馍"
-    assert amap_part[0]["image"].endswith(".jpg") and amap_part[0]["rating"] == "4.8"
-    assert amap_part[0]["intro"] == "清真菜"
-    assert len(seed_part) >= 7 and len(d["items"]) >= 8
-    # 餐饮分类大类 + 图文字段
-    assert calls and calls[0].get("types") == "150000"
-    assert calls[0].get("extensions") == "all"
-    # 第二次：缓存命中，不再打上游
-    n_calls = len(calls)
+    # 1) 全部是内置特色 —— 没有任何饭店条目混入
+    assert all(x["source"] == "内置特色" for x in d["items"])
+    # 2) 菜名来自主种子表（西安 8 道）
+    names = [x["name"] for x in d["items"]]
+    assert names[:2] == ["羊肉泡馍", "肉夹馍"] and len(names) == 8
+    # 3) 配图来自高德（搜到同名店）；搜图时做了餐饮过滤（假 POI 的 type 是餐饮）
+    assert all(x["image"].startswith("http://img/") for x in d["items"])
+    # 4) 缓存后不再打上游
+    calls = []
+    monkeypatch.setattr(editor, "text_search",
+                        lambda *a, **k: calls.append(1) or [])
     r = client.get("/food/recommend", params={"city": "西安"},
                    headers={"X-App-Token": TOKEN})
-    assert r.json()["cached"] is True and len(calls) == n_calls
+    assert r.json()["cached"] is True and calls == []
 
 
-def test_food_recommend_empty_upstream_gives_reason(food_dir, with_token, monkeypatch):
-    """上游空（无 Key/配额）→ items 空 + reason 说明，不编造。"""
+def test_food_recommend_upstream_down_keeps_seeds(food_dir, with_token, monkeypatch):
+    """上游完全不可用：种子照常返回（无图走首字占位），不编造图片。"""
     import editor
-    monkeypatch.setattr(editor, "text_search", lambda *a, **k: [])
+    monkeypatch.setattr(editor, "text_search",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("配额耗尽")))
     r = client.get("/food/recommend", params={"city": "西安"},
                    headers={"X-App-Token": TOKEN})
     d = r.json()
-    # 上游空：仍有内置特色兜底（不编造图片，image 为空串走首字占位）
-    seeds = [x for x in d["items"] if x.get("source") == "内置特色"]
-    assert len(seeds) >= 7
-    assert all(x.get("image") == "" for x in seeds)
-    assert d["reason"], "上游不可用必须给出 reason 而非静默"
+    assert len(d["items"]) == 8
+    assert all(x["source"] == "内置特色" for x in d["items"])
+    assert all(x["image"] == "" for x in d["items"])
 
 
 def test_food_old_list_file_still_readable(food_dir, with_token):
@@ -285,3 +283,5 @@ def test_food_old_list_file_still_readable(food_dir, with_token):
                     headers=h)
     names = [e["name"] for e in r.json()["entries"]]
     assert names == ["冒节子", "蛋烘糕"]
+
+

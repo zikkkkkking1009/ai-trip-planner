@@ -1117,7 +1117,7 @@
   :root[data-theme="dark"] {
       /* 暗色 = 暖墨纸的反转（与首页同一套编辑刊物夜读版） */
       --bg: #0e0e10;      --surface: #151619;
-      --fg: #dbdad6;      --muted: #81807b;   --muted-2: #a5a4a0;  --muted-3: #797a7f;
+      --fg: #dbdad6;      --muted: #8b8a84;   --muted-2: #a5a4a0;  --muted-3: #8d9197;
       --border: #2a2b2f;  --fill: #1d1e21;    --fill-2: #26272a;
 
       --accent: #99a8d5;  --accent-deep: #8695c6;  --accent-solid: #798abd;
@@ -1375,6 +1375,21 @@
         </div>
       </div>
 
+      <!-- 住哪：酒店锚点从「更多选项」提升为独立卡（每天出发/返回的锚点） -->
+      <div class="pcard" onclick="openHotelPicker()" style="cursor:pointer">
+        <div class="plabel">住哪（每天出发 / 返回的锚点）</div>
+        <div class="datebox">
+          <b id="hotelText">未设置（点此搜索选择）</b>
+          <span class="dicon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"
+            fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"
+            stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/>
+            <path d="M8 7h.01"/><path d="M12 7h.01"/><path d="M16 7h.01"/>
+            <path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/>
+            <path d="M10 22v-6.57"/><path d="M14 15.43V22"/>
+            <path d="M15 16a5 5 0 0 0-6 0"/></svg></span>
+        </div>
+      </div>
+
       <!-- 偏好：modern-minimal —— 去掉 emoji，纯文字 chip；选中态用次级信号（主色留给 CTA） -->
       <div class="pcard">
         <div class="plabel">这一趟更看重什么</div>
@@ -1390,20 +1405,7 @@
       <input type="hidden" id="endDate">
       <!-- 方向 B：高级区（酒店 / 预算 / 稳妥度 / 出发返回时间）折叠，默认收起 -->
       <details class="adv" id="advBox">
-        <summary>更多选项 · 酒店 / 预算 / 稳妥度 / 出发返回</summary>
-        <div class="field datefield" onclick="openHotelPicker()" style="margin-top:8px">
-          <label>酒店</label>
-          <div class="datebox">
-            <b id="hotelText">未设置（点此搜索选择）</b>
-            <span class="dicon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"
-              fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"
-              stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/>
-              <path d="M8 7h.01"/><path d="M12 7h.01"/><path d="M16 7h.01"/>
-              <path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/>
-              <path d="M10 22v-6.57"/><path d="M14 15.43V22"/>
-              <path d="M15 16a5 5 0 0 0-6 0"/></svg></span>
-          </div>
-        </div>
+        <summary>更多选项 · 预算 / 稳妥度 / 出发返回</summary>
         <div class="grid3">
           <div class="field" style="grid-column:1/-1"><label>预算(空=不限)</label>
             <input id="budget" type="number" value="500"></div>
@@ -1500,10 +1502,6 @@
       <div class="s" onclick="switchView('map')"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5 6 3l4 1.5 3.5-1.5v9L10 13.5 6 12l-3.5 1.5z"/><path d="M6 3v9M10 4.5v9"/></svg></span> 地图</div>
       <div class="s s-copy" id="copyBtn" onclick="copyPlanText()"
            title="把当前视图的行程复制为纯文本（总览=全部天，单天=仅当天）"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="9" rx="1.4"/><path d="M10.5 5.5v-2a1.4 1.4 0 0 0-1.4-1.4H3.9a1.4 1.4 0 0 0-1.4 1.4v6.2a1.4 1.4 0 0 0 1.4 1.4h1.6"/></svg></span> 复制</div>
-      <div class="s s-ics" onclick="exportIcs()"
-           title="导出 .ics 日历文件，可导入手机日历按点提醒"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4"/><path d="M2.5 6.5h11M5.5 2v2M10.5 2v2"/></svg></span> 日历</div>
-      <div class="s s-print" onclick="window.print()"
-           title="打印版行程（浏览器打印 → 可存 PDF）"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6V2.5h7V6M4.5 12.5h7V13.5h-7zM3 6h10a1 1 0 0 1 1 1v4h-2v2H4v-2H2V7a1 1 0 0 1 1-1z"/></svg></span> 打印</div>
       <div class="s s-share" onclick="shareImage()"
            title="导出竖版长图（含 AI 总评与每天安排），可发朋友圈或当简历附件"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h2.7l1-1.6h3.6l1 1.6h2.7v7h-11z"/><circle cx="8" cy="9" r="2.4"/></svg></span> 长图</div>
     </div>
@@ -2760,14 +2758,11 @@ function openFoodDetail(i) {
     'border:none;border-radius:50%;width:30px;height:30px;cursor:pointer">' + ICON_X + '</button></div>' +
     '<div style="overflow-y:auto;flex:1">' + img +
       '<div style="padding:12px 16px 6px">' +
-        '<div style="font-size:13px;color:var(--muted-2)">' +
-          (f.rating ? '★ ' + esc(f.rating) + ' ' : '') +
-          (f.price ? esc(f.price) + ' · ' : '') +
-          esc(f.address || '') + '</div>' +
-        '<p style="font-size:14px;line-height:1.8;margin-top:10px">' +
+        '<p style="font-size:14.5px;line-height:1.85;margin-top:4px">' +
           esc(f.intro || '（没有更多介绍）') + '</p>' +
-        '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);' +
-        'font-size:12px;color:var(--muted-3)">来源：' + esc(src) + '</div>' +
+        '<div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--border);' +
+        'font-size:12px;color:var(--muted-3)">来源：' + esc(src) +
+          (f.ref ? ' · 图源：' + esc(f.ref) : '') + '</div>' +
       '</div>' +
     '</div></div>';
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
@@ -2880,13 +2875,11 @@ function renderFood() {
         ? '<img class="fc-img" src="' + esc(f.image) + '" alt="" loading="lazy" ' +
           'onerror="this.style.display=\'none\'">'
         : '<span class="pc-ph">' + esc((f.name || '？').slice(0, 1)) + '</span>';
-      const rating = f.rating ? '<b>' + esc(f.rating) + '</b>' : '';
-      const price = f.price ? '<i>' + esc(f.price) + '</i>' : '';
+      // 用户定案：只出「美食本体」—— 图 / 菜名 / 简洁介绍（来源在详情里看）
       return '<div class="foodcard" data-act="food-open" data-i="' + i + '" ' +
-        'role="button" tabindex="0" title="看详情">' +
+        'role="button" tabindex="0" title="看介绍与来源">' +
         '<span class="pc-media">' + img + '</span>' +
-        '<span class="pc-name">' + esc(f.name) + ' ' + rating + price + '</span>' +
-        '<span class="pc-meta">' + esc((f.address || '').slice(0, 28)) + '</span>' +
+        '<span class="pc-name">' + esc(f.name) + '</span>' +
         (f.intro ? '<span class="pc-desc">' + esc(f.intro) + '</span>' : '') +
       '</div>';
     }).join('') + '</div>';
@@ -3293,8 +3286,8 @@ function openSpotDetail(name) {
   const fav = favSet.has(name) ? ICON_STAR + ' 取消收藏' : ICON_STAR + ' 收藏';
   const overlay = document.createElement('div');
   overlay.id = 'spotModal';
-  overlay.innerHTML = `<div style="width:100%;max-width:460px;height:92vh;background:var(--surface);
-    border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden">
+  overlay.innerHTML = `<div style="width:min(500px,94vw);height:auto;max-height:84vh;background:var(--surface);
+    border:1px solid var(--border);border-radius:0;position:relative;display:flex;flex-direction:column;overflow:hidden">
     <div style="padding:14px 16px 4px;display:flex;justify-content:space-between;gap:10px">
       <b style="font-size:18px;line-height:1.4">${esc(name)}</b>
       <button onclick="this.closest('#spotModal').remove()" style="background:var(--fill);border:none;
@@ -3323,7 +3316,9 @@ function openSpotDetail(name) {
   </div>`;
   // 修 bug 3（批次 1）：`rgba(0,0,0,.55)` 在浅主题突兀。改用前景色 30% 透明，
   // 浅主题是深色透明、深主题自动反过来 —— 不再分两套 CSS。
-  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in oklab, var(--fg) 30%, transparent);z-index:900;display:flex;align-items:flex-end;justify-content:center';
+  // 居中紧凑卡：原来 92vh 顶天立地的窄长条太突兀 —— 高度随内容、封顶 84vh，
+  // 宽 500px、直角（编辑部语言），内容多了才在内部滚动
+  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in oklab, var(--fg) 30%, transparent);z-index:900;display:flex;align-items:center;justify-content:center';
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   document.body.appendChild(overlay);
   overlay.querySelector('#spotFavBtn').onclick = function () {
