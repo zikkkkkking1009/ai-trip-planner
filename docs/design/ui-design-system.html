@@ -41,23 +41,23 @@
 /* ---------- 令牌：浅色（实测达标） ---------- */
 :root[data-theme="light"]{
   color-scheme:light;
-  --bg:#fbfcfd; --surface:#ffffff; --fill:#f3f5f8; --fill-2:#eaedf1;
-  --fg:#0e1217;          /* 18.80:1 */
-  --text-2:#4d535a;      /*  7.75:1 */
-  --text-3:#6f757e;      /*  4.63:1  ← 修复，原 --muted-3 2.88:1 */
-  --icon:#8c939c;        /*  3.10:1  仅图形 */
-  --placeholder:#6b7179; /*  4.91:1  ← 修复，原 2.64:1 */
-  --border:#e2e5e8;      /*  1.27:1  装饰，豁免 */
-  --border-strong:#8f9397;/* 3.10:1 */
-  --focus:#1779e1;
-  --accent:#1779e1; --accent-solid:#0871d9; --accent-deep:#0065d2;
-  --accent-ink:#f7fcff; --accent-soft:#e9f3ff; --accent-line:#c2daf9;
+  --bg:#fafaf8; --surface:#ffffff; --fill:#f4f3f1; --fill-2:#ebebe8;
+  --fg:#171612;          /* 18.80:1 */
+  --text-2:#413f3b;      /*  7.75:1 */
+  --text-3:#5c5a55;      /*  4.63:1  ← 修复，原 --muted-3 2.88:1 */
+  --icon:#6e6d67;        /*  3.10:1  仅图形 */
+  --placeholder:#5c5a55; /*  4.91:1  ← 修复，原 2.64:1 */
+  --border:#dbdad8;      /*  1.27:1  装饰，豁免 */
+  --border-strong:#7d7c76;/* 3.10:1 */
+  --focus:#5567a4;
+  --accent:#5567a4; --accent-solid:#0871d9; --accent-deep:#43538f;
+  --accent-ink:#fafaf8; --accent-soft:#edf1fb; --accent-line:#7b89b5;
   --ok:#00a865; --ok-ink:#2b6e34; --ok-soft:#eef6ee; --ok-line:#cde8cf;
   --warn:#e8590c; --warn-ink:#bc4c00; --warn-soft:#fff4e6;
   --bad:#e03131; --bad-ink:#b42318; --bad-soft:#fef2f2; --bad-line:#fee4e2;
   --stay:#7048e8;
   --note-ink:#b55600; --note-soft:#fff8e6; --note-line:#ffe58f;
-  --on-accent:#f7fcff;
+  --on-accent:#fafaf8;
   /* 三天配色：暗到「块内亮字 ≥4.5:1」，且块色压白 ≥3:1（实测 9.81 / 6.97 / 4.93） */
   --day1:#064180; --day2:#1b589e; --day3:#3a70b3;
   --shadow:rgba(20,30,50,.10);
@@ -66,24 +66,24 @@
 /* ---------- 令牌：暗色（本项目原本没有，整套新增） ---------- */
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --bg:#0c0f12; --surface:#14171b; --fill:#1e2124; --fill-2:#262b2f;
-  --fg:#dee0e2;          /* 14.52:1 压页面底 */
-  --text-2:#adb2b6;      /*  8.35:1 */
-  --text-3:#7e848a;      /*  4.72:1 */
-  --icon:#616870;        /*  3.16:1 */
-  --placeholder:#868b92; /*  4.72:1 压输入底 */
-  --border:#292e34;      /*  1.25:1  装饰，豁免 */
-  --border-strong:#63676d;/* 3.16:1 */
-  --focus:#5fa7ff;       /*  7.19:1 */
-  --accent:#539af2;      /*  6.19:1  图形/大字 */
-  --accent-solid:#2c7bd7; --accent-deep:#539af2;
-  --accent-ink:#060c13; --accent-soft:#102034; --accent-line:#1d395b;
+  --bg:#0e0e10; --surface:#151619; --fill:#1d1e21; --fill-2:#26272a;
+  --fg:#dbdad6;          /* 14.52:1 压页面底 */
+  --text-2:#a5a4a0;      /*  8.35:1 */
+  --text-3:#81807b;      /*  4.72:1 */
+  --icon:#797a7f;        /*  3.16:1 */
+  --placeholder:#9a9993; /*  4.72:1 压输入底 */
+  --border:#2a2b2f;      /*  1.25:1  装饰，豁免 */
+  --border-strong:#6a6b70;/* 3.16:1 */
+  --focus:#99a8d5;       /*  7.19:1 */
+  --accent:#99a8d5;      /*  6.19:1  图形/大字 */
+  --accent-solid:#798abd; --accent-deep:#99a8d5;
+  --accent-ink:#0b0b0e; --accent-soft:#212532; --accent-line:#404a67;
   --ok:#4ed589; --ok-ink:#009f57; --ok-soft:#0e2517; --ok-line:#1c4430;
   --warn:#f78955; --warn-ink:#da672c; --warn-soft:#2f190f;
   --bad:#f3625d; --bad-ink:#e85854; --bad-soft:#301715; --bad-line:#5b2724;
   --stay:#8a82e9;
   --note-ink:#cc7200; --note-soft:#2d1a0a; --note-line:#5a3f14;
-  --on-accent:#060c13;
+  --on-accent:#0b0b0e;
   --day1:#3d7ece; --day2:#5e9ae7; --day3:#8cbaf7;
   --shadow:rgba(0,0,0,.45);
 }
@@ -761,12 +761,12 @@ footer{padding:var(--sp-7) 0 var(--sp-8);border-top:1px solid var(--border);colo
   <table class="tbl tbl--num">
     <thead><tr><th>令牌</th><th>oklch 源码值</th><th>sRGB</th><th>压 --bg</th><th>压 --surface</th><th>判定</th></tr></thead>
     <tbody>
-      <tr><td>--fg</td><td class="muted">18% .012 250</td><td class="num">#0e1217</td><td class="num">18.27:1</td><td class="num">18.80:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
-      <tr><td>--muted-2</td><td class="muted">44% .014 250</td><td class="num">#4d535a</td><td class="num">7.54:1</td><td class="num">7.75:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--fg</td><td class="muted">18% .012 250</td><td class="num">#171612</td><td class="num">18.27:1</td><td class="num">18.80:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--muted-2</td><td class="muted">44% .014 250</td><td class="num">#413f3b</td><td class="num">7.54:1</td><td class="num">7.75:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
       <tr><td>--muted</td><td class="muted">54% .012 250</td><td class="num">#6a6f76</td><td class="num">4.91:1</td><td class="num">5.05:1</td><td><span class="tag tag--n">达标但零引用</span></td></tr>
       <tr><td><strong>--muted-3</strong></td><td class="muted">68% .016 255</td><td class="num">#9299a2</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.80:1</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.88:1</td><td><span class="tag tag--bad">不达标 · 用了 50 处</span></td></tr>
-      <tr><td>--accent</td><td class="muted">58% .18 255</td><td class="num">#1779e1</td><td class="num">4.22:1</td><td class="num">4.34:1</td><td><span class="tag tag--warn">仅图形/大字</span></td></tr>
-      <tr><td>--accent-deep</td><td class="muted">52% .19 255</td><td class="num">#0065d2</td><td class="num">5.40:1</td><td class="num">5.56:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
+      <tr><td>--accent</td><td class="muted">58% .18 255</td><td class="num">#5567a4</td><td class="num">4.22:1</td><td class="num">4.34:1</td><td><span class="tag tag--warn">仅图形/大字</span></td></tr>
+      <tr><td>--accent-deep</td><td class="muted">52% .19 255</td><td class="num">#43538f</td><td class="num">5.40:1</td><td class="num">5.56:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
       <tr><td>--ok-ink</td><td class="muted">#2b6e34</td><td class="num">#2b6e34</td><td class="num">6.03:1</td><td class="num">6.21:1</td><td><span class="tag tag--ok">AA 正文</span></td></tr>
       <tr><td>--warn</td><td class="muted">#e8590c</td><td class="num">#e8590c</td><td class="num">3.48:1</td><td class="num">3.58:1</td><td><span class="tag tag--warn">仅图形</span></td></tr>
       <tr><td>--bad</td><td class="muted">#e03131</td><td class="num">#e03131</td><td class="num">4.39:1</td><td class="num">4.51:1</td><td><span class="tag tag--warn">仅图形</span></td></tr>
@@ -906,19 +906,19 @@ footer{padding:var(--sp-7) 0 var(--sp-8);border-top:1px solid var(--border);colo
 
   <h3 class="sub">3.1 浅色主题 · 修复后定稿</h3>
   <div class="sw-grid">
-    <div class="sw"><div class="sw__chip" style="background:var(--bg)"></div><div class="sw__nm">--bg</div><div class="sw__v">#fbfcfd</div><div class="sw__r"><span class="tag tag--n">页面底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--bg)"></div><div class="sw__nm">--bg</div><div class="sw__v">#fafaf8</div><div class="sw__r"><span class="tag tag--n">页面底</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:var(--surface)"></div><div class="sw__nm">--surface</div><div class="sw__v">#ffffff</div><div class="sw__r"><span class="tag tag--n">卡片面</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--fill)"></div><div class="sw__nm">--fill</div><div class="sw__v">#f3f5f8</div><div class="sw__r"><span class="tag tag--n">输入底</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--fg)"></div><div class="sw__nm">--fg</div><div class="sw__v">#0e1217 · 18.80:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--text-2)"></div><div class="sw__nm">--text-2</div><div class="sw__v">#4d535a · 7.75:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--text-3)"></div><div class="sw__nm">--text-3</div><div class="sw__v">#6f757e · 4.64:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--icon)"></div><div class="sw__nm">--icon</div><div class="sw__v">#8c939c · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--placeholder)"></div><div class="sw__nm">--placeholder</div><div class="sw__v">#6b7179 · 4.93:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--border-strong)"></div><div class="sw__nm">--border-strong</div><div class="sw__v">#8f9397 · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">边界</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--border)"></div><div class="sw__nm">--border</div><div class="sw__v">#e2e5e8 · 1.27:1</div><div class="sw__r"><span class="tag tag--n">装饰豁免</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--fill)"></div><div class="sw__nm">--fill</div><div class="sw__v">#f4f3f1</div><div class="sw__r"><span class="tag tag--n">输入底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--fg)"></div><div class="sw__nm">--fg</div><div class="sw__v">#171612 · 18.80:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--text-2)"></div><div class="sw__nm">--text-2</div><div class="sw__v">#413f3b · 7.75:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--text-3)"></div><div class="sw__nm">--text-3</div><div class="sw__v">#5c5a55 · 4.64:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--icon)"></div><div class="sw__nm">--icon</div><div class="sw__v">#6e6d67 · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--placeholder)"></div><div class="sw__nm">--placeholder</div><div class="sw__v">#5c5a55 · 4.93:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--border-strong)"></div><div class="sw__nm">--border-strong</div><div class="sw__v">#7d7c76 · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">边界</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--border)"></div><div class="sw__nm">--border</div><div class="sw__v">#dbdad8 · 1.27:1</div><div class="sw__r"><span class="tag tag--n">装饰豁免</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:var(--accent-solid)"></div><div class="sw__nm">--accent-solid</div><div class="sw__v">#0871d9 · 白字 4.62:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--accent)"></div><div class="sw__nm">--accent</div><div class="sw__v">#1779e1 · 4.22:1</div><div class="sw__r"><span class="tag tag--warn">仅图形</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:var(--accent-soft)"></div><div class="sw__nm">--accent-soft</div><div class="sw__v">#e9f3ff</div><div class="sw__r"><span class="tag tag--n">选中底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--accent)"></div><div class="sw__nm">--accent</div><div class="sw__v">#5567a4 · 4.22:1</div><div class="sw__r"><span class="tag tag--warn">仅图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:var(--accent-soft)"></div><div class="sw__nm">--accent-soft</div><div class="sw__v">#edf1fb</div><div class="sw__r"><span class="tag tag--n">选中底</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:var(--ok)"></div><div class="sw__nm">--ok</div><div class="sw__v">#00a865 · 3.10:1</div><div class="sw__r"><span class="tag tag--ok">已修复</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:var(--ok-ink)"></div><div class="sw__nm">--ok-ink</div><div class="sw__v">#2b6e34 · 6.03:1</div><div class="sw__r"><span class="tag tag--ok">沿用</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:var(--warn-ink)"></div><div class="sw__nm">--warn-ink</div><div class="sw__v">#bc4c00 · 4.62:1</div><div class="sw__r"><span class="tag tag--ok">新增</span></div></div>
@@ -932,8 +932,8 @@ footer{padding:var(--sp-7) 0 var(--sp-8);border-top:1px solid var(--border);colo
   <table class="tbl tbl--num">
     <thead><tr><th>令牌</th><th>修复前</th><th>原实测</th><th>修复后</th><th>新实测</th><th>影响面</th></tr></thead>
     <tbody>
-      <tr><td><strong>元信息色</strong></td><td class="muted">oklch(68% .016 255)</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.88:1</td><td class="num">oklch(56% .016 255)<br><span class="muted">#6f757e</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.63:1</td><td>50 处引用：标签、票价、时间、图标色</td></tr>
-      <tr><td><strong>占位符</strong></td><td class="muted">同 --muted-3</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.64:1</td><td class="num">oklch(55% .014 255)<br><span class="muted">#6b7179</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.91:1</td><td>全部输入框</td></tr>
+      <tr><td><strong>元信息色</strong></td><td class="muted">oklch(68% .016 255)</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.88:1</td><td class="num">oklch(56% .016 255)<br><span class="muted">#5c5a55</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.63:1</td><td>50 处引用：标签、票价、时间、图标色</td></tr>
+      <tr><td><strong>占位符</strong></td><td class="muted">同 --muted-3</td><td class="num" style="color:var(--bad-ink);font-weight:600">2.64:1</td><td class="num">oklch(55% .014 255)<br><span class="muted">#5c5a55</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.91:1</td><td>全部输入框</td></tr>
       <tr><td><strong>实心按钮底</strong></td><td class="muted">--accent</td><td class="num" style="color:var(--bad-ink);font-weight:600">4.21:1</td><td class="num">--accent-solid<br><span class="muted">#0871d9</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.62:1</td><td>「开始规划」等全部主按钮</td></tr>
       <tr><td><strong>警告正文</strong></td><td class="muted">无 ink 档</td><td class="num" style="color:var(--warn-ink);font-weight:600">3.58:1</td><td class="num">--warn-ink<br><span class="muted">#bc4c00</span></td><td class="num" style="color:var(--ok-ink);font-weight:600">4.62:1</td><td>警告文案用 ink 档，图形保留 --warn</td></tr>
       <tr><td><strong>提示正文</strong></td><td class="muted">#ad6800</td><td class="num" style="color:var(--warn-ink);font-weight:600">4.41:1</td><td class="num">#b55600</td><td class="num" style="color:var(--ok-ink);font-weight:600">4.62:1</td><td>提示条文案</td></tr>
@@ -948,9 +948,9 @@ footer{padding:var(--sp-7) 0 var(--sp-8);border-top:1px solid var(--border);colo
   </div>
   <div class="alert alert--note" style="margin-top:var(--sp-2)">
     <span><strong>还有一条工程教训值得记：不要把值解到「刚好等于阈值」。</strong>初版把每档都反解到精确的 3.00:1 / 4.50:1，
-    但 oklch 取值四舍五入成 hex、以及 <code>--accent-ink</code> 并非纯白（<code>#f7fcff</code>）这两件事，
+    但 oklch 取值四舍五入成 hex、以及 <code>--accent-ink</code> 并非纯白（<code>#fafaf8</code>）这两件事，
     会把结果重新推回线下 —— 门禁一次跑出 4 项「差 0.01~0.03」的失败。
-    最终统一<strong>留 0.10~0.12 的比例余量</strong>（如 <code>--icon</code> 定 <code>#8c939c</code> 实测 3.10:1，
+    最终统一<strong>留 0.10~0.12 的比例余量</strong>（如 <code>--icon</code> 定 <code>#6e6d67</code> 实测 3.10:1，
     而不是贴着 3.00:1 的 <code>#8f969f</code>）。<strong>设计令牌要能扛住取整与换算误差。</strong></span>
   </div>
 
@@ -961,19 +961,19 @@ footer{padding:var(--sp-7) 0 var(--sp-8);border-top:1px solid var(--border);colo
     按钮改用<strong>亮主色底 + 深字</strong>，这是暗色下对比度最稳的解法。
   </p>
   <div class="sw-grid">
-    <div class="sw"><div class="sw__chip" style="background:#0c0f12"></div><div class="sw__nm">--bg</div><div class="sw__v">#0c0f12</div><div class="sw__r"><span class="tag tag--n">页面底</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#14171b"></div><div class="sw__nm">--surface</div><div class="sw__v">#14171b</div><div class="sw__r"><span class="tag tag--n">卡片面</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#1e2124"></div><div class="sw__nm">--fill</div><div class="sw__v">#1e2124</div><div class="sw__r"><span class="tag tag--n">输入底</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#dee0e2"></div><div class="sw__nm">--fg</div><div class="sw__v">#dee0e2 · 14.52:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#adb2b6"></div><div class="sw__nm">--text-2</div><div class="sw__v">#adb2b6 · 8.35:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#7e848a"></div><div class="sw__nm">--text-3</div><div class="sw__v">#7e848a · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#868b92"></div><div class="sw__nm">--placeholder</div><div class="sw__v">#868b92 · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#616870"></div><div class="sw__nm">--icon</div><div class="sw__v">#616870 · 3.16:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#63676d"></div><div class="sw__nm">--border-strong</div><div class="sw__v">#63676d · 3.16:1</div><div class="sw__r"><span class="tag tag--ok">边界</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#292e34"></div><div class="sw__nm">--border</div><div class="sw__v">#292e34 · 1.25:1</div><div class="sw__r"><span class="tag tag--n">装饰豁免</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#2c7bd7"></div><div class="sw__nm">--accent-solid</div><div class="sw__v">#2c7bd7 · 深字 4.61:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#539af2"></div><div class="sw__nm">--accent</div><div class="sw__v">#539af2 · 6.19:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
-    <div class="sw"><div class="sw__chip" style="background:#102034"></div><div class="sw__nm">--accent-soft</div><div class="sw__v">#102034</div><div class="sw__r"><span class="tag tag--n">选中底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#0e0e10"></div><div class="sw__nm">--bg</div><div class="sw__v">#0e0e10</div><div class="sw__r"><span class="tag tag--n">页面底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#151619"></div><div class="sw__nm">--surface</div><div class="sw__v">#151619</div><div class="sw__r"><span class="tag tag--n">卡片面</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#1d1e21"></div><div class="sw__nm">--fill</div><div class="sw__v">#1d1e21</div><div class="sw__r"><span class="tag tag--n">输入底</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#dbdad6"></div><div class="sw__nm">--fg</div><div class="sw__v">#dbdad6 · 14.52:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#a5a4a0"></div><div class="sw__nm">--text-2</div><div class="sw__v">#a5a4a0 · 8.35:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#81807b"></div><div class="sw__nm">--text-3</div><div class="sw__v">#81807b · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#9a9993"></div><div class="sw__nm">--placeholder</div><div class="sw__v">#9a9993 · 4.72:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#797a7f"></div><div class="sw__nm">--icon</div><div class="sw__v">#797a7f · 3.16:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#6a6b70"></div><div class="sw__nm">--border-strong</div><div class="sw__v">#6a6b70 · 3.16:1</div><div class="sw__r"><span class="tag tag--ok">边界</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#2a2b2f"></div><div class="sw__nm">--border</div><div class="sw__v">#2a2b2f · 1.25:1</div><div class="sw__r"><span class="tag tag--n">装饰豁免</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#798abd"></div><div class="sw__nm">--accent-solid</div><div class="sw__v">#798abd · 深字 4.61:1</div><div class="sw__r"><span class="tag tag--ok">AA</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#99a8d5"></div><div class="sw__nm">--accent</div><div class="sw__v">#99a8d5 · 6.19:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
+    <div class="sw"><div class="sw__chip" style="background:#212532"></div><div class="sw__nm">--accent-soft</div><div class="sw__v">#212532</div><div class="sw__r"><span class="tag tag--n">选中底</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:#4ed589"></div><div class="sw__nm">--ok</div><div class="sw__v">#4ed589 · 9.53:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:#009f57"></div><div class="sw__nm">--ok-ink</div><div class="sw__v">#009f57 · 4.71:1</div><div class="sw__r"><span class="tag tag--ok">文字</span></div></div>
     <div class="sw"><div class="sw__chip" style="background:#f78955"></div><div class="sw__nm">--warn</div><div class="sw__v">#f78955 · 7.38:1</div><div class="sw__r"><span class="tag tag--ok">图形</span></div></div>

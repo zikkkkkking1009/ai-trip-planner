@@ -12,24 +12,24 @@
        改这里 = 同时改两页观感。规划器信息密度高，故比首页多一档 --muted-3
        （11~12px 的标签 / 元信息）。--acc / --dim / --line 是历史变量名，
        保留为别名，存量规则一行都不用改。 */
-    --bg:       oklch(99% 0.002 240);
-    --surface:  oklch(100% 0 0);
-    --fg:       oklch(18% 0.012 250);
-    --muted:    oklch(54% 0.012 250);   /* 说明性正文 */
-    --muted-2:  oklch(44% 0.014 250);   /* 需要读的次级文字 */
-    --muted-3:  oklch(53.2% 0.016 255); /* 标签 / 元信息 / 占位（原 68% 仅 2.88:1）*/
-    --border:   oklch(92% 0.005 250);
-    --fill:     oklch(97% 0.004 250);   /* 输入底、次级面 */
-    --fill-2:   oklch(94.5% 0.006 250); /* 其上的 hover 态 */
+    --bg:       oklch(98.5% 0.004 95);   /* 纸 */
+    --surface:  oklch(100% 0.002 95);    /* 卡纸 */
+    --fg:       oklch(20% 0.015 75);     /* 墨 */
+    --muted:    oklch(45% 0.012 75);     /* 说明性正文（bg 上 7.1:1）*/
+    --muted-2:  oklch(37% 0.014 75);     /* 需要读的次级文字 */
+    --muted-3:  oklch(47% 0.015 80);     /* 标签 / 元信息 / 占位（6.5:1）*/
+    --border:   oklch(89% 0.006 90);     /* 发丝线 */
+    --fill:     oklch(96.5% 0.005 92);   /* 输入底、次级面 */
+    --fill-2:   oklch(94% 0.007 92);     /* 其上的 hover 态 */
 
-    --accent:      oklch(58% 0.18 255);
-    --accent-deep: oklch(52% 0.19 255);   /* hover / 按下时的加深态 */
-    --accent-ink:  oklch(99% 0.01 255);
-    --accent-soft: oklch(96% 0.02 255);
-    --accent-line: oklch(65.9% 0.09 255);
+    --accent:      oklch(50% 0.17 258);  /* 品牌钴蓝·印刷降饱和（bg 上 5.2:1）*/
+    --accent-deep: oklch(43% 0.17 260);
+    --accent-ink:  oklch(98.5% 0.004 95);
+    --accent-soft: oklch(95.5% 0.025 255);
+    --accent-line: oklch(62% 0.12 256);
     /* 实心主色底与「压在其上的字」成对定义：底越浅，字越难达标 */
-    --accent-solid: oklch(55.6% 0.16 255);
-    --on-accent:  #f7fcff;
+    --accent-solid: oklch(50% 0.17 258);
+    --on-accent:  oklch(98.5% 0.004 95);
 
     /* 语义色保留原十六进制：色相本身承载语义（红=危险 / 绿=成功 / 橙=注意）。
        实测把它们也 oklch 化，--warn 会从 #e8590c（红橙）偏成 #e1791b（黄橙），
@@ -61,16 +61,17 @@
     --dim:  var(--muted-3);
     --line: var(--border);
 
-    /* 字体：与首页同一套分层（display 用于标题，负字距是这套风格的标志） */
-    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
-                    "Microsoft YaHei", system-ui, sans-serif;
+    /* 字体：编辑部分层 —— 衬线标题（刊物感，品牌「路书」= 行程手册）+ 黑体正文 + mono 元数据 */
+    --font-display: Georgia, "Times New Roman", "Source Han Serif SC",
+                    "Noto Serif SC", "STZhongsong", "SimSun", serif;
     --font-body:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
                     "Microsoft YaHei", system-ui, sans-serif;
+    --font-mono:    "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
 
-    /* 层次：三级阴影。只在表达「浮起」处用，层级越高越重 */
-    --sh-1: 0 1px 2px oklch(28% 0.03 255 / .05);
-    --sh-2: 0 6px 20px oklch(28% 0.03 255 / .07);
-    --sh-3: 0 18px 48px oklch(28% 0.03 255 / .18);
+    /* 层次：编辑部不用投影，用发丝线。保留 --sh-3 给固定浮层（弹层/面板）。 */
+    --sh-1: none;
+    --sh-2: none;
+    --sh-3: 0 12px 40px oklch(20% 0.015 75 / .14);
 
     /* 缓动与时长：统一，避免各处 ease 乱飞 */
     --e:      cubic-bezier(.22,.61,.36,1);
@@ -927,19 +928,32 @@
      脚本用 matchMedia 解析「跟随系统」，所以 prefers-color-scheme 依然有效
      （tools/contrast_runtime.js 正是靠模拟系统偏好来验暗色的）。 */
   :root[data-theme="dark"] {
-      --bg: #0c0f12;      --surface: #14171b;
-      --fg: #dee0e2;      --muted: #9aa0a6;   --muted-2: #adb2b6;  --muted-3: #8d939b;
-      --border: #292e34;  --fill: #1e2124;    --fill-2: #262b2f;
+      /* 暗色 = 暖墨纸的反转（与首页同一套编辑刊物夜读版） */
+      --bg: #0e0e10;      --surface: #151619;
+      --fg: #dbdad6;      --muted: #81807b;   --muted-2: #a5a4a0;  --muted-3: #797a7f;
+      --border: #2a2b2f;  --fill: #1d1e21;    --fill-2: #26272a;
 
-      --accent: #539af2;  --accent-deep: #539af2;  --accent-solid: #2c7bd7;
-      --accent-ink: #060c13;  --on-accent: #060c13;
-      --accent-soft: #102034; --accent-line: #3c679e;
+      --accent: #99a8d5;  --accent-deep: #8695c6;  --accent-solid: #798abd;
+      --accent-ink: #0b0b0e;  --on-accent: #0b0b0e;
+      --accent-soft: #212532; --accent-line: #404a67;
 
       --ok: #4ed589;      --ok-ink: #009f57;  --ok-soft: #0e2517;   --ok-line: #1c4430;
       --warn: #f78955;    --warn-ink: #da672c; --warn-soft: #2f190f;
       --bad: #fb6157;     --bad-ink: #e85854; --bad-soft: #301715;  --bad-line: #5b2724;
       --stay: #8a82e9;    --note-ink: #cc7200; --note-soft: #2d1a0a; --note-line: #5a3f14;
   }
+
+  /* ===== 编辑部主题覆盖（2026-09-28 重设计）：直角 + 发丝线 =====
+     用 #phone 前缀把特异性抬到 (1,0,1)，压过所有单类圆角规则；
+     功能性圆形（时间轴圆点/桌宠拟物/加载圈）用同等特异性的后置规则恢复 50%。
+     JS 内联样式（style="...border-radius:50%"）优先级更高，不受影响。 */
+  body *{ border-radius:0; }
+  #phone *, .site-nav *{ border-radius:0; }
+  #phone .spin, #phone .pp-msg, #phone .pp-typing, #phone .tl-dot,
+  .spin, .pp-msg, .pp-typing, .tl-dot{ border-radius:50%; }
+  #phone #pet{ border-radius:50%; }
+  /* 表单控件与按钮：2px，比面板略圆以示可交互 */
+  body input, body select, body textarea, #phone button, #phone .btn{ border-radius:2px; }
 </style>
 <script>
 /* ---- 主题：跟随系统 / 亮 / 暗（无闪烁：首帧前就把 data-theme 定下来）----
