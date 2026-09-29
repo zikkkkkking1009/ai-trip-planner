@@ -152,17 +152,27 @@
   .auth-toast[hidden] { display:none; }
   /* Hero：accent 色带 —— 与首页 .hero 同一做法，保证从首页点进来观感连贯。
      比首页薄：规划器的重点在下方表单，色带只作视觉锚点，不喧宾夺主。 */
-  .page > header.hero { padding:54px 24px 46px; text-align:center;
-                        background:var(--accent-solid); color:var(--on-accent); }
+  /* ===== 页面头：夜空极光（与首页 hero 同一套：WebGL 帘幕 + 星光，页尾脚本驱动）=====
+     恒夜空（与主题无关），底部渐隐进纸色正文，chips 用发丝线直角药丸。 */
+  .page > header.hero { position:relative; overflow:hidden; padding:54px 24px 46px;
+                        text-align:center; background:#060a12; color:#fafaf8;
+                        border-bottom:1px solid var(--border); }
+  .page > header.hero::after{ content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:linear-gradient(180deg, rgba(6,10,18,.5), rgba(6,10,18,0) 40%,
+                rgba(6,10,18,.15) 75%, var(--bg) 100%); }
+  .page > header.hero > *{ position:relative; z-index:2; }
+  .page > header.hero .aurora-canvas{ position:absolute; inset:0; z-index:0;
+    width:100%; height:100%; display:block; }
+  .hero h1 { color:#fafaf8; }
   .hero h1 { font-size:clamp(28px, 3.4vw, 44px); font-weight:800; line-height:1.16;
-             color:var(--on-accent); }
+             color:#fafaf8; }
   .hero .meta { font-size:16px; margin-top:14px;
-                color:var(--on-accent); }
+                color:rgba(250,250,248,.75); }
   .hero .chips { margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-  .hero .chip { padding:6px 14px; border-radius:999px; font-size:12px; box-shadow:none;
-                background:var(--accent-deep);
-                border:1px solid color-mix(in oklab, var(--on-accent) 70%, transparent);
-                color:var(--on-accent); }
+  .hero .chip { padding:6px 14px; border-radius:2px; font-size:12px; box-shadow:none;
+                background:rgba(250,250,248,.07);
+                border:1px solid rgba(250,250,248,.3);
+                color:rgba(250,250,248,.92); }
   /* 「我的」页头复用同一条色带，只是更薄（它没有 chips，重点是下面的列表）——
      两页共用同一个 hero 类，切换时才不会一个有色带一个没有。 */
   #pageUser > header.hero { padding:40px 24px 36px; }
@@ -543,6 +553,10 @@
   .ucard { display:flex; gap:12px; padding:10px 0; border-top:1px dashed var(--border);
            cursor:pointer; align-items:center; }
   .ucard:first-of-type { border-top:none; }
+  /* 编辑部条目：hover 浅填充 + 元信息等宽数字（时间/金额逐列对齐） */
+  .ucard:hover { background:var(--fill); }
+  .ucard .s { font-variant-numeric:tabular-nums; }
+  .usection h2 { font-family:var(--font-display); letter-spacing:-.01em; }
   /* 管理模式勾选态：浅 accent 底 + 发丝 accent 环（不用重色块，与左栏 .pref.on 同一语言） */
   .ucard.selected { background:var(--accent-soft); border-top-color:transparent;
                     box-shadow:inset 0 0 0 1px var(--accent-line); }
@@ -574,7 +588,8 @@
   .cal-cell { height:48px; display:flex; align-items:center; justify-content:center; }
   .cal-cell .d { width:36px; height:36px; display:flex; align-items:center; justify-content:center;
                  border-radius:9px; font-size:14px; font-variant-numeric:tabular-nums; }
-  .cal-cell.dis .d { color:var(--muted-3); pointer-events:none; }   /* 已过去/不可选：只降灰，不加灰底 */
+  .cal-cell.dis { pointer-events:none; }   /* 已过去/不可选：整格禁点（只禁 .d 子元素挡不住点空白） */
+  .cal-cell.dis .d { color:var(--muted-3); }   /* 只降灰，不加灰底 */
   .cal-cell .d.today { box-shadow:inset 0 0 0 1px var(--acc); color:var(--accent-deep); font-weight:600; }
   .cal-cell .d.start, .cal-cell .d.end { background:var(--accent-solid); color:var(--on-accent); font-weight:700; }
   .cal-cell .d.inrange { background:var(--accent-soft); color:var(--accent-deep); border-radius:0; }
@@ -947,13 +962,14 @@
      用 #phone 前缀把特异性抬到 (1,0,1)，压过所有单类圆角规则；
      功能性圆形（时间轴圆点/桌宠拟物/加载圈）用同等特异性的后置规则恢复 50%。
      JS 内联样式（style="...border-radius:50%"）优先级更高，不受影响。 */
-  body *{ border-radius:0; }
-  #phone *, .site-nav *{ border-radius:0; }
+  body *{ border-radius:0 !important; }
+  #phone *, .site-nav *{ border-radius:0 !important; }
+  /* 功能性圆形（特异性 (1,1,0) 压过 (1,0,0) 的归零规则，同为 !important） */
   #phone .spin, #phone .pp-msg, #phone .pp-typing, #phone .tl-dot,
-  .spin, .pp-msg, .pp-typing, .tl-dot{ border-radius:50%; }
-  #phone #pet{ border-radius:50%; }
-  /* 表单控件与按钮：2px，比面板略圆以示可交互 */
-  body input, body select, body textarea, #phone button, #phone .btn{ border-radius:2px; }
+  .spin, .pp-msg, .pp-typing, .tl-dot{ border-radius:50% !important; }
+  #phone #pet{ border-radius:50% !important; }
+  /* 表单控件与按钮：2px，比面板略圆以示可交互（(1,0,1) 压过归零规则） */
+  body input, body select, body textarea, #phone button, #phone .btn{ border-radius:2px !important; }
 </style>
 <script>
 /* ---- 主题：跟随系统 / 亮 / 暗（无闪烁：首帧前就把 data-theme 定下来）----
@@ -1137,6 +1153,7 @@
   <!-- ========= 页面一：规划 ========= -->
   <div class="page active" id="pagePlan">
     <header class="hero">
+      <canvas class="aurora-canvas" aria-hidden="true"></canvas>
       <h1>把一篇游记，变成可执行的行程</h1>
       <div class="meta">读懂攻略 · 对齐真实地点 · 自动排期 · 校验时间够不够</div>
       <div class="chips" id="chips">
@@ -1262,6 +1279,8 @@
     <div class="seg" id="viewSeg" style="display:none">
       <div class="s active" onclick="switchView('itin')"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="8" height="10.5" rx="1.2"/><path d="M6 3V1.8h4V3"/><path d="M6.5 7h3M6.5 9.5h2.5"/></svg></span> 行程</div>
       <div class="s" onclick="switchView('map')"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5 6 3l4 1.5 3.5-1.5v9L10 13.5 6 12l-3.5 1.5z"/><path d="M6 3v9M10 4.5v9"/></svg></span> 地图</div>
+      <div class="s s-copy" id="copyBtn" onclick="copyPlanText()"
+           title="把当前视图的行程复制为纯文本（总览=全部天，单天=仅当天）"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="9" rx="1.4"/><path d="M10.5 5.5v-2a1.4 1.4 0 0 0-1.4-1.4H3.9a1.4 1.4 0 0 0-1.4 1.4v6.2a1.4 1.4 0 0 0 1.4 1.4h1.6"/></svg></span> 复制</div>
       <div class="s s-share" onclick="shareImage()"
            title="导出竖版长图（含 AI 总评与每天安排），可发朋友圈或当简历附件"><span class="licon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.5h2.7l1-1.6h3.6l1 1.6h2.7v7h-11z"/><circle cx="8" cy="9" r="2.4"/></svg></span> 长图</div>
     </div>
@@ -1319,6 +1338,7 @@
   <!-- ========= 页面二：我的 ========= -->
   <div class="page" id="pageUser">
     <header class="hero">
+      <canvas class="aurora-canvas" aria-hidden="true"></canvas>
       <h1>我的</h1>
       <div class="meta">历史规划与收藏的景点</div>
     </header>
@@ -1327,7 +1347,7 @@
         <button id="manageBtn" onclick="toggleManage()" style="display:none;background:none;
           border:none;color:var(--accent-deep);font-size:13px;cursor:pointer;font-weight:600">管理</button></h2>
       <div id="plansList"><div class="uempty">加载中…</div></div>
-      <div id="planBtns" style="display:none;margin-top:10px;display:none;gap:8px">
+      <div id="planBtns" style="display:none;margin-top:10px;gap:8px">
         <button id="selAllBtn" onclick="toggleSelectAll()" style="flex:1;background:var(--fill);
           color:var(--fg);border:none;border-radius:10px;padding:10px;cursor:pointer;
           font-size:13.5px;font-weight:600">全选</button>
@@ -1418,7 +1438,7 @@ function pickCity(c) {
   loadDemoSpots().then(d => {
     if (d.available) log('城市', `已切换到 ${d.city}，载入 ${d.spots.length} 个预置景点`);
     else log('城市', `${d.city} 没有预置景点：可在下方「粘贴攻略」识别，或换一个城市`);
-    if (plan) renderItin();
+    if (plan && !skipRender) renderItin();
   });
 }
 
@@ -1765,8 +1785,13 @@ $('go').onclick = async () => {
     preference: currentPref, robustness: currentRob, spots,
     hotel: pendingHotel || null };   // 先选好的酒店，作为规划入参（后端 PlanRequest.hotel）
   try {
-    const {task_id, ws_url} = await fetch('/plan/async', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)}).then(r=>r.json());
+    const res = await fetch('/plan/async', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)});
+    const d0 = await res.json();
+    // 不检查 r.ok 的旧写法会在 400/422 时拿到 undefined 的 task_id，
+    // 直到构造非法 WS URL 才报错，后端的 detail（可读原因）全丢
+    if (!res.ok) throw new Error((d0 && d0.detail) || ('HTTP ' + res.status));
+    const {task_id, ws_url} = d0;
     log('任务', `task_id=${task_id}`);
     const proto = location.protocol==='https:'?'wss':'ws';
     const ws = new WebSocket(window.wsUrl(`${proto}://${location.host}${ws_url}`));
@@ -1973,6 +1998,58 @@ function syncOverviewModules() {
   });
   const rob = $('robustDetails');
   if (rob) rob.style.display = (ov && plan) ? 'block' : 'none';
+}
+
+
+// ---- 复制行程为纯文本（总览=全部天；单天=仅当天）----
+function fmtH(h) {
+  const t = Math.round(h * 60);
+  return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+}
+function planText() {
+  if (!plan) return '';
+  const days = (currentDay === 0 ? plan.days : plan.days.filter(d => d.day === currentDay));
+  const head = `${plan.city || currentCity} · ${plan.days.length} 天行程`
+    + (plan.days.length ? `（${dateOf(0).split(' ')[0]} 起）` : '');
+  const lines = [head, ''];
+  for (const d of days) {
+    lines.push(`Day${d.day}（${dateOf(d.day - 1).split(' ')[0]}）`);
+    for (const v of d.spots) {
+      const tk = v.ticket_known === false ? ' 票价待查'
+        : (v.ticket ? ` 门票¥${Math.round(v.ticket)}` : '');
+      lines.push(`  ${fmtH(v.arrive_h)}-${fmtH(v.depart_h)} ${v.name}${tk}`);
+    }
+    lines.push(`  通勤 ${Math.round(d.commute_min)} 分钟 · 门票 ${moneyTxt(d.cost, (d.spots || []).every(x => x.ticket_known !== false))}`);
+    lines.push('');
+  }
+  if (plan.total_cost != null)
+    lines.push(`合计门票 ${moneyTxt(plan.total_cost, plan.cost_known)}`
+      + (plan.cost_known === false ? '（含待查景点）' : ''));
+  return lines.join('\n');
+}
+function copyPlanText() {
+  const txt = planText();
+  if (!txt) { log('复制', '还没有行程可复制'); return; }
+  const done = ok => {
+    const b = $('copyBtn');
+    if (b) { const old = b.innerHTML; b.innerHTML = old.replace('复制', ok ? '已复制' : '复制失败');
+             setTimeout(() => { b.innerHTML = old; }, 1800); }
+    log('复制', ok ? '行程文本已复制到剪贴板' : '复制失败（浏览器限制），可手动选取');
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(() => done(true), () => done(fallbackCopy(txt)));
+  } else {
+    done(fallbackCopy(txt));
+  }
+}
+function fallbackCopy(txt) {
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
 }
 
 function renderItin() {
@@ -2201,6 +2278,10 @@ async function loadOneThumb(el) {
     const r = await fetch(`/poi/detail?name=${encodeURIComponent(name)}&city=${encodeURIComponent(currentCity)}`);
     if (!r.ok) { el.remove(); return; }          // 取不到就不留破图
     const d = await r.json();
+    // 回写数据源：下次 renderItin 重建占位时直接命中，不再重复请求
+    const sp = spots.find(x => x.name === name)
+      || (plan ? plan.days.flatMap(x => x.spots).find(x => x.name === name) : null);
+    if (sp && d.image) sp.image = d.image;
     if (d.image) { el.src = d.image; el.classList.remove('lazy'); }
     else { el.remove(); }
   } catch (e) {
@@ -2217,11 +2298,15 @@ function toggleFav(name) {
     body: JSON.stringify({action, spot: {...v, city: currentCity}})})
     .then(r => r.json()).then(d => {
       favSet = new Set(d.favorites.map(f => f.name));
-      if (plan) renderItin(); loadFavorites();
+      // 旧写法 renderItin() + loadFavorites()(内部再 renderItin)= 每次收藏双份全量重建；
+      // 且在地图视图收藏会把用户强行拽回行程视图 —— 地图时只更新数据，切回时自然重绘
+      const onMap = $('mapView') && $('mapView').style.display === 'block';
+      if (plan && !onMap) renderItin();
+      loadFavorites(true);
     });
 }
 
-function loadFavorites() {
+function loadFavorites(skipRender) {
   fetch('/favorites').then(r => r.json()).then(d => {
     favSet = new Set(d.favorites.map(f => f.name));
     const el = $('favsList');
@@ -3120,7 +3205,9 @@ async function loadWeather() {
     weatherData = await r.json();
     renderWeather(weatherData);
   } catch (err) {
-    // 天气是可选增强，任何失败都只降级成一条说明，不影响行程本身的渲染
+    // 天气是可选增强，任何失败都只降级成一条说明，不影响行程本身的渲染；
+    // 同时清掉缓存 —— 否则之后切天 tab 会用**旧数据**把失败提示重新盖上
+    weatherData = null;
     renderWeather({ available: false, reason: '天气服务请求失败' });
   }
 }
@@ -3182,10 +3269,12 @@ async function loadReview() {
     const r = await fetch('/plan/review', {method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({task_id: lastTaskId, memory: loadMem()})});
-    if (!r.ok) { box.classList.remove('on'); box.innerHTML = ''; return; }
+    if (!r.ok) { box.classList.remove('on'); box.innerHTML = '';
+                 reviewForTask = null; return; }   // 回滚去重标记：下次进视图可重试
     renderReview(await r.json());
   } catch (e) {
     box.classList.remove('on'); box.innerHTML = '';   // 总评失败不打扰用户
+    reviewForTask = null;                            // 同上：失败不得永久占位
   }
 }
 
@@ -3235,10 +3324,12 @@ async function loadRobustness() {
     const r = await fetch('/plan/simulate', {method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({task_id: lastTaskId, runs: 1000})});
-    if (!r.ok) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    if (!r.ok) { box.style.display = 'none'; box.innerHTML = '';
+                 simForTask = null; return; }   // 失败回滚，允许重试
     renderRobustness(await r.json());
   } catch (e) {
     box.style.display = 'none'; box.innerHTML = '';   // 模拟失败不打扰用户
+    simForTask = null;
   }
 }
 
@@ -3924,12 +4015,14 @@ document.addEventListener('click', e => {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({text, city: currentCity})})
         .then(r => r.json())
-        .then(d => {
+        .then(async d => {
           if (!d || d.error) { if (msg) msg.textContent = '识别失败：' + (d.detail || '未知错误'); return; }
           if (d.detected_city && d.detected_city !== currentCity) {
             currentCity = d.detected_city;
             $('cityInput').value = currentCity;
-            loadDemoSpots();
+            // 必须 await：旧写法不等它回来就把 spots=adopt 落下，
+            // 回调稍后执行 spots=d.spots 会把刚采纳的攻略景点静默覆盖掉
+            await loadDemoSpots();
             log('城市', `攻略识别到城市：${currentCity}`);
           }
           const adopt = (d.spots || []).filter(s => !s.needs_review);
@@ -3946,5 +4039,90 @@ document.addEventListener('click', e => {
   }
 });
 </script>
+
+<script>
+/* ---- 页面头夜空极光（与首页 static/home.html 同一份着色器，见那边的注释）----
+   差异化点：规划页/我的页各有一个 .aurora-canvas，共享同一段初始化逻辑；
+   每帧检查 offsetParent（页面 display:none 时为 null）→ 不可见不绘制，
+   切页后零开销。【有意】不响应 reduced-motion，理由同首页 hero。 */
+(function () {
+  var VS = '#version 300 es\nvoid main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.-1.,0.,1.);}';
+  var FS = '#version 300 es\nprecision highp float;' +
+    'uniform vec2 uR;uniform float uT;uniform vec2 uM;out vec4 o;' +
+    'float h21(vec2 p){p=fract(p*vec2(234.34,435.345));p+=dot(p,p+91.17);return fract(p.x*p.y);}' +
+    'float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);' +
+    'float a=h21(i),b=h21(i+vec2(1,0)),c=h21(i+vec2(0,1)),d=h21(i+vec2(1,1));' +
+    'return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}' +
+    'float fbm(vec2 p){float v=0.,a=.55;for(int i=0;i<4;i++){v+=a*n2(p);p=p*2.13+11.7;a*=.5;}return v;}' +
+    'void main(){' +
+    'vec2 uv=gl_FragCoord.xy/uR;vec2 m=uM/uR;' +
+    /* 夜空：地平线渐亮 */
+    'vec3 col=mix(vec3(.012,.02,.05),vec3(.04,.07,.13),pow(1.-uv.y,1.5));' +
+    /* 星光：网格哈希 + 圆点衰减（方形是格网直出的伪影）+ 闪烁，只在上半空 */
+    'vec2 sp=uv*vec2(uR.x/max(uR.y,1.),1.)*90.;float s=h21(floor(sp));' +
+    'float star=smoothstep(.965,1.,s)*pow(.5+.5*sin(uT*(1.+s*3.)+s*40.),3.)' +
+    '*smoothstep(.42,.1,length(fract(sp)-.5));' +
+    'col+=vec3(.9,.95,1.)*star*smoothstep(.12,.5,uv.y)*.9;' +
+    /* 三层极光帘幕：光标摆动（振幅与相位随光标水平距离衰减） */
+    'float sway=(m.x-.5);float amp=1.+.9*exp(-abs(uv.x-m.x)*3.5);' +
+    'for(int i=0;i<3;i++){' +
+    ' float fi=float(i);' +
+    ' float base=.60-.15*fi;' +
+    ' float w=fbm(vec2(uv.x*2.2+fi*9.1+uT*(.05+.03*fi),fi*4.7));' +
+    ' float y=base+(w-.5)*(.17*amp)+sway*.06*(1.-fi*.25);' +
+    ' float band=exp(-abs(uv.y-y)*(9.-fi*2.));' +
+    ' float streak=.6+.4*sin((uv.x+w)*40.+uT*(.6+fi*.2)+fi);' +
+    ' vec3 ac=mix(vec3(.2,.9,.55),vec3(.45,.5,.95),fi/2.);' +
+    ' col+=ac*band*streak*(.5-.12*fi);}' +
+    /* 地平线辉光 + 暗角 + 轻提亮 */
+    'col+=vec3(.05,.09,.14)*smoothstep(.32,.0,uv.y);' +
+    'col*=1.-.35*pow(distance(uv,vec2(.5,.45)),2.2);' +
+    'col=pow(max(col,0.),vec3(.92));' +
+    'o=vec4(col,1.);}';
+  function compile(gl, type, src) {
+    var sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
+    return gl.getShaderParameter(sh, gl.COMPILE_STATUS) ? sh : null;
+  }
+  document.querySelectorAll('.aurora-canvas').forEach(function (cv) {
+    var gl = cv.getContext('webgl2', { antialias: false, alpha: false });
+    if (!gl) { cv.remove(); return; }
+    var v = compile(gl, gl.VERTEX_SHADER, VS), f = compile(gl, gl.FRAGMENT_SHADER, FS);
+    if (!v || !f) { cv.remove(); return; }
+    var pr = gl.createProgram(); gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
+    if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) { cv.remove(); return; }
+    gl.useProgram(pr);
+    var uR = gl.getUniformLocation(pr, 'uR'),
+        uT = gl.getUniformLocation(pr, 'uT'),
+        uM = gl.getUniformLocation(pr, 'uM');
+    var mx = .5, my = .55, tx = .5, ty = .55;
+    addEventListener('pointermove', function (e) {
+      var r = cv.getBoundingClientRect();
+      tx = (e.clientX - r.left) / r.width;
+      ty = 1 - (e.clientY - r.top) / r.height;
+    }, { passive: true });
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    function fit() {
+      if (cv.offsetParent === null) return;
+      var w = cv.clientWidth || 2, h = cv.clientHeight || 2;
+      cv.width = Math.max(2, w * dpr | 0); cv.height = Math.max(2, h * dpr | 0);
+      gl.viewport(0, 0, cv.width, cv.height);
+    }
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(cv);
+    addEventListener('resize', fit); fit();
+    var t0 = performance.now();
+    requestAnimationFrame(function frame(now) {
+      if (cv.offsetParent !== null) {   // 页面隐藏（切到另一页）就不画
+        mx += (tx - mx) * .045; my += (ty - my) * .045;
+        gl.uniform2f(uR, cv.width, cv.height);
+        gl.uniform1f(uT, (now - t0) / 1000);
+        gl.uniform2f(uM, mx * cv.width, my * cv.height);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+      requestAnimationFrame(frame);
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

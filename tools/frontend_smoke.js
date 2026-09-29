@@ -81,7 +81,9 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   // "Could not parse CSS stylesheet"。这是 jsdom 的局限，不是页面的问题
   // （真实浏览器渲染正常，:root 令牌已由截图脚本读 computedStyle 验证过）；
   // 而冒烟的断言查的是 DOM 结构与文本、不依赖 CSS —— 故过滤掉，免得噪音掩盖真问题。
-  const IGNORE = /Could not parse CSS stylesheet/;
+  // canvas getContext 的 Not implemented 是 jsdom 固有限制：hero 夜空极光的 WebGL
+  // 探测在 jsdom 下必然报这条，真浏览器不发生；降级路径由 hero_motion_check 真机断言
+  const IGNORE = /Could not parse CSS stylesheet|Not implemented: HTMLCanvasElement's getContext/;
   const pushErr = s => { if (!IGNORE.test(s)) errors.push(s); };
   vc.on('jsdomError', e => pushErr('jsdomError: ' + (e.message || e)));
   vc.on('error', (...a) => pushErr('console.error: ' + a.join(' ')));

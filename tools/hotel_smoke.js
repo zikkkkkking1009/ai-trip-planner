@@ -91,7 +91,7 @@ function leafletStub() {
   //  - CSS 解析不全（jsdom 的 cssom 不支持现代语法）
   //  - 页面跳转（点 <a href> 必现 "Not implemented: navigation to another Document"）
   // ⚠️ 不要往这里塞业务错误 —— 那条会连同类真 bug 一起被吃掉。
-  const IGNORE = /Could not parse CSS stylesheet|Not implemented: navigation to another Document/;
+  const IGNORE = /Could not parse CSS stylesheet|Not implemented: navigation to another Document|Not implemented: HTMLCanvasElement's getContext/;
   const pushErr = s => { if (!IGNORE.test(s)) errors.push(s); };
   vc.on('jsdomError', e => pushErr('jsdomError: ' + (e.message || e)));
   vc.on('error', (...a) => pushErr('console.error: ' + a.join(' ')));
