@@ -699,6 +699,20 @@
   .wizard-bar .wstep:disabled{ opacity:.4; cursor:default; }
   .wizard-bar .wline{ width:34px; height:1px; background:var(--border); }
 
+  /* 结果侧编辑：时间线卡片内的操作组（默认低对比，hover 提亮） */
+  .tl-edit{ display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; align-items:center;
+    opacity:.5; transition:opacity var(--t-fast) var(--e); }
+  .tl-card:hover .tl-edit{ opacity:1; }
+  .tl-edit button{ border:1px solid var(--border); background:var(--surface);
+    color:var(--muted-2); font-size:11.5px; padding:2px 7px; cursor:pointer;
+    font-variant-numeric:tabular-nums; }
+  .tl-edit button:hover{ color:var(--fg); border-color:var(--accent-line);
+    background:var(--accent-soft); }
+  .tl-edit button.danger:hover{ color:var(--bad); border-color:var(--bad-line);
+    background:var(--bad-soft); }
+  .tl-edit select{ font-size:11.5px; border:1px solid var(--border);
+    background:var(--surface); color:var(--muted-2); padding:1px 4px; cursor:pointer; }
+
   /* 挑选列表：ucard 同族的发丝线条目 */
   .pickhead{ margin-top:14px; font-size:12px; color:var(--muted-3); }
   .pickres, .picklist{ margin-top:6px; max-height:340px; overflow-y:auto; }
@@ -1510,6 +1524,9 @@ function pickCity(c) {
     if (d.available) log('城市', `已切换到 ${d.city}，载入 ${d.spots.length} 个预置景点`);
     else log('城市', `${d.city} 没有预置景点：可在下方「粘贴攻略」识别，或换一个城市`);
     if (plan && !skipRender) renderItin();
+  }).catch(e => {
+    const el = $('favsList');
+    if (el) el.innerHTML = '<div class="uempty">收藏列表取不到（' + esc(e.message) + '）—— 填入访问令牌后刷新</div>';
   });
 }
 
@@ -2327,6 +2344,118 @@ function togglePick(name) {
   setStep(plan ? 3 : 1);
 })();
 
+
+// ================= 结果侧编辑（→ POST /plan/recheck 服务端全量重算）=================
+// stayOverrides 只记用户**改过**的停留（name → 分钟）；payload 里没改过的点
+// 不带 stay_min，避免「按到达/离开推算的停留」把等门时间一次次固化进去。
+const stayOverrides = new Map();
+
+function stayOf(v) {
+  if (stayOverrides.has(v.name)) return stayOverrides.get(v.name);
+  return Math.max(30, Math.min(480, Math.round((v.depart_h - v.arrive_h) * 60)));
+}
+
+function _dayOf(dayNo) {
+  return plan && plan.days.find(d => d.day === Number(dayNo));
+}
+
+// 统一入口：mutate 先本地改 plan.days（失败或被服务端拒绝时用备份回滚），
+// 成功后用服务端重算结果整体替换（通勤/时间线/成本/校验都是服务端算的）。
+async function recheckEdit(label, mutate) {
+  if (!plan || !lastTaskId) { log('编辑', '没有可编辑的行程'); return; }
+  const backup = JSON.parse(JSON.stringify(plan));
+  try {
+    mutate();
+  } catch (e) {
+    log('编辑', String(e && e.message || e));
+    return;
+  }
+  const payload = { task_id: lastTaskId, days: plan.days.map(d => ({
+    day: d.day,
+    spots: d.spots.map(v => {
+      const row = { name: v.name };
+      if (stayOverrides.has(v.name)) row.stay_min = stayOverrides.get(v.name);
+      return row;
+    }),
+  }))};
+  try {
+    const r = await fetch('/plan/recheck', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!r.ok) {
+      plan = backup;
+      log('编辑', label + '失败：' + (d.detail || ('HTTP ' + r.status)));
+      if (r.status === 404) log('编辑', '（任务已过期——从「我的」载入后可重新规划）');
+      _refreshAfterEdit();
+      return;
+    }
+    plan = d.result;
+    // 行程变了：允许 AI 总评/稳健性下次进总览时重算（按 task_id 去重的标记清掉）
+    reviewForTask = null; simForTask = null;
+    const commute = plan.days.reduce((a, x) => a + (x.commute_min || 0), 0);
+    log('编辑', label + ' ✓ 已重算 · 全程通勤 ' + Math.round(commute) + ' 分钟'
+      + (plan.check_report.passed ? ' · 校验通过' : ' · ⚠ ' + plan.check_report.violations.join('；')));
+    _refreshAfterEdit();
+  } catch (e) {
+    plan = backup;
+    log('编辑', '网络错误：' + e.message);
+    _refreshAfterEdit();
+  }
+}
+
+// 编辑后的局部刷新：保持当前天的 tab 高亮与内容（不整页 render 把人踢回总览）
+function _refreshAfterEdit() {
+  const cd = currentDay;
+  render();
+  currentDay = cd;
+  document.querySelectorAll('.daytabs .tab').forEach((t, i) =>
+    t.classList.toggle('active', i === cd));
+}
+
+function edDelete(dayNo, k) {
+  const d0 = _dayOf(dayNo);
+  if (!d0 || !d0.spots[k]) return;
+  const name = d0.spots[k].name;
+  recheckEdit('移除「' + name + '」', () => {
+    d0.spots.splice(k, 1);
+    stayOverrides.delete(name);
+  });
+}
+
+function edSwap(dayNo, k, dir) {
+  const d0 = _dayOf(dayNo);
+  const j = k + dir;
+  if (!d0 || j < 0 || j >= d0.spots.length) return;
+  const name = d0.spots[k].name;
+  recheckEdit('调整「' + name + '」位置', () => {
+    const t = d0.spots[k]; d0.spots[k] = d0.spots[j]; d0.spots[j] = t;
+  });
+}
+
+function edStay(dayNo, k, delta) {
+  const d0 = _dayOf(dayNo);
+  if (!d0 || !d0.spots[k]) return;
+  const v = d0.spots[k];
+  const cur = stayOf(v);
+  const next = Math.max(30, Math.min(480, cur + Number(delta)));
+  if (next === cur) { log('编辑', '「' + v.name + '」停留已在 ' + cur + ' 分钟的边界'); return; }
+  recheckEdit('「' + v.name + '」停留 ' + cur + '→' + next + ' 分钟', () => {
+    stayOverrides.set(v.name, next);
+  });
+}
+
+function edMoveTo(dayNo, k, toDay) {
+  const from = _dayOf(dayNo);
+  const to = _dayOf(toDay);
+  if (!from || !to || !from.spots[k]) return;
+  const v = from.spots[k];
+  recheckEdit('「' + v.name + '」移到 Day' + toDay, () => {
+    from.spots.splice(k, 1);
+    to.spots.push(v);
+  });
+}
+
 function renderItin() {
   const v = $('view'); v.innerHTML = ''; $('mapView').style.display='none'; v.style.display='block';
   if (!plan) { v.innerHTML = renderEmpty(); return; }
@@ -2421,6 +2550,27 @@ function renderDayTimeline(day, dayIdx) {
     const desc = (v.intro || v.desc) ? `<div class="tl-desc">${esc(v.intro || v.desc)}</div>` : '';
     const arrive = v.arrive_h != null ? fmt(v.arrive_h) : (v.arrive || '');
     const depart = v.depart_h != null ? fmt(v.depart_h) : (v.leave_h || '');
+    // 结果侧编辑操作组：删除 / 停留±15 / 上下移 / 换天 —— 全部走 /plan/recheck
+    // 服务端重算（只提交名字顺序与改过的停留，不信客户端任何数值）
+    const stayNow = stayOf(v);
+    const moveOpts = plan.days.filter(d => d.day !== day.day)
+      .map(d => `<option value="${esc(d.day)}">→ Day${esc(d.day)}</option>`).join('');
+    const _dNo = esc(day.day), _k = esc(k);
+    const editBar = `<div class="tl-edit">
+        <button data-act="ed-stay" data-day="${_dNo}" data-k="${_k}" data-delta="-15"
+          title="停留 -15 分钟">−15</button>
+        <button data-act="ed-stay" data-day="${_dNo}" data-k="${_k}" data-delta="15"
+          title="停留 +15 分钟">+15</button>
+        <span class="pmeta">${_k >= 0 ? stayNow : stayNow} 分</span>
+        <button data-act="ed-up" data-day="${_dNo}" data-k="${_k}"
+          title="与上一个互换">↑</button>
+        <button data-act="ed-down" data-day="${_dNo}" data-k="${_k}"
+          title="与下一个互换">↓</button>
+        ${moveOpts ? `<select data-day="${_dNo}" data-k="${_k}" onchange="edMoveTo(this.dataset.day, Number(this.dataset.k), this.value)"
+          title="换到另一天"><option value="">换天…</option>${moveOpts}</select>` : ''}
+        <button class="danger" data-act="ed-del" data-day="${_dNo}" data-k="${_k}"
+          title="从行程中移除">✕ 移除</button>
+      </div>`;
     const card = `<div class="tl-item">
       <span class="tl-dot" style="background:${tint}"></span>
       <div class="tl-time"><b>${esc(arrive)}</b><br>${esc(depart)}</div>
@@ -2428,7 +2578,7 @@ function renderDayTimeline(day, dayIdx) {
         ${img}
         <div class="tl-card-body">
           <div class="tl-name">${esc(v.name)}</div>${ticket}${desc}
-        </div>
+        </div>${editBar}
       </div></div>`;
     let commute = '';
     if (k < spotsOfDay.length - 1) {
@@ -2582,11 +2732,15 @@ function toggleFav(name) {
 }
 
 function loadFavorites(skipRender) {
-  fetch('/favorites').then(r => r.json()).then(d => {
-    favSet = new Set(d.favorites.map(f => f.name));
+  fetch('/favorites').then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);   // 401（未填令牌）不得走进 favorites.map 炸整页
+    return r.json();
+  }).then(d => {
+    const rows = d.favorites || [];
+    favSet = new Set(rows.map(f => f.name));
     const el = $('favsList');
-    if (!d.favorites.length) { el.innerHTML = '<div class="uempty">还没有收藏 —— 在行程里点 ' + ICON_STAR_O + ' 收藏景点</div>'; return; }
-    el.innerHTML = d.favorites.map(f =>
+    if (!rows.length) { el.innerHTML = '<div class="uempty">还没有收藏 —— 在行程里点 ' + ICON_STAR_O + ' 收藏景点</div>'; return; }
+    el.innerHTML = rows.map(f =>
       `<div class="ucard" data-act="detail" data-name="${esc(f.name)}">${f.image ? `<img class="img" src="${esc(f.image)}" style="width:56px;height:56px;border-radius:9px;object-fit:cover" onerror="this.style.display='none'">` : ''}
         <div class="info"><div class="t">${esc(f.name)}</div>
         <div class="s">${esc(f.intro || f.desc)}</div></div>
@@ -2750,7 +2904,15 @@ function openSpotDetail(name) {
 let plansCache = [], manageMode = false, selectedPlans = new Set();
 
 function loadPlans() {
-  fetch('/plans').then(r => r.json()).then(d => { plansCache = d.plans; renderPlans(); });
+  fetch('/plans').then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(d => { plansCache = d.plans || []; renderPlans(); })
+    .catch(e => {
+      plansCache = [];
+      const el = $('plansList');
+      if (el) el.innerHTML = '<div class="uempty">历史列表取不到（' + esc(e.message) + '）—— 填入访问令牌后刷新</div>';
+    });
 }
 
 function renderPlans() {
