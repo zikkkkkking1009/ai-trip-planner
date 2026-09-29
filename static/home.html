@@ -381,7 +381,7 @@
      竖向留白分三档：8 个区块原来共用 96px 一档，节奏是平的 —— 读者看不出哪里是
      主体、哪里是附录。分档本身就是层级手段：附录收窄了，主体才显得重要。 */
   section{ padding:var(--sp-sec) 0; scroll-margin-top:80px; }
-  /* scroll-margin-top：导航是 sticky（高约 65px）且带「功能 / 量化结果 / 怎么工作 /
+  /* scroll-margin-top：导航是 sticky（高约 65px）且带「怎么用 / 亮点 / 量化结果 /
      已知局限」四个锚点。没有它，点锚点后标题会被压在导航底下半个字。 */
   .sec-lg{ padding:var(--sp-sec-lg) 0; }   /* 承接 Hero 的首个区块 / 页面末尾的转化点 */
   .sec-sm{ padding:var(--sp-sec-sm) 0; }   /* 附录：接口清单与服务状态 */
@@ -414,7 +414,7 @@
   .table-note{ margin-top:14px; font-size:12px; color:var(--muted); }
 
   /* 工作流 */
-  .flow{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:20px; margin-top:44px; }
+  .flow{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; margin-top:44px; }
   .step .idx{ font-family:var(--font-display); font-size:12px; font-weight:800;
               color:var(--accent-deep); letter-spacing:.06em; }
   .step h3{ margin-top:8px; font-size:16px; }
@@ -506,6 +506,16 @@
   /* ==================================================================
      动效与微交互
      与规划器 static/index.html 共用同一批令牌、同一套规律（时长 / 缓动同源）。
+
+  /* ===== 技术附录（折叠）：给想较真的人 ===== */
+  details.appendix > summary{ cursor:pointer; list-style:none; display:flex; align-items:center;
+    gap:10px; padding:26px var(--pad); font-weight:700; font-family:var(--font-display);
+    border-top:1px solid var(--border); }
+  details.appendix > summary::-webkit-details-marker{ display:none; }
+  details.appendix > summary::after{ content:"+"; margin-left:auto; font-family:var(--font-mono);
+    font-size:20px; color:var(--muted-3); }
+  details.appendix[open] > summary::after{ content:"3"; }
+  details.appendix > summary:hover{ background:var(--fill); }
      ================================================================== */
 
   /* 可交互元素的过渡：集中声明 */
@@ -702,9 +712,9 @@
   <div class="wrap nav-in">
     <a class="brand" href="/" data-od-id="nav-brand"><i></i>路书 · AI 行程规划</a>
     <nav class="nav-links" aria-label="主导航">
-      <a href="#features" data-od-id="nav-features">功能</a>
+      <a href="#features" data-od-id="nav-features">亮点</a>
+      <a href="#how" data-od-id="nav-how">怎么用</a>
       <a href="#results" data-od-id="nav-results">量化结果</a>
-      <a href="#how" data-od-id="nav-how">怎么工作</a>
       <a href="#limits" data-od-id="nav-limits">已知局限</a>
     </nav>
     <span class="nav-sp"></span>
@@ -830,52 +840,107 @@
     </div>
   </section>
 
+  <!-- 痛点共鸣：先说问题，再给方案 -->
+  <section id="pain" class="sec-lg">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2>攻略收藏了一堆，<br>行程还是排不明白。</h2>
+        <p>不是你不会做攻略，是「排行程」这件事本身就是道约束题。</p>
+      </div>
+      <div class="grid-3">
+        <div class="tile reveal" data-od-id="pain-scatter">
+          <h3>信息是散的</h3>
+          <p>景点、门票、开门时间、交通方式散在十几篇笔记和视频里，
+             拼成一条顺路的线，比看完它们还费劲。</p>
+        </div>
+        <div class="tile reveal" data-od-id="pain-time">
+          <h3>时间是算不清的</h3>
+          <p>几点出门、先去哪、每处待多久、几点前回到酒店，
+             人工排一天就要一小时，还容易把行程排进关门时间。</p>
+        </div>
+        <div class="tile reveal" data-od-id="pain-budget">
+          <h3>结果是不敢保证的</h3>
+          <p>排完不知道会不会超预算、绕多大弯路；
+             「应该没问题」和「保证没问题」是两回事。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 这是什么：输入 → 处理 → 产出 -->
+  <section id="what" class="sec" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2>路书的答案是一个分工</h2>
+        <p>LLM 只负责读懂攻略；时间窗、预算、动线这些硬约束，交给确定性求解器，
+           最后由独立校验器复核。让 AI 干它擅长的，不许它碰它保证不了的。</p>
+      </div>
+      <div class="flow">
+        <div class="step reveal" data-od-id="what-in">
+          <div class="idx">输入</div><h3>一段攻略</h3>
+          <p>游记、攻略帖，或者随手列的想去的清单。也可以不粘，
+             直接从 25 城预置景点里挑。</p>
+        </div>
+        <div class="step reveal" data-od-id="what-proc">
+          <div class="idx">处理</div><h3>四道工序</h3>
+          <p>LLM 抽取景点与偏好 → 对齐高德真实坐标 →
+             求解器在预算与时间窗里排期 → 独立校验器复核。</p>
+        </div>
+        <div class="step reveal" data-od-id="what-out">
+          <div class="idx">产出</div><h3>一份能执行的行程</h3>
+          <p>逐日时间线、地图路线、通勤与预算账、
+             按时走完的概率，以及可分享的长图。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Features -->
   <section id="features" class="sec-lg">
     <div class="wrap">
       <div class="sec-head reveal">
-        <span class="sec-kicker">功能</span>
-        <h2 style="margin-top:14px">三段链路，都不是「调个 API 就完事」</h2>
-        <p>抽取要做归一化与容错解析，对齐要做类型过滤与结构性规则，排期要处理时间窗、
-           每日返程与预算——每一段都有自己的工程量。</p>
+        <span class="sec-kicker">亮点</span>
+        <h2 style="margin-top:14px">六个能感知的好处，每个都有工程托底</h2>
+        <p>先把能做到什么说清楚；实现原理放在括号里，给想较真的人。</p>
       </div>
 
       <div class="grid-3">
+        <div class="tile reveal" data-od-id="feat-edit">
+          <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M11.5 2.5 13.5 4.5 6 12H4v-2z"/></svg></div>
+          <h3>说句话就能改行程</h3>
+          <p>「明天下午加个咖啡馆」「酒店换到西安站附近」，改完自动重排并复校验，
+             支持多轮对话。（LLM 解析意图，确定性代码执行，不走「重新生成一遍」）</p>
+        </div>
         <div class="tile reveal" data-od-id="feat-solver">
           <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M2 13 L7 7 L10 10 L14 3"/></svg></div>
-          <h3>OPTW 求解器</h3>
-          <p>带时间窗的定向问题：多起点随机重启 + 天内 2-opt + 跨日搬运。
-             与 OR-Tools CP-SAT 最优解差距均值 −0.03%，单次求解 501ms（CP-SAT 均值 4.18s）。</p>
-        </div>
-        <div class="tile reveal" data-od-id="feat-align">
-          <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11M2.5 8h11"/></svg></div>
-          <h3>地理实体对齐</h3>
-          <p>「兵马俑」「紫禁城」这类别名 → 高德标准 POI。Top-5 召回 + 四路打分融合 +
-             干扰类型硬过滤 + 低置信度 LLM 仲裁（答案锁定候选集内，防幻觉）。F1 100%。</p>
+          <h3>不排进关门时间，不超预算</h3>
+          <p>开放时间、通勤、每晚回酒店、门票预算，全部是硬约束。
+             50 组对照实验：0 时间冲突、0 预算违规
+             （带时间窗定向问题，多起点随机重启 + 2-opt）。</p>
         </div>
         <div class="tile reveal" data-od-id="feat-anchor">
           <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M8 2v9M4.5 13.5 8 11l3.5 2.5M3 6h10"/></svg></div>
-          <h3>住宿锚点</h3>
-          <p>酒店是每天真正的起点与终点。往返通勤计入时间窗与统计，
-             而不是当作某个景点插进某一天。</p>
+          <h3>住宿是锚点，不是景点</h3>
+          <p>每天从酒店出发、按时回酒店，往返通勤计入时间窗与统计，
+             而不是被当成某个景点随手插进哪一天。</p>
         </div>
         <div class="tile reveal" data-od-id="feat-robust">
           <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M8 2.5 13.5 5v5L8 13.5 2.5 10V5z"/></svg></div>
-          <h3>稳健性模拟与稳健排程</h3>
-          <p>1000 次蒙特卡洛给出「按时走完的概率」与风险点排名；
-             指定稳妥度后收窄排程窗口留缓冲重排——用 1 个景点换 92 个百分点确定性。</p>
+          <h3>告诉你按时走完的概率</h3>
+          <p>1000 次蒙特卡洛模拟给出按时概率与风险点排名；
+             开稳妥模式，用 1 个景点换 92 个百分点的确定性。</p>
         </div>
-        <div class="tile reveal" data-od-id="feat-edit">
-          <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M11.5 2.5 13.5 4.5 6 12H4v-2z"/></svg></div>
-          <h3>对话式修改</h3>
-          <p>「明天下午加个咖啡馆」「酒店换到西安站附近」。LLM 解析意图 → 确定性代码执行 →
-             重排并复校验，支持多轮指代。</p>
+        <div class="tile reveal" data-od-id="feat-align">
+          <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11M2.5 8h11"/></svg></div>
+          <h3>别名不迷路</h3>
+          <p>「兵马俑」「紫禁城」对齐到高德真实坐标，认不准的转人工点选，
+             绝不静默猜一个。（Top-5 召回 + 四路打分 + 低置信度 LLM 仲裁，F1 100%）</p>
         </div>
         <div class="tile reveal" data-od-id="feat-check">
           <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M3 8.5 6.5 12 13 4.5"/></svg></div>
-          <h3>独立约束校验</h3>
-          <p>求解器说自己合规不算数——预算、时间窗、通勤占比由独立校验器复核一遍。
-             历史上真的抓到过优化步骤破坏不变量。</p>
+          <h3>数字都有出处</h3>
+          <p>实验固定随机种子，脚本与结果文件在仓库里可复现；
+             求解结果由独立校验器复核，历史上真抓到过优化步骤破坏约束。</p>
         </div>
       </div>
     </div>
@@ -1236,16 +1301,15 @@
   <section id="how">
     <div class="wrap">
       <div class="sec-head reveal">
-        <span class="sec-kicker">怎么工作</span>
-        <h2 style="margin-top:14px">LLM 负责理解，算法负责合规</h2>
-        <p>这条分工不是偏好，是实测结论：让 LLM 直接排期的质量分甚至略高，但会违反硬约束。</p>
+        <span class="sec-kicker">怎么用</span>
+        <h2 style="margin-top:14px">三步，一分钟上手</h2>
+        <p>不需要注册，也没有必填配置；四条依赖 LLM 的功能在没配 Key 时会明确说明并降级，
+           其余功能照常。</p>
       </div>
       <div class="flow">
-        <div class="step reveal" data-od-id="step-1"><div class="idx">01</div><h3>攻略文本</h3><p>粘贴一段游记、攻略或自己想去的清单。</p></div>
-        <div class="step reveal" data-od-id="step-2"><div class="idx">02</div><h3>结构化抽取</h3><p>LLM 抽出景点、停留时长、评分、门票，并识别城市。</p></div>
-        <div class="step reveal" data-od-id="step-3"><div class="idx">03</div><h3>实体对齐</h3><p>别名落到高德标准 POI，拿到真实坐标，低置信度转人工点选。</p></div>
-        <div class="step reveal" data-od-id="step-4"><div class="idx">04</div><h3>OPTW 求解</h3><p>预算、时间窗、开放时间、住宿往返一起进模型，多起点搜最优。</p></div>
-        <div class="step reveal" data-od-id="step-5"><div class="idx">05</div><h3>独立校验</h3><p>独立复核一遍，不通过就把违规项摆出来，而不是假装没看见。</p></div>
+        <div class="step reveal" data-od-id="step-1"><div class="idx">粘贴</div><h3>丢一段攻略</h3><p>游记、攻略帖，或自己列的清单；也可以直接用 25 城预置景点勾选。</p></div>
+        <div class="step reveal" data-od-id="step-2"><div class="idx">调整</div><h3>看着行程改</h3><p>逐日时间线和地图直接可改；对桌宠说「加个咖啡馆」也一样生效。</p></div>
+        <div class="step reveal" data-od-id="step-3"><div class="idx">出发</div><h3>导出长图</h3><p>竖版长图含每天安排与 AI 总评，发朋友圈或存进手机照着走。</p></div>
       </div>
     </div>
   </section>
@@ -1273,6 +1337,26 @@
     </div>
   </section>
 
+  <!-- 不需要准备什么：反向清单，打消上手顾虑 -->
+  <section id="nope" class="sec">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2>不需要准备什么</h2>
+        <p>能跑是底线，跑不了的会明说；这一页写的是「打开就有」的部分。</p>
+      </div>
+      <div class="limits reveal">
+        <div data-od-id="nope-login"><b>不需要注册登录。</b>
+          <span>打开即用；行程、收藏保存在你自己的设备上。</span></div>
+        <div data-od-id="nope-key"><b>不需要任何 Key 也能玩。</b>
+          <span>内置 25 城演示数据，选点、排期、地图、天气、稳健性模拟零 Key 完整可用；
+             抽取、对话改行程、AI 总评依赖 LLM Key，未配置时明确提示而不是装死。</span></div>
+        <div data-od-id="nope-api"><b>不需要付费 API。</b>
+          <span>高德开放平台免费档即可；未配置时通勤降级为直线估算并如实标注，
+             不会拿估算冒充真实驾车时长。</span></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Footer CTA -->
   <section class="cta" data-od-id="footer-cta">
     <div class="wrap">
@@ -1283,6 +1367,10 @@
   </section>
 
 </main>
+
+  <!-- 技术附录：默认折叠的开发者内容（锚点 #api / #status 进入时会自动展开） -->
+  <details id="appendix" class="appendix">
+    <summary>技术附录：接口清单 与 实时服务状态</summary>
 
   <!-- 接口文档：清单由服务端在运行时遍历真实路由表生成（GET /meta），不维护第二份手写清单 -->
   <section id="api" class="sec-sm">
@@ -1316,6 +1404,8 @@
       </p>
     </div>
   </section>
+
+  </details>
 
 <footer>
   <div class="wrap foot-in">
@@ -1499,6 +1589,20 @@ function loadMeta() {
     }
   });
 }
+
+/* 技术附录默认折叠：带 #api / #status 锚点进来（或点页脚链接）时自动展开，
+   否则浏览器会跳到一个「看不见」的位置。 */
+(function () {
+  function openIt() {
+    var d = document.getElementById('appendix');
+    if (d) d.open = true;
+  }
+  var h = location.hash.slice(1);
+  if (h === 'api' || h === 'status') openIt();
+  document.querySelectorAll('a[href="#api"], a[href="#status"]').forEach(function (a) {
+    a.addEventListener('click', openIt);
+  });
+})();
 
 // 这两块在最底部：进入视口附近才取，不让首屏多一次请求
 (function () {
