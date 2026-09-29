@@ -125,11 +125,13 @@
   .wrap{ max-width:var(--maxw); margin:0 auto; padding:0 var(--pad); }
 
   /* ===== 顶部导航：sticky + 毛玻璃（posture 要求） ===== */
+  /* ===== 顶部导航：夜刊墨条（玻璃暗底 + 纸白字），全页通用 ===== */
   .nav{
     position:sticky; top:0; z-index:50;
-    background:color-mix(in oklab, var(--bg) 78%, transparent);
-    backdrop-filter:saturate(180%) blur(14px);
-    border-bottom:1px solid transparent;
+    background:rgba(8,12,19,.62);
+    backdrop-filter:saturate(160%) blur(14px);
+    border-bottom:1px solid rgba(250,250,248,.1);
+    color:#fafaf8;
   }
   .nav-in{ display:flex; align-items:center; gap:14px; height:64px; }
   .brand{ display:flex; align-items:center; gap:10px; font-family:var(--font-display);
@@ -139,15 +141,22 @@
   .brand i::after{ content:""; position:absolute; inset:6px 7px auto 6px; height:2px;
                    border-radius:2px; background:var(--accent-ink); }
   .nav-links{ display:flex; gap:2px; margin-left:10px; }
-  .nav-links a{ font-size:14px; color:var(--muted); padding:8px 12px; border-radius:2px;
+  .nav-links a{ font-size:14px; color:rgba(250,250,248,.72); padding:8px 12px; border-radius:2px;
                 transition:background .15s ease, color .15s ease; }
-  .nav-links a:hover{ color:var(--fg); background:var(--surface); }
+  .nav-links a:hover{ color:#fafaf8; background:rgba(250,250,248,.09); }
   .nav-sp{ flex:1; }
-  /* 主题切换（与规划页同一套：自动 → 亮 → 暗 循环）*/
+  /* GitHub 源码仓库药丸（tasteskill.dev 同款导航件） */
+  .gh-pill{ display:flex; align-items:center; gap:7px; padding:7px 12px;
+            border:1px solid rgba(250,250,248,.22); border-radius:2px;
+            color:rgba(250,250,248,.85); font-size:13px; font-weight:600;
+            transition:background .15s ease, color .15s ease; }
+  .gh-pill:hover{ background:rgba(250,250,248,.09); color:#fafaf8; }
+  .gh-pill svg{ width:15px; height:15px; fill:currentColor; flex:none; }
   .navtheme{ display:flex; align-items:center; justify-content:center; flex:none;
-             width:34px; height:34px; border-radius:10px; color:var(--muted);
+             width:34px; height:34px; border-radius:2px; color:rgba(250,250,248,.72);
              background:transparent; border:none; cursor:pointer; padding:0; }
-  .navtheme:hover{ background:var(--surface); color:var(--fg); }
+  .navtheme:hover{ background:rgba(250,250,248,.09); color:#fafaf8; }
+  /* 主题切换按钮样式并入上方夜刊墨条段落（暗底纸字）。 */
   /* 访问令牌：与规划器共用同一 localStorage key('appToken')。
      首页不发受保护请求，这里只提供填写/清除入口（注入在规划器页面完成）。 */
   .token-panel{ position:fixed; top:64px; right:24px; z-index:600; width:264px;
@@ -182,7 +191,17 @@
   .btn-lg{ padding:14px 26px; font-size:16px; }
 
   /* ===== Hero：accent 色带（参考页的核心视觉） ===== */
-  .hero{ background:var(--bg); color:var(--fg); border-bottom:1px solid var(--border); }
+  /* ===== Hero：夜空极光主视觉（WebGL2 自包含着色器，见页尾脚本）=====
+     分层极光帘幕 + 星光；光标经弹簧平滑后作为 uniform，靠近光标的帘幕振幅
+     增大、相位偏移（「移动光标摆动帘幕」）。WebGL2 不可用时画布被移除，
+     退化为纯深色夜空 + 插画卡 —— 下方样式在无 canvas 时全部成立。
+     底部渐隐进纸色正文：一次有意的色块转场（夜刊封面 → 纸内页）。 */
+  .hero{ position:relative; background:#060a12; color:#fafaf8; overflow:hidden;
+         border-bottom:1px solid var(--border); }
+  #aurora{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .hero::after{ content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:linear-gradient(180deg, rgba(6,10,18,.58), rgba(6,10,18,0) 30%,
+                rgba(6,10,18,.18) 70%, var(--bg) 100%); }
   .hero-in{
     display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:64px;
     align-items:center;
@@ -192,27 +211,49 @@
        移动端标题直接贴到屏幕边缘）。详见 docs/design/home-redesign.html */
     padding-block:96px 88px;
   }
-  .hero h1{ color:var(--fg); }
+  .hero-in{ position:relative; z-index:2; }
+  .hero h1{ color:#fafaf8; }
   .hero-sub{ margin-top:22px; font-size:16px; line-height:1.7; max-width:44ch;
-             color:var(--muted); }
+             color:rgba(250,250,248,.78); }
   .hero-cta{ display:flex; flex-wrap:wrap; gap:12px; margin-top:34px; }
-  .hero-cta .btn-primary{ background:var(--accent-solid); color:var(--on-accent); }
-  .hero-cta .btn-primary:hover{ background:var(--accent-deep); }
-  /* 次按钮：编辑部「墨线描边」ghost —— 与纸底同色，1px 墨框，hover 浅填充 */
+  .hero-cta .btn-primary{ background:#fafaf8; color:#0d1017; }
+  .hero-cta .btn-primary:hover{ background:#e9e9e4; }
+  /* 次按钮：夜空上的纸墨 ghost —— 1px 纸白框，hover 微亮底 */
   .hero-cta .btn-glass{
     background:transparent;
-    color:var(--fg);
-    border-color:var(--fg);
+    color:#fafaf8;
+    border-color:rgba(250,250,248,.55);
   }
-  .hero-cta .btn-glass:hover{ background:var(--fill); }
+  .hero-cta .btn-glass:hover{ background:rgba(250,250,248,.1); }
   .hero-note{ margin-top:20px; font-size:12px;
-              color:var(--muted-3); }
+              color:rgba(250,250,248,.6); }
 
   /* 右侧白卡 + 手绘线稿（参考页的做法：卡片内是黑白线描，配少量强调笔触） */
+  /* 插画卡浮在极光夜空上：微倾斜 + 摆动（tasteskill 式浮卡），发丝亮边 + 深投影 */
+  .hero-art{ position:relative; }
   .hero-card{
     position:relative; background:var(--surface); border-radius:var(--r-lg);
-    border:1px solid var(--border);
+    border:1px solid rgba(250,250,248,.18);
+    box-shadow:0 40px 110px rgba(2,5,10,.6);
     padding:26px; aspect-ratio:3/4; display:flex; align-items:center; justify-content:center;
+    transform:rotate(-2.4deg); animation:card-sway 9s ease-in-out infinite;
+  }
+  .hero-chip{
+    position:absolute; left:-38px; bottom:-30px; z-index:3;
+    background:var(--surface); color:var(--fg);
+    border:1px solid rgba(250,250,248,.18);
+    box-shadow:0 24px 70px rgba(2,5,10,.5);
+    padding:12px 16px; font-size:12.5px; line-height:1.65;
+    transform:rotate(2.2deg); animation:card-sway-b 11s ease-in-out 1.2s infinite;
+  }
+  .hero-chip b{ font-weight:700; }
+  @keyframes card-sway{
+    0%,100%{ transform:rotate(-2.4deg) translateY(0); }
+    50%{ transform:rotate(-1.5deg) translateY(-10px); }
+  }
+  @keyframes card-sway-b{
+    0%,100%{ transform:rotate(2.2deg) translateY(0); }
+    50%{ transform:rotate(1.4deg) translateY(-8px); }
   }
   .hero-card svg{ width:100%; height:auto; display:block; }
   /* ---- hero 插画动效 ----
@@ -667,6 +708,10 @@
       <a href="#limits" data-od-id="nav-limits">已知局限</a>
     </nav>
     <span class="nav-sp"></span>
+    <a class="gh-pill" href="https://github.com/zikkkkkking1009/ai-trip-planner"
+       target="_blank" rel="noopener" data-od-id="nav-github" title="源码仓库（GitHub）">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      GitHub</a>
     <button class="navtheme" id="themeBtn" onclick="cycleTheme()" aria-label="切换主题"></button>
     <button class="navtheme" id="tokenBtn" aria-label="访问令牌" title="访问令牌（公网部署需要）"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.4" cy="5.4" r="3"/><path d="M7.6 7.6 13.6 13.6M11.1 11.1l1.5-1.5M9.4 9.4l1.4-1.4"/></svg></button>
     <a class="btn btn-primary" href="/app" data-od-id="nav-cta">开始规划</a>
@@ -689,6 +734,7 @@
 
   <!-- Hero -->
   <section class="hero" style="padding:0">
+    <canvas id="aurora" aria-hidden="true"></canvas>
     <div class="wrap hero-in">
       <div>
         <h1 data-od-id="hero-title">把一段攻略，<br>变成走得完的行程。</h1>
@@ -709,6 +755,7 @@
         </p>
       </div>
 
+      <div class="hero-art">
       <div class="hero-card" data-od-id="hero-art">
         <svg viewBox="0 0 300 400" role="img" aria-label="行程路线示意图">
           <g fill="none" stroke="var(--fg)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -775,6 +822,10 @@
             <path d="M-7 -5 L8 0 L-7 5 L-4 0 Z" fill="var(--accent)" stroke="none"/>
           </g>
         </svg>
+      </div>
+      <div class="hero-chip" data-od-id="hero-chip">
+        25 城 · 254 个预置景点<br><b>50 组场景对照 · 0 预算违规</b>
+      </div>
       </div>
     </div>
   </section>
@@ -1274,6 +1325,8 @@
     <a href="#status" data-od-id="foot-health">服务状态</a>
     <a href="/docs" data-od-id="foot-swagger"
        title="FastAPI 自带的 Swagger UI（样式与脚本从 CDN 加载，离线时不可用）">Swagger</a>
+    <a href="https://github.com/zikkkkkking1009/ai-trip-planner" target="_blank" rel="noopener"
+       data-od-id="foot-github" title="源码仓库（GitHub）">GitHub</a>
     <span class="foot-sp"></span>
     <span>演示数据来自高德开放平台公开接口，仅用于技术演示</span>
   </div>
@@ -1492,6 +1545,94 @@ function loadMeta() {
   if (clear) clear.addEventListener('click', function () {
     try { localStorage.removeItem(KEY); } catch (e) {}
     if (input) input.value = '';
+  });
+})();
+</script>
+
+<script>
+/* ---- 夜空极光主视觉：WebGL2 自包含着色器（无依赖、零 CDN）----
+   结构：夜空地平线渐变 + 哈希星光（闪烁）+ 三层 FBM 扭曲的极光帘幕
+   （绿→青→紫）+ 地平线辉光 + 暗角。光标位置经每帧 4.5% 的弹簧平滑后
+   作为 uniform 传入：靠近光标的帘幕振幅增大、整体相位随光标水平位置
+   偏移 —— 即 od 内置示例「移动光标摆动帘幕」。
+   WebGL2 不可用时移除画布，hero 退化为纯深色夜空 + 插画卡（样式均已兜底）。
+   【有意】不响应 prefers-reduced-motion：动效是这张卡的产品诉求
+   （站长机器恒报 reduce，2026-09-28 已定案，别再推翻）。 */
+(function () {
+  var cv = document.getElementById('aurora');
+  if (!cv) return;
+  var gl = cv.getContext('webgl2', { antialias: false, alpha: false });
+  if (!gl) { cv.remove(); return; }
+  var VS = '#version 300 es\nvoid main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.-1.,0.,1.);}';
+  var FS = '#version 300 es\nprecision highp float;' +
+    'uniform vec2 uR;uniform float uT;uniform vec2 uM;out vec4 o;' +
+    'float h21(vec2 p){p=fract(p*vec2(234.34,435.345));p+=dot(p,p+91.17);return fract(p.x*p.y);}' +
+    'float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);' +
+    'float a=h21(i),b=h21(i+vec2(1,0)),c=h21(i+vec2(0,1)),d=h21(i+vec2(1,1));' +
+    'return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}' +
+    'float fbm(vec2 p){float v=0.,a=.55;for(int i=0;i<4;i++){v+=a*n2(p);p=p*2.13+11.7;a*=.5;}return v;}' +
+    'void main(){' +
+    'vec2 uv=gl_FragCoord.xy/uR;vec2 m=uM/uR;' +
+    /* 夜空：地平线渐亮 */
+    'vec3 col=mix(vec3(.012,.02,.05),vec3(.04,.07,.13),pow(1.-uv.y,1.5));' +
+    /* 星光：网格哈希 + 圆点衰减（方形是格网直出的伪影）+ 闪烁，只在上半空 */
+    'vec2 sp=uv*vec2(uR.x/max(uR.y,1.),1.)*90.;float s=h21(floor(sp));' +
+    'float star=smoothstep(.965,1.,s)*pow(.5+.5*sin(uT*(1.+s*3.)+s*40.),3.)' +
+    '*smoothstep(.42,.1,length(fract(sp)-.5));' +
+    'col+=vec3(.9,.95,1.)*star*smoothstep(.12,.5,uv.y)*.9;' +
+    /* 三层极光帘幕：光标摆动（振幅与相位随光标水平距离衰减） */
+    'float sway=(m.x-.5);float amp=1.+.9*exp(-abs(uv.x-m.x)*3.5);' +
+    'for(int i=0;i<3;i++){' +
+    ' float fi=float(i);' +
+    ' float base=.60-.15*fi;' +
+    ' float w=fbm(vec2(uv.x*2.2+fi*9.1+uT*(.05+.03*fi),fi*4.7));' +
+    ' float y=base+(w-.5)*(.17*amp)+sway*.06*(1.-fi*.25);' +
+    ' float band=exp(-abs(uv.y-y)*(9.-fi*2.));' +
+    ' float streak=.6+.4*sin((uv.x+w)*40.+uT*(.6+fi*.2)+fi);' +
+    ' vec3 ac=mix(vec3(.2,.9,.55),vec3(.45,.5,.95),fi/2.);' +
+    ' col+=ac*band*streak*(.5-.12*fi);}' +
+    /* 地平线辉光 + 暗角 + 轻提亮 */
+    'col+=vec3(.05,.09,.14)*smoothstep(.32,.0,uv.y);' +
+    'col*=1.-.35*pow(distance(uv,vec2(.5,.45)),2.2);' +
+    'col=pow(max(col,0.),vec3(.92));' +
+    'o=vec4(col,1.);}';
+  function sh(t, src) {
+    var s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { return null; }
+    return s;
+  }
+  var v = sh(gl.VERTEX_SHADER, VS), f = sh(gl.FRAGMENT_SHADER, FS);
+  if (!v || !f) { cv.remove(); return; }
+  var pr = gl.createProgram();
+  gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) { cv.remove(); return; }
+  gl.useProgram(pr);
+  var uR = gl.getUniformLocation(pr, 'uR'),
+      uT = gl.getUniformLocation(pr, 'uT'),
+      uM = gl.getUniformLocation(pr, 'uM');
+  /* 光标弹簧平滑：目标值瞬变，实际值每帧只走 4.5% —— 帘幕是「摆」过去的 */
+  var mx = .5, my = .55, tx = .5, ty = .55;
+  addEventListener('pointermove', function (e) {
+    var r = cv.getBoundingClientRect();
+    tx = (e.clientX - r.left) / r.width;
+    ty = 1 - (e.clientY - r.top) / r.height;
+  }, { passive: true });
+  var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+  function fit() {
+    var w = cv.clientWidth || 2, h = cv.clientHeight || 2;
+    cv.width = Math.max(2, w * dpr | 0); cv.height = Math.max(2, h * dpr | 0);
+    gl.viewport(0, 0, cv.width, cv.height);
+  }
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(cv);
+  addEventListener('resize', fit); fit();
+  var t0 = performance.now();
+  requestAnimationFrame(function frame(now) {
+    mx += (tx - mx) * .045; my += (ty - my) * .045;
+    gl.uniform2f(uR, cv.width, cv.height);
+    gl.uniform1f(uT, (now - t0) / 1000);
+    gl.uniform2f(uM, mx * cv.width, my * cv.height);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
   });
 })();
 </script>

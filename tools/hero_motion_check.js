@@ -47,8 +47,17 @@ async function measure(chromium, exe, reducedMotion) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 950 }, reducedMotion });
   const page = await ctx.newPage();
   await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
-  const card = page.locator('.hero-card');
-  const shoot = async () => (await card.screenshot()).toString('base64');
+  // 卡片在整卡 sway 动画里永不稳定 ⇒ locator.screenshot() 会无限重试。
+  // 改为「读一次包围盒 → 视口裁剪截图」：不等稳定；sway 幅度(≤10px)远小于卡片尺寸，
+  // 裁剪框内内容变化依然归因于动效本身。
+  const shoot = async () => {
+    const box = await page.evaluate(() => {
+      const r = document.querySelector('.hero-card').getBoundingClientRect();
+      return { x: Math.max(0, r.x), y: Math.max(0, r.y),
+               width: Math.min(r.width, innerWidth - r.x), height: Math.min(r.height, innerHeight - r.y) };
+    });
+    return (await page.screenshot({ clip: box })).toString('base64');
+  };
   const pctDiff = (a, b) => page.evaluate(async ([a, b]) => {
     const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = 'data:image/png;base64,' + src; });
     const [ia, ib] = await Promise.all([load(a), load(b)]);
