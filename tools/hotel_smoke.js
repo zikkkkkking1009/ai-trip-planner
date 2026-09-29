@@ -51,7 +51,10 @@ function makeFetchStub(counter) {
         code: 3, precip_prob: 10, precip_mm: 0 },
     ] });
     if (u.includes('/demo/config')) return res({ tile_url: '', subdomains: '', attribution: 't', gcj: true });
-    if (u.includes('/demo/spots')) return res({ city: '西安', spots: [] });
+    // 向导化后「没选景点不能规划」（go 有空 spots guard）——给一个预置点让流程能走
+    if (u.includes('/demo/spots')) return res({ city: '西安', spots: [{ source_id: 1,
+      name: '测试景点', lat: 34.26, lon: 108.94, stay_min: 60, score: 8, ticket: 30,
+      ticket_known: true, desc: '', image: '', intro: '' }] });
     if (u.includes('/cities')) return res({ cities: ['西安'], centers: { '西安': [34.26, 108.94] }, default: '西安' });
     if (u.includes('/favorites')) return res({ favorites: [] });
     if (u.includes('/plans')) return res({ plans: [] });

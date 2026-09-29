@@ -685,6 +685,46 @@
   .cal-foot button:hover:not(:disabled) { background: var(--accent-deep); }
   .seg .s-share:hover { background: var(--accent-soft); }
 
+    /* ===== 向导步骤条（结构件：mono 编号 + 发丝线 + 状态色） ===== */
+  .wizard-bar{ display:flex; align-items:center; justify-content:center; gap:10px;
+    padding:14px 24px; border-bottom:1px solid var(--border); background:var(--bg); }
+  .wizard-bar .wstep{ background:none; border:none; cursor:pointer; padding:4px 10px;
+    font-size:13.5px; color:var(--muted); font-family:var(--font-body); }
+  .wizard-bar .wstep b{ font-family:var(--font-mono); font-weight:600; margin-right:4px;
+    color:var(--muted-3); }
+  .wizard-bar .wstep:hover{ color:var(--fg); }
+  .wizard-bar .wstep.on{ color:var(--fg); font-weight:700; }
+  .wizard-bar .wstep.on b{ color:var(--accent-deep); }
+  .wizard-bar .wstep.done{ color:var(--accent-deep); }
+  .wizard-bar .wstep:disabled{ opacity:.4; cursor:default; }
+  .wizard-bar .wline{ width:34px; height:1px; background:var(--border); }
+
+  /* 挑选列表：ucard 同族的发丝线条目 */
+  .pickhead{ margin-top:14px; font-size:12px; color:var(--muted-3); }
+  .pickres, .picklist{ margin-top:6px; max-height:340px; overflow-y:auto; }
+  .pickrow{ display:flex; align-items:center; gap:10px; padding:9px 4px; cursor:pointer;
+    border-top:1px solid var(--border); font-size:14px; }
+  .pickrow:first-child{ border-top:none; }
+  .pickrow:hover{ background:var(--fill); }
+  .pickrow input{ accent-color:var(--accent-solid); width:15px; height:15px; flex:none; }
+  .pickrow .pname{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .pickrow .pmeta{ font-size:12px; color:var(--muted-3); flex:none;
+    font-variant-numeric:tabular-nums; }
+  .pickrow .padd{ flex:none; border:1px solid var(--border); background:var(--surface);
+    color:var(--accent-deep); font-size:12px; padding:3px 10px; cursor:pointer; }
+  .pickrow .padd:hover{ border-color:var(--accent-line); background:var(--accent-soft); }
+  .pickrow .padded{ color:var(--muted-3); font-size:12px; flex:none; }
+  .pickempty{ padding:14px 4px; font-size:13px; color:var(--muted-3); }
+
+  /* 右栏 Step1/2 说明与已选 chips */
+  .pickchips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .pickchip{ display:inline-flex; align-items:center; gap:6px; padding:5px 10px;
+    background:var(--surface); border:1px solid var(--border); font-size:13px; }
+  .pickchip button{ background:none; border:none; color:var(--muted-3); cursor:pointer;
+    font-size:13px; line-height:1; padding:0; }
+  .pickchip button:hover{ color:var(--bad); }
+
   /* ---- 5. 页面切换：淡入 + 上移 8px（switchPage 切 class 时重播） ---- */
   @keyframes odPageIn { from { opacity:0; transform: translateY(8px) } to { opacity:1; transform:none } }
   @keyframes odFadeIn { from { opacity:0 } to { opacity:1 } }
@@ -1163,13 +1203,24 @@
       </div>
     </header>
 
-    <div class="layout">
+    <!-- 向导步骤条：① 信息 → ② 景点 → ③ 行程（点已完成的步骤可回退） -->
+    <div class="wizard-bar" id="wizardBar">
+      <button class="wstep" data-s="1" type="button"><b>①</b> 信息</button>
+      <span class="wline" aria-hidden="true"></span>
+      <button class="wstep" data-s="2" type="button"><b>②</b> 景点</button>
+      <span class="wline" aria-hidden="true"></span>
+      <button class="wstep" data-s="3" type="button"><b>③</b> 行程</button>
+    </div>
+
+    <div class="layout" id="planLayout" data-step="1">
       <!-- 左栏：规划表单（滚动时吸顶） -->
       <div class="col-left">
       <div class="sheet">
       <!-- 左栏重做（参考圆周旅迹的干净大气）：整块拆成独立大卡 + 大字号 + 大留白。
            **行程日期整块保留原样**（唯一不动的字段），其余全部重做。 -->
 
+      <!-- Step 1 · 信息：城市 / 日期 / 偏好 / 高级选项 -->
+      <div class="wpanel" id="step1Panel">
       <!-- 目的地：hero 大卡（这一屏的主角） -->
       <div class="pcard">
         <div class="plabel">去哪儿玩</div>
@@ -1243,6 +1294,19 @@
           </div>
         </details>
       </details>
+      <button class="go go-next" id="nextBtn" type="button">下一步：挑景点 →</button>
+      </div><!-- /step1Panel -->
+
+      <!-- Step 2 · 景点：三个来源挑点（搜索 / 本城预置勾选 / 攻略识别）+ 开始规划 -->
+      <div class="wpanel" id="step2Panel" hidden>
+        <div class="pcard">
+          <div class="plabel">挑景点（搜索 · 本城预置 · 攻略识别三选一）</div>
+          <input id="spotQ" class="pcity" autocomplete="off"
+                 placeholder="输入景点名：先过滤本城预置，≥2 字同时搜高德">
+          <div id="pickRes" class="pickres" hidden></div>
+          <div class="pickhead" id="pickHead">本城预置景点（点选加入行程）</div>
+          <div id="pickList" class="picklist"></div>
+        </div>
       <button class="go" id="go">开始规划</button>
       <!-- 规划进度条：原来进度只写进折叠的日志面板，主界面毫无反馈 → 看着像卡住。
            放在按钮正下方（点完按钮视线就在这），显示当前阶段 + 百分比。 -->
@@ -1265,6 +1329,7 @@
         <button id="extractBtn" style="margin-top:8px">识 别 攻 略</button>
         <div id="extractMsg" style="font-size:12px;color:var(--muted-3);margin-top:6px;line-height:1.5"></div>
       </details>
+      </div><!-- /step2Panel -->
     </div>
 
     <details class="plog"><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
@@ -1272,6 +1337,9 @@
 
       <!-- 右栏：行程结果与地图 -->
       <div class="stage">
+        <!-- Step1/2 的右栏（说明 / 已选 chips）；Step3 换成下面的 #stage3 -->
+        <div id="wizRight" hidden></div>
+        <div id="stage3" hidden>
 
     <!-- 方向 D：结果顺序 = 行程(含总览) → 天气(注脚) → AI 总评 → 稳健性(折叠)。
          用户第一眼看到的是自己点的行程，AI 评不抢戏但仍是显眼模块。 -->
@@ -1302,6 +1370,7 @@
       <div class="empty-hint" id="mapEmpty">还没有行程 —— 点「开始规划」<br>生成后这里会画出按天分色的路线</div>
       <div class="maptip">路线为景点连线示意 · 底图数据 © 高德地图</div></div>
 
+        </div><!-- /stage3 -->
       </div><!-- /stage -->
     </div><!-- /layout -->
   </div>
@@ -1414,7 +1483,9 @@ function loadDemoSpots() {
   return fetch(`/demo/spots?city=${encodeURIComponent(currentCity)}`)
     .then(r => r.json()).then(d => {
       spots = d.spots || [];
+      demoAll = (d.spots || []).map(x => ({...x}));   // 勾选列表的底表（独立副本）
       window.demoSpotsLoaded = { city: d.city, n: spots.length };
+      renderPick();                                    // 面板在场即刷（不在场无副作用）
       return d;
     });
 }
@@ -1762,6 +1833,7 @@ $('extractBtn').onclick = async () => {
     const adopt = d.spots.filter(s => !s.needs_review);
     const skipped = d.spots.filter(s => s.needs_review);
     spots = adopt;
+    refreshRight();
     log('抽取', `识别 ${d.count} 个，采纳 ${adopt.length} 个，跳过待确认 ${skipped.length} 个`);
     // 这里改用 innerHTML 是因为消息里要插线性图标（svg 字符串）；景点名来自 LLM 抽取，必须 esc() 转义。
     msg.innerHTML = esc(`识别到 ${d.count} 个景点，采纳 ${adopt.length} 个`)
@@ -1774,6 +1846,11 @@ $('extractBtn').onclick = async () => {
 };
 
 $('go').onclick = async () => {
+  if (!spots.length) {
+    log('提示', '还没选景点 —— 先勾几个，或粘攻略识别');
+    setStep(2);
+    return;
+  }
   $('go').disabled = true; $('log').textContent = '';
   window.dateMismatch = false;  // 新规划按新日期生成，清除不一致提示
   window.cityMismatch = false;  // 新规划按当前城市生成
@@ -1946,6 +2023,7 @@ function render() {
   $('daytabs').firstChild.classList.add('active');
   renderItin();          // 规划完成立即渲染总览（这行丢过两次，不能再丢）
   switchView('itin');
+  setStep(3, true);      // 向导进入第③步（上面已渲染，跳过重复 render）
   // 规划完成：把桌宠放出来。首次露面 —— 走「waving」态（petdex 招手）
   const petEl = $('pet'), navPetEl = $('navPetBtn');
   if (petEl) petEl.style.display = '';
@@ -2051,6 +2129,203 @@ function fallbackCopy(txt) {
   ta.remove();
   return ok;
 }
+
+
+// ================= 向导状态机（①信息 → ②景点 → ③行程）=================
+// wstep 是当前步骤；step3 与「有行程」强绑定（没行程进不了 3，删行程退回 2）。
+// 数据流不变：spots = 已选（唯一事实源）；demoAll = 本城预置全量（勾选列表的底表）。
+let wstep = 1;
+let demoAll = [];
+
+function setStep(n, skipRender) {
+  if (n === 3 && !plan) n = 1;
+  wstep = n;
+  const layout = $('planLayout');
+  if (layout) layout.dataset.step = String(n);
+  const s1 = $('step1Panel'), s2 = $('step2Panel'),
+        wr = $('wizRight'), s3 = $('stage3');
+  if (s1) s1.hidden = n !== 1;
+  if (s2) s2.hidden = n !== 2;
+  if (wr) wr.hidden = n === 3;
+  if (s3) s3.hidden = n !== 3;
+  document.querySelectorAll('#wizardBar .wstep').forEach(b => {
+    const sn = Number(b.dataset.s);
+    b.classList.toggle('on', sn === n);
+    b.classList.toggle('done', sn < n);
+    b.disabled = sn === 3 && !plan;
+  });
+  if (n === 3) {
+    if (!skipRender) { renderItin(); switchView('itin'); }
+  } else {
+    if (n === 2) renderPick();
+    renderWizRight();
+  }
+}
+
+// 右栏按步骤渲染（替代旧 renderEmpty 的「唯一入口」角色）
+function renderWizRight() {
+  const el = $('wizRight');
+  if (!el || wstep === 3) return;
+  if (wstep === 1) {
+    const prefNode = ($('prefRow') && $('prefRow').querySelector('.pref.on'));
+    const prefTxt = prefNode ? prefNode.textContent : '均衡';
+    el.innerHTML = '<div class="empty-hero">' +
+      '<div class="empty-title">先定「去哪、几天、看重什么」</div>' +
+      '<div class="empty-sub">当前设置（随时可改）：</div>' +
+      '<ul class="empty-steps">' +
+        '<li><b>①</b>城市：<b>' + esc(currentCity) + '</b></li>' +
+        '<li><b>②</b>日期：' + dayCount() + ' 天 · ' + esc(($('dateText') || {}).textContent || '') + '</li>' +
+        '<li><b>③</b>偏好：' + esc(prefTxt) + '</li>' +
+      '</ul>' +
+      '<button class="empty-go" data-act="wiz-next">下一步：挑景点 →</button>' +
+    '</div>';
+    return;
+  }
+  // step 2：已选 chips + 开始规划
+  const chips = spots.map(function (x) {
+    return '<span class="pickchip">' + esc(x.name) + '<button data-act="pick-remove"' +
+      ' data-name="' + esc(x.name) + '" aria-label="移除 ' + esc(x.name) + '">×</button></span>';
+  }).join('');
+  const n = dayCount();
+  el.innerHTML = '<div class="empty-hero">' +
+    '<div class="empty-title">已选 ' + spots.length + ' 个景点</div>' +
+    (spots.length
+      ? '<div class="pickchips">' + chips + '</div>' +
+        '<div class="empty-sub" style="margin-top:12px">顺序没关系 —— 求解器会按时间窗与通勤排。</div>'
+      : '<div class="empty-sub">还没选景点。左边可以搜索 / 勾选本城预置，或者：' +
+        '<button class="empty-secondary" data-act="empty-extract" style="margin-top:10px">粘攻略让 AI 识别</button></div>') +
+    '<button class="empty-go" data-act="wiz-go"' + (spots.length ? '' : ' disabled style="opacity:.5"') +
+      '>开始规划 ' + n + ' 天行程</button>' +
+    '<div class="empty-divider">信息填错了？</div>' +
+    '<button class="empty-secondary" data-act="wiz-back">← 返回改信息</button>' +
+  '</div>';
+}
+
+// 右栏刷新：按步骤分流（step3 走原 renderItin，其余刷向导面板）
+function refreshRight() {
+  if (wstep === 3) renderItin(); else renderWizRight();
+}
+
+// Step2 左栏：预置勾选列表（按输入框本地过滤）
+function renderPick() {
+  const list = $('pickList'), head = $('pickHead');
+  if (!list) return;
+  const q = (($('spotQ') || {}).value || '').trim();
+  const chosen = new Set(spots.map(function (x) { return x.name; }));
+  const rows = (demoAll.length ? demoAll : spots)
+    .filter(function (x) { return !q || (x.name || '').indexOf(q) >= 0; });
+  if (head) head.textContent = q
+    ? '本城预置匹配「' + q + '」（' + rows.length + '）'
+    : '本城预置景点（' + rows.length + '，点选加入行程）';
+  list.innerHTML = rows.length ? rows.map(function (x) {
+    return '<label class="pickrow"><input type="checkbox" data-pick="' + esc(x.name) + '"' +
+      (chosen.has(x.name) ? ' checked' : '') + '>' +
+      '<span class="pname">' + esc(x.name) + '</span>' +
+      '<span class="pmeta">' + x.stay_min + '分钟' +
+      (x.ticket_known === false ? '' : ' · ¥' + Math.round(x.ticket || 0)) + '</span>' +
+    '</label>';
+  }).join('')
+    : '<div class="pickempty">' + (demoAll.length ? '没有匹配的预置景点 —— 直接搜高德，或粘攻略识别'
+      : '正在加载本城预置景点…') + '</div>';
+}
+
+// Step2 左栏：远端搜索（/poi/search），防抖 + 序号防旧响应覆盖
+let _pickSeq = 0;
+async function searchPois() {
+  const box = $('pickRes');
+  if (!box) return;
+  const q = (($('spotQ') || {}).value || '').trim();
+  if (q.length < 2) { box.hidden = true; box.innerHTML = ''; renderPick(); return; }
+  renderPick();
+  const seq = ++_pickSeq;
+  box.hidden = false;
+  box.innerHTML = '<div class="pickempty">搜索高德…</div>';
+  try {
+    const r = await fetch('/poi/search?q=' + encodeURIComponent(q) +
+      '&city=' + encodeURIComponent(currentCity));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (seq !== _pickSeq) return;
+    const chosen = new Set(spots.map(function (x) { return x.name; }));
+    const rows = d.results || [];
+    box.innerHTML = rows.length
+      ? '<div class="pickhead">高德搜索（' + rows.length + '）</div>' + rows.map(function (r0, i) {
+          const has = chosen.has(r0.name);
+          return '<div class="pickrow"><span class="pname">' + esc(r0.name) + '</span>' +
+            '<span class="pmeta">' + esc((r0.type_str || '').split(';')[0]) + '</span>' +
+            (has ? '<span class="padded">已选</span>'
+                 : '<button class="padd" data-act="pick-add" data-i="' + i + '">加入</button>');
+        }).join('')
+      : '<div class="pickempty">高德没搜到 —— 换个词，或粘攻略识别</div>';
+    box._rows = rows;
+  } catch (e) {
+    if (seq === _pickSeq)
+      box.innerHTML = '<div class="pickempty">搜索失败（网络或配额）—— 可先用预置列表</div>';
+  }
+}
+
+// 远端结果加入已选（坐标过有限性校验；票价未知按 unknown 处理）
+function addRemotePoi(i) {
+  const box = $('pickRes');
+  const r0 = box && box._rows && box._rows[i];
+  if (!r0) return;
+  const lat = Number(r0.lat), lon = Number(r0.lon);
+  if (!r0.name || !isFinite(lat) || !isFinite(lon)) return;
+  if (spots.some(function (x) { return x.name === r0.name; })) return;
+  spots.push({ source_id: 0, name: String(r0.name), lat: lat, lon: lon,
+    stay_min: 60, score: 8, ticket: 0, ticket_known: false,
+    open_h: 8, close_h: 18, desc: r0.type_str || '', image: '', intro: '' });
+  log('挑点', '已加入「' + r0.name + '」');
+  searchPois();
+  renderWizRight();
+}
+
+// 预置列表勾选：加入/移除（只动 spots，不动 demoAll）
+function togglePick(name) {
+  const i = spots.findIndex(function (x) { return x.name === name; });
+  if (i >= 0) spots.splice(i, 1);
+  else {
+    const d = demoAll.find(function (x) { return x.name === name; })
+           || spots.find(function (x) { return x.name === name; });
+    if (!d) return;
+    spots.push(d);
+  }
+  renderPick();
+  renderWizRight();
+}
+
+// ---- 向导事件绑定（顶层一次绑定；DOM 在本 script 之前已解析） ----
+(function initWizard() {
+  const next = $('nextBtn');
+  if (next) next.onclick = function () {
+    const city = (($('cityInput') || {}).value || '').trim();
+    if (!city) { log('提示', '先填城市（输入或从下拉选）'); return; }
+    setStep(2);
+  };
+  const bar = $('wizardBar');
+  if (bar) bar.querySelectorAll('.wstep').forEach(function (b) {
+    b.onclick = function () {
+      const target = Number(b.dataset.s);
+      if (target === 3 && !plan) return;
+      setStep(target);
+    };
+  });
+  const q = $('spotQ');
+  if (q) {
+    let t = null;
+    q.addEventListener('input', function () {
+      clearTimeout(t);
+      renderPick();
+      t = setTimeout(function () { searchPois(); }, 420);
+    });
+  }
+  const list = $('pickList');
+  if (list) list.addEventListener('change', function (e) {
+    const name = e.target && e.target.dataset && e.target.dataset.pick;
+    if (name) togglePick(name);
+  });
+  setStep(plan ? 3 : 1);
+})();
 
 function renderItin() {
   const v = $('view'); v.innerHTML = ''; $('mapView').style.display='none'; v.style.display='block';
@@ -2644,6 +2919,7 @@ function resetPlanView() {
   $('view').innerHTML = '<div class="uempty">行程已删除 —— 点「开始规划」生成新的行程</div>';
   if (map) { Object.values(layers).forEach(l => map.removeLayer(l)); layers = {};
     $('mapEmpty').style.display = 'block'; $('legend').innerHTML = ''; }
+  setStep(2);            // 删完行程回到「挑景点」——已选的 spots 还在，可直接重排
 }
 
 // ---- 酒店搜索选择器（缩略图 + 点名称就地展开位置小地图，同时只开一个）----
@@ -3981,6 +4257,11 @@ document.addEventListener('click', e => {
                         if ($('tokenInput')) $('tokenInput').value = ''; break;
     // ---- 空状态引导 ----
     case 'empty-go':   $('go').click(); break;
+    case 'wiz-next':   setStep(2); break;
+    case 'wiz-back':   setStep(1); break;
+    case 'wiz-go':     if (spots.length) $('go').click(); break;
+    case 'pick-add':   addRemotePoi(Number(d.i)); break;
+    case 'pick-remove':togglePick(d.name); break;
     case 'empty-extract': {
       // 把折叠的攻略识别 details 展开并触发提取（让已有逻辑接管）
       const gb = $('guideBox'); if (gb) gb.open = true;
@@ -4027,7 +4308,7 @@ document.addEventListener('click', e => {
           }
           const adopt = (d.spots || []).filter(s => !s.needs_review);
           spots = adopt;
-          renderItin();
+          refreshRight();
           if (msg) msg.textContent = `识别到 ${d.count} 个，采纳 ${adopt.length} 个。可直接点开始规划。`;
         })
         .catch(err => { if (msg) msg.textContent = '识别失败：' + err.message; })
