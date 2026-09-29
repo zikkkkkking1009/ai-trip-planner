@@ -1059,14 +1059,34 @@ def _food_file(city: object) -> Path | None:
 
 
 def _food_read(f: Path) -> list[dict]:
+    """读 entries 列表（兼容旧 list 文件与新 {entries, recommended} 结构）。"""
+    entries = _food_doc(f).get("entries")
+    return entries if isinstance(entries, list) else []
+
+
+def _food_doc(f: Path) -> dict:
+    """读整份美食文件；旧版是裸 list（只有手动记录），包成 dict 结构。"""
     if not f.exists():
-        return []
+        return {"entries": [], "recommended": None}
     try:
         data = json.loads(f.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
+        if isinstance(data, list):
+            return {"entries": data, "recommended": None}
+        if isinstance(data, dict):
+            data.setdefault("entries", [])
+            data.setdefault("recommended", None)
+            return data
+        return {"entries": [], "recommended": None}
     except (json.JSONDecodeError, OSError) as e:
         log.warning("美食卡读取失败 %s: %s: %s", f.name, type(e).__name__, e)
-        return []
+        return {"entries": [], "recommended": None}
+
+
+def _food_write(f: Path, doc: dict) -> None:
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_name(f.name + ".tmp")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, f)
 
 
 @app.get("/food", dependencies=[Depends(verify_token)])
@@ -1090,16 +1110,13 @@ def food_add(body: dict) -> dict:
     if f is None:
         raise HTTPException(400, "city 不合法")
     with _food_lock:
-        entries = _food_read(f)
-        rows = [e for e in entries if str(e.get("name")) != name]
+        doc = _food_doc(f)
+        rows = [e for e in doc["entries"] if str(e.get("name")) != name]
         rows.append({"name": name, "note": note, "ts": int(time.time())})
         if len(rows) > _FOOD_MAX:
             rows = rows[-_FOOD_MAX:]
-        f.parent.mkdir(parents=True, exist_ok=True)
-        tmp = f.with_name(f.name + ".tmp")
-        tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=1),
-                       encoding="utf-8")
-        os.replace(tmp, f)
+        doc["entries"] = rows
+        _food_write(f, doc)
     return {"entries": rows}
 
 
@@ -1111,13 +1128,61 @@ def food_remove(body: dict) -> dict:
     if f is None:
         raise HTTPException(400, "city 不合法")
     with _food_lock:
-        rows = [e for e in _food_read(f) if str(e.get("name")) != name]
+        doc = _food_doc(f)
+        doc["entries"] = [e for e in doc["entries"] if str(e.get("name")) != name]
         if f.exists():
-            tmp = f.with_name(f.name + ".tmp")
-            tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=1),
-                           encoding="utf-8")
-            os.replace(tmp, f)
-    return {"entries": rows}
+            _food_write(f, doc)
+    return {"entries": doc["entries"]}
+
+
+@app.get("/food/recommend", dependencies=[Depends(verify_token)])
+def food_recommend(city: str) -> dict:
+    """按城市推荐当地美食（高德餐饮 POI：店名/图片/评分/地址）。
+
+    结果缓存进该城市美食文件的 recommended（TTL 7 天）——重复调用零配额。
+    无 Key / 上游失败时返回空 items + reason（不编造店名与图片）。
+    """
+    f = _food_file(city)
+    if f is None:
+        raise HTTPException(400, "city 不合法")
+    with _food_lock:
+        doc = _food_doc(f)
+    rec = doc.get("recommended")
+    ttl = 7 * 86400
+    if rec and isinstance(rec.get("ts"), (int, float))             and time.time() - rec["ts"] < ttl and isinstance(rec.get("items"), list):
+        return {"city": city, "items": rec["items"], "cached": True}
+
+    from editor import text_search
+    c = normalize_city(city) or DEFAULT_CITY
+    # 高德 POI 分类：150000 = 餐饮服务（同 100000=住宿服务的分类体系）
+    rows = text_search("美食", c, types="150000", extensions="all",
+                       offset=15, page=1)
+    if not rows:   # 分类码万一过期/过严，退回不限类别但换更准的词
+        rows = text_search("特色小吃", c, extensions="all", offset=15, page=1)
+    items = []
+    for r in rows:
+        if not r.get("name"):
+            continue
+        photos = r.get("photos") or []
+        items.append({
+            "name": r.get("name", ""),
+            "image": r.get("image") or (photos[0] if photos else ""),
+            "rating": r.get("rating", ""),
+            "address": r.get("address", ""),
+            "price": r.get("price", ""),
+            "intro": (r.get("type_str") or "").split(";")[-1],
+        })
+    reason = ""
+    if not items:
+        reason = "上游没返回结果（未配高德 Key 或配额耗尽）——手动记录仍然可用"
+    else:
+        with _food_lock:
+            doc["recommended"] = {"ts": int(time.time()), "items": items}
+            try:
+                _food_write(f, doc)
+            except OSError as e:
+                log.warning("美食推荐缓存写失败 %s: %s", f.name, e)
+    return {"city": city, "items": items, "cached": False, "reason": reason}
 
 
 @app.get("/poi/search", dependencies=[Depends(verify_token)])

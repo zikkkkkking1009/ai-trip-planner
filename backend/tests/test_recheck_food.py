@@ -218,3 +218,61 @@ def test_poi_search_gated_and_shaped(monkeypatch, with_token):
     r = client.get("/poi/search", params={"q": " "},
                    headers={"X-App-Token": TOKEN})
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------- /food/recommend
+
+def test_food_recommend_calls_amap_and_caches(food_dir, with_token, monkeypatch):
+    """首次调用打高德（餐饮分类 + extensions=all），结果缓存后第二次不再调上游。"""
+    import editor
+    calls = []
+
+    def fake_ts(q, city, **kw):
+        calls.append(kw)
+        return [{"name": "老李家泡馍", "image": "http://img/x.jpg",
+                 "rating": "4.8", "address": "回坊 1 号", "price": "¥25",
+                 "type_str": "餐饮服务;清真菜;清真菜"},
+                {"name": "", "address": "空名应被跳过"}]
+
+    monkeypatch.setattr(editor, "text_search", fake_ts)
+    r = client.get("/food/recommend", params={"city": "西安"},
+                   headers={"X-App-Token": TOKEN})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["cached"] is False and len(d["items"]) == 1
+    it = d["items"][0]
+    assert it["name"] == "老李家泡馍" and it["image"].endswith(".jpg")
+    assert it["intro"] == "清真菜" and it["rating"] == "4.8"
+    # 餐饮分类大类 + 图文字段
+    assert calls and calls[0].get("types") == "150000"
+    assert calls[0].get("extensions") == "all"
+    # 第二次：缓存命中，不再打上游
+    r = client.get("/food/recommend", params={"city": "西安"},
+                   headers={"X-App-Token": TOKEN})
+    assert r.json()["cached"] is True and len(calls) == 1
+
+
+def test_food_recommend_empty_upstream_gives_reason(food_dir, with_token, monkeypatch):
+    """上游空（无 Key/配额）→ items 空 + reason 说明，不编造。"""
+    import editor
+    monkeypatch.setattr(editor, "text_search", lambda *a, **k: [])
+    r = client.get("/food/recommend", params={"city": "西安"},
+                   headers={"X-App-Token": TOKEN})
+    d = r.json()
+    assert d["items"] == [] and "Key" in d["reason"] or "配额" in d["reason"]
+
+
+def test_food_old_list_file_still_readable(food_dir, with_token):
+    """旧版裸 list 美食文件：entries 读得出、recommend 接口不炸、追加保持结构。"""
+    import json as _json
+    food_dir.mkdir(parents=True, exist_ok=True)
+    (food_dir / "成都.json").write_text(
+        _json.dumps([{"name": "冒节子", "note": "肥肠粉标配"}], ensure_ascii=False),
+        encoding="utf-8")
+    h = {"X-App-Token": TOKEN}
+    r = client.get("/food", params={"city": "成都"}, headers=h)
+    assert r.json()["entries"][0]["name"] == "冒节子"
+    r = client.post("/food", json={"city": "成都", "name": "蛋烘糕", "note": "甜口"},
+                    headers=h)
+    names = [e["name"] for e in r.json()["entries"]]
+    assert names == ["冒节子", "蛋烘糕"]

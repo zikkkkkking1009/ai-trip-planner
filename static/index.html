@@ -710,6 +710,68 @@
     body { background:#fff; }
   }
 
+  /* 预置景点卡片网格：图文卡 + 保留/移除两态（弹入动画只在列表重建时播） */
+  .pickgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr));
+    gap:10px; margin-top:8px; max-height:360px; overflow-y:auto; padding-bottom:4px; }
+  .pickcard{ display:flex; flex-direction:column; gap:4px; text-align:left; cursor:pointer;
+    background:var(--surface); border:1px solid var(--border); padding:0;
+    animation:pc-pop .34s cubic-bezier(.16,1,.3,1) backwards;
+    transition:border-color var(--t-fast) var(--e), transform var(--t-fast) var(--e),
+               opacity var(--t-fast) var(--e); }
+  .pickgrid[data-no-anim] .pickcard{ animation:none; }
+  .pickcard:hover{ border-color:var(--accent-line); transform:translateY(-2px); }
+  .pickcard .pc-media{ position:relative; display:block; aspect-ratio:16/10;
+    background:var(--fill); overflow:hidden; }
+  .pickcard .pc-img{ width:100%; height:100%; object-fit:cover; display:block;
+    transition:filter var(--t) var(--e), transform var(--t) var(--e); }
+  .pc-media .pc-ph{ position:absolute; inset:0; display:flex; align-items:center;
+    justify-content:center; font-size:30px; font-weight:800; color:var(--muted-3);
+    font-family:var(--font-display); }
+  .pickcard .pc-flag{ position:absolute; left:0; bottom:0; font-style:normal;
+    font-size:11px; padding:3px 8px; background:var(--accent-solid);
+    color:var(--on-accent); }
+  .pickcard .pc-name{ font-size:13.5px; font-weight:700; padding:7px 9px 0;
+    line-height:1.35; }
+  .pickcard .pc-meta{ font-size:11.5px; color:var(--muted-3); padding:0 9px;
+    font-variant-numeric:tabular-nums; }
+  .pickcard .pc-desc{ font-size:11.5px; color:var(--muted); padding:0 9px 9px;
+    line-height:1.5; display:-webkit-box; -webkit-line-clamp:2;
+    -webkit-box-orient:vertical; overflow:hidden; }
+  /* 已移除态：去色 + 虚线 + 变矮，角标反色 —— 「去除有效果」且可点回 */
+  .pickcard.off{ opacity:.62; border-style:dashed; background:transparent; }
+  .pickcard.off .pc-img{ filter:grayscale(1) contrast(.9); transform:scale(.96); }
+  .pickcard.off .pc-flag{ background:var(--fill); color:var(--muted-2);
+    box-shadow:inset 0 0 0 1px var(--border); }
+  .pickcard.off:hover{ opacity:.85; }
+  @keyframes pc-pop{
+    from{ opacity:0; transform:translateY(10px) scale(.96); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+  }
+
+  /* 美食推荐网格（图文卡）与骨架屏 */
+  .foodgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+    gap:10px; margin-top:6px; }
+  .foodcard{ display:flex; flex-direction:column; gap:3px; background:var(--surface);
+    border:1px solid var(--border); overflow:hidden; }
+  .foodcard .pc-media{ position:relative; display:block; aspect-ratio:16/10;
+    background:var(--fill); overflow:hidden; }
+  .foodcard .fc-img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .foodcard .pc-name{ font-size:13px; font-weight:700; padding:7px 9px 0; }
+  .foodcard .pc-name b{ color:var(--warn-ink); font-weight:700; margin-left:4px;
+    font-variant-numeric:tabular-nums; }
+  .foodcard .pc-name i{ font-style:normal; color:var(--muted-2); font-size:12px;
+    margin-left:4px; }
+  .foodcard .pc-meta{ font-size:11px; color:var(--muted-3); padding:0 9px; }
+  .foodcard .pc-desc{ font-size:11.5px; color:var(--muted); padding:0 9px 9px;
+    line-height:1.5; }
+  .foodcard.skel .sk-line{ display:block; height:10px; background:var(--fill);
+    margin:8px 9px 0; }
+  .foodcard.skel .sk-line.short{ width:55%; margin-bottom:9px; }
+  .s3-sum{ font-size:14px; line-height:1.8; color:var(--muted-2); margin-top:6px; }
+  .s3-sum b{ color:var(--fg); }
+  .s3-hint{ margin-top:10px; font-size:12.5px; color:var(--muted-3);
+    line-height:1.7; border-top:1px dashed var(--border); padding-top:8px; }
+
   /* 美食卡的输入行（ucard 族内联表单） */
   .food-add{ display:flex; gap:8px; margin-top:10px; }
   .food-add input{ flex:1; min-width:0; padding:7px 9px; font-size:13px;
@@ -1361,6 +1423,17 @@
         <div id="extractMsg" style="font-size:12px;color:var(--muted-3);margin-top:6px;line-height:1.5"></div>
       </details>
       </div><!-- /step2Panel -->
+
+      <!-- Step 3 · 行程（左栏）：规划完成后的行动面板 —— 重新规划 / 改信息 / 我的 -->
+      <div class="wpanel" id="step3Panel" hidden>
+        <div class="pcard">
+          <div class="plabel">行程已生成</div>
+          <div id="s3Summary" class="s3-sum"></div>
+        </div>
+        <button class="go" data-act="wiz-replan" type="button">重新规划（回去挑景点）</button>
+        <button class="go go-next" data-act="wiz-back" type="button" style="margin-top:10px">改城市 / 日期 / 偏好</button>
+        <button class="go go-next" data-act="wiz-mine" type="button" style="margin-top:10px">去「我的」看历史</button>
+      </div>
     </div>
 
     <details class="plog"><summary>求解进度日志</summary><div id="log">等待任务…</div></details>
@@ -2076,6 +2149,7 @@ function render() {
   loadReview();          // AI 总评（同样异步，放在稳健性之上）
   loadWeather();         // 出行天气（可选增强，失败只降级成一条说明）
   loadFood();          // 本城美食卡（总览专属，失败静默）
+  loadFoodRec();       // 高德餐饮推荐（缓存 7 天，失败显示原因不编造）
 }
 
 // ---- 空状态：首次进入 / 删完行程后右栏的引导卡 ----
@@ -2187,12 +2261,14 @@ function setStep(n, skipRender) {
   wstep = n;
   const layout = $('planLayout');
   if (layout) layout.dataset.step = String(n);
-  const s1 = $('step1Panel'), s2 = $('step2Panel'),
+  const s1 = $('step1Panel'), s2 = $('step2Panel'), s3p = $('step3Panel'),
         wr = $('wizRight'), s3 = $('stage3');
   if (s1) s1.hidden = n !== 1;
   if (s2) s2.hidden = n !== 2;
+  if (s3p) s3p.hidden = n !== 3;
   if (wr) wr.hidden = n === 3;
   if (s3) s3.hidden = n !== 3;
+  if (n === 3) renderStep3Panel();
   document.querySelectorAll('#wizardBar .wstep').forEach(b => {
     const sn = Number(b.dataset.s);
     b.classList.toggle('on', sn === n);
@@ -2205,6 +2281,19 @@ function setStep(n, skipRender) {
     if (n === 2) renderPick();
     renderWizRight();
   }
+}
+
+// Step3 左栏面板：摘要 + 行动按钮（规划完成后左栏不再是空白）
+function renderStep3Panel() {
+  const el = $('s3Summary');
+  if (!el || !plan) return;
+  const ca = (plan.check_report && plan.check_report.stats) || {};
+  el.innerHTML = '城市 <b>' + esc(plan.city || currentCity) + '</b> · ' +
+    plan.days.length + ' 天 · 已排 ' + (ca.spots_planned != null ? ca.spots_planned : '?') +
+    ' 个景点<br>门票 ' + moneyTxt(plan.total_cost, plan.cost_known) +
+    (plan.hotel ? ' · 住 ' + esc(plan.hotel.name) : '') +
+    '<div class="s3-hint">改完信息或点景点后按「开始规划」会生成<strong>新的</strong>行程；' +
+    '想微调当前行程，在右边时间线上直接操作。</div>';
 }
 
 // 右栏按步骤渲染（替代旧 renderEmpty 的「唯一入口」角色）
@@ -2222,7 +2311,8 @@ function renderWizRight() {
         '<li><b>②</b>日期：' + dayCount() + ' 天 · ' + esc(($('dateText') || {}).textContent || '') + '</li>' +
         '<li><b>③</b>偏好：' + esc(prefTxt) + '</li>' +
       '</ul>' +
-      '<button class="empty-go" data-act="wiz-next">下一步：挑景点 →</button>' +
+      '<div class="empty-sub" style="margin-top:14px">确认无误后，点左栏底部的' +
+      '「下一步：挑景点 →」。</div>' +
     '</div>';
     return;
   }
@@ -2252,26 +2342,45 @@ function refreshRight() {
 }
 
 // Step2 左栏：预置勾选列表（按输入框本地过滤）
-function renderPick() {
+function renderPick(animate) {
   const list = $('pickList'), head = $('pickHead');
   if (!list) return;
+  if (animate === false) list.dataset.noAnim = '1';
+  else delete list.dataset.noAnim;
   const q = (($('spotQ') || {}).value || '').trim();
   const chosen = new Set(spots.map(function (x) { return x.name; }));
   const rows = (demoAll.length ? demoAll : spots)
     .filter(function (x) { return !q || (x.name || '').indexOf(q) >= 0; });
   if (head) head.textContent = q
     ? '本城预置匹配「' + q + '」（' + rows.length + '）'
-    : '本城预置景点（' + rows.length + '，点选加入行程）';
-  list.innerHTML = rows.length ? rows.map(function (x) {
-    return '<label class="pickrow"><input type="checkbox" data-pick="' + esc(x.name) + '"' +
-      (chosen.has(x.name) ? ' checked' : '') + '>' +
-      '<span class="pname">' + esc(x.name) + '</span>' +
-      '<span class="pmeta">' + x.stay_min + '分钟' +
-      (x.ticket_known === false ? '' : ' · ¥' + Math.round(x.ticket || 0)) + '</span>' +
-    '</label>';
-  }).join('')
-    : '<div class="pickempty">' + (demoAll.length ? '没有匹配的预置景点 —— 直接搜高德，或粘攻略识别'
+    : '本城预置景点 · 点卡片移除，再点恢复（灰 = 不去）';
+  if (!rows.length) {
+    list.className = 'picklist';
+    list.innerHTML = '<div class="pickempty">' + (demoAll.length
+      ? '没有匹配的预置景点 —— 直接搜高德，或粘攻略识别'
       : '正在加载本城预置景点…') + '</div>';
+    return;
+  }
+  list.className = 'pickgrid';
+  list.innerHTML = rows.map(function (x, i) {
+    const on = chosen.has(x.name);
+    const img = x.image
+      ? '<img class="pc-img" src="' + esc(x.image) + '" alt="" loading="lazy" ' +
+        'onerror="this.style.display=\'none\'">'
+      : '<span class="pc-ph">' + esc((x.name || '?').slice(0, 1)) + '</span>';
+    const meta = x.stay_min + ' 分钟' + (x.ticket_known === false ? ' · 票价待查'
+      : (x.ticket ? ' · ¥' + Math.round(x.ticket) : ''));
+    const desc = (x.intro || x.desc || '').slice(0, 46);
+    return '<button type="button" class="pickcard' + (on ? '' : ' off') + '"' +
+      ' data-act="pick-toggle" data-name="' + esc(x.name) + '"' +
+      ' style="animation-delay:' + Math.min(i * 45, 540) + 'ms">' +
+      '<span class="pc-media">' + img +
+        '<i class="pc-flag">' + (on ? '✓ 保留' : '已移除 · 点回') + '</i></span>' +
+      '<span class="pc-name">' + esc(x.name) + '</span>' +
+      '<span class="pc-meta">' + esc(meta) + '</span>' +
+      (desc ? '<span class="pc-desc">' + esc(desc) + '</span>' : '') +
+    '</button>';
+  }).join('');
 }
 
 // Step2 左栏：远端搜索（/poi/search），防抖 + 序号防旧响应覆盖
@@ -2325,17 +2434,26 @@ function addRemotePoi(i) {
   renderWizRight();
 }
 
-// 预置列表勾选：加入/移除（只动 spots，不动 demoAll）
+// 预置卡片切换：就地改该卡 class（不全量重建 —— 逐张弹入动画只在进步骤/搜索时播）
 function togglePick(name) {
   const i = spots.findIndex(function (x) { return x.name === name; });
-  if (i >= 0) spots.splice(i, 1);
+  const removing = i >= 0;
+  if (removing) spots.splice(i, 1);
   else {
     const d = demoAll.find(function (x) { return x.name === name; })
            || spots.find(function (x) { return x.name === name; });
     if (!d) return;
     spots.push(d);
   }
-  renderPick();
+  const card = document.querySelector('.pickcard[data-name="' +
+    name.replace(/"/g, '\\"') + '"]');
+  if (card) {
+    card.classList.toggle('off', removing);
+    const flag = card.querySelector('.pc-flag');
+    if (flag) flag.textContent = removing ? '已移除 · 点回' : '✓ 保留';
+  } else {
+    renderPick(false);          // 卡不在视图（搜索过滤掉了）→ 重建列表
+  }
   renderWizRight();
 }
 
@@ -2560,30 +2678,71 @@ async function loadFood() {
   } catch (e) { foodRows = []; renderFood(e.message); }
 }
 
-function renderFood(err) {
+let foodRec = null;      // 推荐结果（null=加载中）
+
+async function loadFoodRec() {
+  try {
+    const r = await fetch('/food/recommend?city=' + encodeURIComponent(currentCity));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    foodRec = d.items || [];
+    if (d.reason) foodRec = { failed: d.reason };
+  } catch (e) { foodRec = { failed: '推荐拉取失败：' + e.message }; }
+  renderFood();
+}
+
+function renderFood() {
   const box = $('foodBox');
   if (!box) return;
-  if (err) {
-    box.innerHTML = '';
-    return;
-  }
   box.classList.add('on');
-  const rows = foodRows.map((f, i) =>
+  // 推荐网格（大数据 = 高德餐饮 POI：真实店名/图片/评分/地址）
+  let recHtml;
+  if (foodRec === null) {
+    recHtml = '<div class="foodgrid">' +
+      Array.from({length: 6}, () =>
+        '<div class="foodcard skel"><span class="pc-ph"></span>' +
+        '<span class="sk-line"></span><span class="sk-line short"></span></div>').join('') +
+      '</div><div class="pickempty">正在拉取 ' + esc(currentCity) + ' 的本地美食…</div>';
+  } else if (Array.isArray(foodRec) && foodRec.length) {
+    recHtml = '<div class="foodgrid">' + foodRec.map(f => {
+      const img = f.image
+        ? '<img class="fc-img" src="' + esc(f.image) + '" alt="" loading="lazy" ' +
+          'onerror="this.style.display=\'none\'">'
+        : '<span class="pc-ph">' + esc((f.name || '？').slice(0, 1)) + '</span>';
+      const rating = f.rating ? '<b>' + esc(f.rating) + '</b>' : '';
+      const price = f.price ? '<i>' + esc(f.price) + '</i>' : '';
+      return '<div class="foodcard">' +
+        '<span class="pc-media">' + img + '</span>' +
+        '<span class="pc-name">' + esc(f.name) + ' ' + rating + price + '</span>' +
+        '<span class="pc-meta">' + esc((f.address || '').slice(0, 28)) + '</span>' +
+        (f.intro ? '<span class="pc-desc">' + esc(f.intro) + '</span>' : '') +
+      '</div>';
+    }).join('') + '</div>';
+  } else {
+    recHtml = '<div class="pickempty">' +
+      esc((foodRec && foodRec.failed) || '暂时拉不到推荐') + '</div>';
+  }
+  // 本地记录（按城市持续追加的数据资产）：折叠在推荐下方，不抢主体
+  const mine = foodRows.map((f, i) =>
     `<div class="ucard" style="cursor:default">
       <div class="info"><div class="t">${esc(f.name)}</div>
       <div class="s">${esc(f.note || '（没写备注）')}</div></div>
       <button class="del" data-act="food-del" data-i="${esc(i)}" aria-label="删除">${ICON_X}</button>
     </div>`).join('');
   box.innerHTML = `<div class="rv-card food-card">
-    <div class="rv-title">${ICON_MONEY ? '🍜' : ''} 本地美食 · ${esc(currentCity)}
-      <span class="pmeta" style="font-weight:400">（按城市持续记，换城市各记各的）</span></div>
-    ${rows || '<div class="pickempty">还没有记录 —— 下面记下第一顿。</div>'}
-    <div class="food-add">
-      <input id="foodName" placeholder="店名/小吃（≤40字）" maxlength="40">
-      <input id="foodNote" placeholder="一句话（人均/排队/避雷）" maxlength="140">
-      <button class="padd" data-act="food-add">记下</button>
-    </div>
-    <div id="foodMsg" class="pmeta"></div>
+    <div class="rv-title">🍜 ${esc(currentCity)}吃什么
+      <span class="pmeta" style="font-weight:400">（来自高德餐饮数据 · 有图有评分）</span></div>
+    ${recHtml}
+    <details class="adv" style="margin-top:10px">
+      <summary>我的标记（${foodRows.length}）· 想记的自己加</summary>
+      ${mine || '<div class="pickempty">还没记过 —— 下面一行加上。</div>'}
+      <div class="food-add">
+        <input id="foodName" placeholder="店名/小吃（≤40字）" maxlength="40">
+        <input id="foodNote" placeholder="一句话（人均/排队/避雷）" maxlength="140">
+        <button class="padd" data-act="food-add">记下</button>
+      </div>
+      <div id="foodMsg" class="pmeta"></div>
+    </details>
   </div>`;
 }
 
@@ -4588,12 +4747,15 @@ document.addEventListener('click', e => {
     case 'wiz-back':   setStep(1); break;
     case 'wiz-go':     if (spots.length) $('go').click(); break;
     case 'pick-add':   addRemotePoi(Number(d.i)); break;
+    case 'pick-toggle':togglePick(d.name); break;
     case 'pick-remove':togglePick(d.name); break;
     case 'ed-del':      edDelete(Number(d.day), Number(d.k)); break;
     case 'ed-up':       edSwap(Number(d.day), Number(d.k), -1); break;
     case 'ed-down':     edSwap(Number(d.day), Number(d.k), 1); break;
     case 'ed-stay':     edStay(Number(d.day), Number(d.k), Number(d.delta)); break;
     case 'favs-to-plan':favsToPlan(); break;
+    case 'wiz-replan': setStep(2); break;
+    case 'wiz-mine':   switchPage('user'); break;
     case 'food-add':    foodAdd(); break;
     case 'food-del':    foodDel(Number(d.i)); break;
     case 'empty-extract': {
