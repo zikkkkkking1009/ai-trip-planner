@@ -187,7 +187,14 @@
         font-family:var(--font-body); font-weight:600; font-size:14px;
         border-radius:999px; padding:11px 20px; border:1px solid transparent;
         cursor:pointer; transition:transform .14s ease, background .15s ease, border-color .15s ease; }
-  .btn:active{ transform:translateY(1px); }
+  /* 大幅 hover（参考 tasteskill 实测：卡片 scale1.04+lift10px，回弹缓动带过冲） */
+  .btn:hover{ transform:translateY(-3px) scale(1.03); }
+  .btn:active{ transform:translateY(1px) scale(.98); }
+
+  /* 主 CTA 注意力脉冲：5s 一个周期里只动 ~0.6s（画 8% 的时间），
+     静止期 scale:1 与 hover 的 transform 叠加互不干扰（独立变换属性合成） */
+  .nav-in .btn-primary{ animation:idleNudge 5s ease-in-out infinite; }
+  @keyframes idleNudge{ 0%,86%,100%{ scale:1; } 92%{ scale:1.06; } }
   .btn-primary{ background:var(--accent-solid); color:var(--on-accent); }
   .btn-primary:hover{ background:var(--accent-deep); }
   .btn-ghost{ background:transparent; color:var(--fg); border-color:var(--border); }
@@ -550,9 +557,15 @@
     #nope .limits{ grid-template-columns:minmax(0,1fr); }
   }
 
-  /* CTA 色带：-45° 细斜纹肌理（7% 亮度扰动，不伤 on-accent 对比） */
-  .cta{ background-image: repeating-linear-gradient(-45deg, transparent 0 12px,
-          color-mix(in oklab, var(--on-accent) 7%, transparent) 12px 13px); }
+  /* CTA 色带：-45° 细斜纹挪进伪元素（7% 亮度扰动，不伤 on-accent 对比），
+     伪元素同时承载 idle 推移动画（见动效块 stripePush） */
+  .cta{ position:relative; overflow:hidden; }
+  .cta::before{ content:""; position:absolute; inset:-40px; z-index:0; pointer-events:none;
+    background-image:repeating-linear-gradient(-45deg, transparent 0 12px,
+      color-mix(in oklab, var(--on-accent) 7%, transparent) 12px 13px);
+    animation:stripePush 9s linear infinite alternate; }
+  .cta .wrap{ position:relative; z-index:1; }
+  @keyframes stripePush{ from{ transform:translate(0,0); } to{ transform:translate(30px,30px); } }
 
   /* ===== 响应式：1440 / 900 / 640 / 375 ===== */
   @media (max-width:1024px){
@@ -641,13 +654,16 @@
   details.appendix > summary:hover{ background:var(--fill); }
      ================================================================== */
 
-  /* 可交互元素的过渡：集中声明 */
-  a, button, .btn, .nav-links a, .tile, .step, .limits div {
+  /* 可交互元素的过渡：集中声明。
+     transform 走回弹缓动（tasteskill 同款 cubic-bezier(.34,1.56,.64,1)，
+     过冲 ~4% 制造「弹」的手感）；其余属性走常规 expo-out。 */
+  a, button, .btn, .nav-links a, .tile, .step, .limits div,
+  .metric, .cmp-table tbody tr, details > summary {
     transition: background-color var(--t-fast) var(--e),
                 border-color var(--t-fast) var(--e),
                 color var(--t-fast) var(--e),
                 box-shadow var(--t) var(--e),
-                transform var(--t-fast) var(--e),
+                transform .32s cubic-bezier(.34,1.56,.64,1),
                 opacity var(--t) var(--e);
   }
 
@@ -658,13 +674,47 @@
   /* 选中文字用主色系 —— 小细节，但一眼能看出是调过的 */
   ::selection{ background:color-mix(in oklab, var(--accent) 22%, transparent); }
 
-  /* ---- 层次感：hover 栏顶墨线变钴蓝（编辑部分栏的交互语言，无投影） ---- */
-  .tile:hover{ transform:translateY(-2px); border-top-color:var(--accent); }
+  /* ---- 层次感：hover 大幅抬升（lift 8px + scale 1.015，参考站是 10px/1.04；
+         编辑部直角卡片带边框，scale 收一点防相邻格视觉相撞）---- */
+  .tile:hover{ transform:translateY(-8px) scale(1.015); border-top-color:var(--accent); }
+  .bento .tile:hover{ transform:translateY(-8px) scale(1.012); }
   /* 表格整行高亮原本给 table.cmp 用，表格已被图表替代（见 #results 区） */
-  /* 步骤块：hover 时编号上方那条短线亮起 */
+  /* 步骤块：hover 时编号上方那条短线亮起 + 整块抬升 */
   .step::before{ transition:background-color var(--t) var(--e); }
+  .step:hover{ transform:translateY(-8px); }
   .step:hover::before{ background:var(--accent); }
-  .limits div:hover{ background:var(--fill); }
+  .limits div:hover{ background:var(--fill); transform:translateY(-6px); }
+  /* 指标格 / 表格行 / 导航链接的 hover 反馈 */
+  .metric:hover{ background:var(--fill-2); }
+  .cmp-table tbody tr:hover{ transform:translateY(-2px); }
+  .nav-links a:hover, .gh-pill:hover{ transform:translateY(-3px); }
+  .navtheme:hover{ transform:translateY(-2px) scale(1.1); }
+  .brand:hover, .foot-in a:hover{ transform:translateY(-2px); }
+  details.appendix > summary:hover{ transform:translateX(6px); }
+
+  /* ===== idle 自主动画（不悬停也在动；reduce 下整块冻结，见 reduce 段）=====
+     动机各不相同：图标=呼吸浮动（呼应 hero-float 规律）、痛点编号=慢漂移、
+     主指标 0=脉冲吸睛、分工箭头=工序在流动、CTA 斜纹=推移。
+     幅度对齐 tasteskill 实测（它 hover 抬 10px/1.04，idle 是 32s 级慢流）。 */
+  .bento .ic{ animation:idleBob 5.5s ease-in-out infinite; }
+  .bento .tile:nth-child(2n) .ic{ animation-delay:-1.8s; }
+  .bento .tile:nth-child(3n) .ic{ animation-delay:-3.6s; }
+  @keyframes idleBob{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-7px); } }
+
+  #pain .tile::before{ animation:idleDrift 7s ease-in-out infinite; }
+  #pain .tile:nth-child(2)::before{ animation-delay:-2.3s; }
+  #pain .tile:nth-child(3)::before{ animation-delay:-4.6s; }
+  @keyframes idleDrift{ 0%,100%{ transform:translateX(0); } 50%{ transform:translateX(9px); } }
+
+  .metric.hl .v{ animation:idlePulse 3.6s ease-in-out infinite; transform-origin:left center; }
+  @keyframes idlePulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.07); } }
+
+  #what .step::after{ animation:idleFlow 2.4s ease-in-out infinite; }
+  #what .step:nth-child(2)::after{ animation-delay:.4s; }
+  @keyframes idleFlow{
+    0%,100%{ transform:translateY(-50%) translateX(0); opacity:1; }
+    50%    { transform:translateY(-50%) translateX(7px); opacity:.4; }
+  }
 
   /* ---- 滚动进入视口时淡入上移 ----
      渐进增强：初始隐藏只在 html.js-reveal 下生效（由内联脚本添加），
@@ -675,10 +725,10 @@
      的 (0,2,0)，把 hover 抬升吃掉（实测踩过：hover 时边框变了、位移却是 0）。
      注意 .in 也要写进 :where() 里 —— :where() 只让「括号内」的选择器清零，
      写成 :where(.reveal).in 的话 .in 仍贡献 1 个类，权重照样压过 hover。 */
-  html.js-reveal :where(.reveal){ opacity:0; transform:translateY(14px); }
+  html.js-reveal :where(.reveal){ opacity:0; transform:translateY(22px); }
   html.js-reveal :where(.reveal.in){ opacity:1; transform:translateY(0);
                              transition:opacity var(--t-slow) var(--e-out),
-                                        transform var(--t-slow) var(--e-out); }
+                                        transform .52s cubic-bezier(.34,1.4,.64,1); }
   /* 同组子项依次浮现：靠 nth-child 给延迟，不需要 JS 逐个设值 */
   html.js-reveal .grid-3 .reveal:nth-child(n+2){ transition-delay:.07s; }
   html.js-reveal .grid-3 .reveal:nth-child(n+4){ transition-delay:.14s; }
@@ -701,7 +751,11 @@
 
   @media (prefers-reduced-motion:reduce){
     html{ scroll-behavior:auto; }
+    /* iteration-count:1 必须与 duration 成对 —— 只压 duration 到 .001ms 而留 infinite，
+       每帧采样到的相位都不同 = 幻影抖动（等于没冻结）。
+       hero 内的动画规则带 !important + 更高特异性，仍会赢过这条，保持有意豁免。 */
     *,*::before,*::after{ animation-duration:.001ms !important;
+                          animation-iteration-count:1 !important;
                           transition-duration:.001ms !important; }
     ::view-transition-old(root), ::view-transition-new(root) { animation:none !important; }
     html.js-reveal :where(.reveal, .reveal.in){ opacity:1; transform:none; }
