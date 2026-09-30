@@ -105,6 +105,10 @@
     --t-fast: .14s;
     --t:      .22s;
     --t-slow: .38s;
+
+    /* 痛点编号水印色（46px 大文本 ≥3:1，浏览器实测调定：
+       34% 混出仅 1.7:1 太淡；浅色 70% / 暗色 60% 实测 3.5:1 / 3.6:1） */
+    --num-tint: color-mix(in oklab, var(--accent) 70%, var(--surface));
   }
 
   *,*::before,*::after{ box-sizing:border-box; }
@@ -461,6 +465,95 @@
   .foot-in a:hover{ color:var(--fg); }
   .foot-sp{ flex:1; }
 
+  /* ===== 下半页去文档化（taste-skill × od editorial-monocle，2026-09-29）=====
+     病灶：七个区块全是「kicker + 大标题 + 发丝线三栏纯文字」——同一条版式、
+     无容器、无底色节奏，读起来像文档。手法仍守编辑部 posture（直角、发丝线、
+     无投影）：层次改由「底色交替 + 卡片容器 + 巨号衬线序号 + 清单标记」承担。 */
+
+  /* 痛点三格 → 编号面板：巨号衬线 01/02/03（tint 水印序号）+ 卡纸底 */
+  #pain .grid-3{ counter-reset: pain; }
+  #pain .tile{ background:var(--surface); border:1px solid var(--border);
+               padding:24px 24px 26px; }
+  #pain .tile::before{ content:counter(pain, decimal-leading-zero); counter-increment:pain;
+               display:block; font-family:var(--font-display); font-size:46px;
+               font-weight:800; line-height:1; letter-spacing:-0.03em;
+               color:var(--num-tint);
+               margin-bottom:12px; }
+  #pain .tile:hover{ border-color:var(--accent); }
+
+  /* 分工 → 流水线：段间钴蓝箭头（平板两列起收起，避免指向虚空） */
+  #what .step{ position:relative; }
+  #what .step::after{ content:"→"; position:absolute; top:50%; right:-18px;
+               transform:translateY(-50%); color:var(--accent-deep);
+               font-size:16px; font-weight:700; }
+  #what .step:last-child::after{ content:none; }
+  @media (max-width:1024px){
+    #what .step::after{ display:none; }
+  }
+
+  /* 亮点 → 12 格非对称 bento：上排两宽格（tint/浅填充）+ 下排四窄格 + 斜纹格 */
+  .bento{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr));
+          gap:20px; margin-top:44px; }
+  .bento .tile{ grid-column:span 3; background:var(--surface);
+                border:1px solid var(--border); padding:24px 22px 26px; }
+  .bento .tile:nth-child(1), .bento .tile:nth-child(2){
+                grid-column:span 6; padding:30px 28px 32px; }
+  .bento .tile:nth-child(1){ background:var(--accent-soft); border-color:transparent; }
+  .bento .tile:nth-child(2){ background:var(--fill); }
+  .bento .tile:nth-child(1) h3, .bento .tile:nth-child(2) h3{ font-size:26px; }
+  .bento .tile:nth-child(5){ background:
+                repeating-linear-gradient(-45deg, transparent 0 9px,
+                  color-mix(in oklab, var(--border) 55%, transparent) 9px 10px),
+                var(--surface); }
+  .bento .ic{ width:38px; height:38px; border:1px solid var(--border);
+              background:var(--surface); align-items:center; justify-content:center;
+              margin-bottom:16px; }
+  .bento .tile:hover{ border-color:var(--accent); }
+  @media (max-width:1024px){
+    .bento{ grid-template-columns:repeat(6,minmax(0,1fr)); }
+    .bento .tile, .bento .tile:nth-child(1), .bento .tile:nth-child(2){ grid-column:span 3; }
+  }
+  @media (max-width:640px){
+    .bento{ grid-template-columns:minmax(0,1fr); }
+    .bento .tile, .bento .tile:nth-child(1), .bento .tile:nth-child(2){ grid-column:auto; }
+  }
+
+  /* 怎么用 → 巨号序号时间线：01/02/03 衬线数字压在动词标签之上 */
+  #how .flow{ counter-reset: sn; }
+  #how .step .idx::before{ content:counter(sn, decimal-leading-zero); counter-increment:sn;
+              display:block; font-family:var(--font-display); font-size:44px;
+              font-weight:800; line-height:1; letter-spacing:-0.03em; color:var(--fg);
+              margin-bottom:8px; }
+
+  /* 已知局限 → 双栏警示卡：× 前缀 + 左侧 warn 警示条，不再是整块表格 */
+  #limits .limits{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+              gap:18px; border:none; overflow:visible; margin-top:44px; }
+  #limits .limits div{ border:1px solid var(--border); border-left:3px solid var(--warn);
+              background:var(--bg); padding:18px 20px 20px;
+              overflow-wrap:anywhere;   /* /plan/edit 这类 code 串在 UAX#14 下 / 前不可断 */
+  }
+  #limits .limits div::before{ content:"×"; color:var(--warn-ink); font-weight:800;
+              margin-right:8px; }
+
+  /* 不需要准备什么 → 三栏 ✓ 清单卡 */
+  #nope .limits{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+              gap:18px; border:none; overflow:visible; margin-top:44px; }
+  #nope .limits div{ border:1px solid var(--border); background:var(--surface);
+              padding:22px 22px 24px; }
+  #nope .limits div::before{ content:"✓"; display:block; color:var(--ok-ink);
+              font-size:18px; font-weight:800; margin-bottom:10px; }
+  @media (max-width:900px){
+    /* minmax(0,1fr)：1fr 的自动最小尺寸会把含 code 的长行 min-content 撑出轨道 */
+    #limits .limits{ grid-template-columns:minmax(0,1fr); }
+  }
+  @media (max-width:768px){
+    #nope .limits{ grid-template-columns:minmax(0,1fr); }
+  }
+
+  /* CTA 色带：-45° 细斜纹肌理（7% 亮度扰动，不伤 on-accent 对比） */
+  .cta{ background-image: repeating-linear-gradient(-45deg, transparent 0 12px,
+          color-mix(in oklab, var(--on-accent) 7%, transparent) 12px 13px); }
+
   /* ===== 响应式：1440 / 900 / 640 / 375 ===== */
   @media (max-width:1024px){
     .hero-in{ grid-template-columns:1fr; gap:44px; padding-block:72px 64px; }
@@ -589,6 +682,8 @@
   /* 同组子项依次浮现：靠 nth-child 给延迟，不需要 JS 逐个设值 */
   html.js-reveal .grid-3 .reveal:nth-child(n+2){ transition-delay:.07s; }
   html.js-reveal .grid-3 .reveal:nth-child(n+4){ transition-delay:.14s; }
+  html.js-reveal .bento .reveal:nth-child(n+2){ transition-delay:.07s; }
+  html.js-reveal .bento .reveal:nth-child(n+4){ transition-delay:.14s; }
   html.js-reveal .flow .reveal:nth-child(n+2){ transition-delay:.06s; }
   html.js-reveal .flow .reveal:nth-child(n+4){ transition-delay:.12s; }
   html.js-reveal .metrics .reveal:nth-child(n+2){ transition-delay:.07s; }
@@ -698,6 +793,9 @@
       --bad: #fb6157;     --bad-ink: #e85854; --bad-soft: #301715;  --bad-line: #5b2724;
       --stay: #8a82e9;    --note-ink: #cc7200; --note-soft: #2d1a0a; --note-line: #5a3f14;
       --unknown-ink: #939aa1;  --c-ctrl: #70767c;  --c-ref: #62676c;
+
+      /* 暗色编号水印：accent 已是亮蓝，60% 实测 3.6:1（70% 会过亮抢正文） */
+      --num-tint: color-mix(in oklab, var(--accent) 60%, var(--surface));
   }
 </style>
 <script>
@@ -897,8 +995,9 @@
     </div>
   </section>
 
-  <!-- 这是什么：输入 → 处理 → 产出 -->
-  <section id="what" class="sec" style="padding-top:0">
+  <!-- 这是什么：输入 → 处理 → 产出（卡纸色带：打断首三屏连续纸底的白墙节奏） -->
+  <section id="what" class="sec"
+           style="background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
     <div class="wrap">
       <div class="sec-head reveal">
         <h2>路书的答案是一个分工</h2>
@@ -934,7 +1033,7 @@
         <p>先把能做到什么说清楚；实现原理放在括号里，给想较真的人。</p>
       </div>
 
-      <div class="grid-3">
+      <div class="bento">
         <div class="tile reveal" data-od-id="feat-edit">
           <div class="ic"><svg viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M11.5 2.5 13.5 4.5 6 12H4v-2z"/></svg></div>
           <h3>说句话就能改行程</h3>
@@ -1345,8 +1444,7 @@
   <section id="how">
     <div class="wrap">
       <div class="sec-head reveal">
-        <span class="sec-kicker">怎么用</span>
-        <h2 style="margin-top:14px">三步，一分钟上手</h2>
+        <h2>三步，一分钟上手</h2>
         <p>不需要注册，也没有必填配置；四条依赖 LLM 的功能在没配 Key 时会明确说明并降级，
            其余功能照常。</p>
       </div>
@@ -1436,8 +1534,7 @@
   <section id="status" class="sec-sm" style="background:var(--surface); border-top:1px solid var(--border);">
     <div class="wrap">
       <div class="sec-head reveal">
-        <span class="sec-kicker">服务状态</span>
-        <h2 style="margin-top:14px">现在跑着的这一套，是什么状态</h2>
+        <h2>现在跑着的这一套，是什么状态</h2>
         <p>同一个 <code>/health</code> 在给机器读之外，也该让人一眼看懂：<b>哪些能力现在是真的可用，哪些是降级</b>。</p>
       </div>
       <div class="statgrid reveal" id="statusGrid"></div>
