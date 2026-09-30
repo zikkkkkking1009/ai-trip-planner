@@ -51,6 +51,37 @@ CITY_SPOT_QUERIES: dict[str, list[str]] = {
              "河坊街", "六和塔", "九溪烟树", "浙江省博物馆", "中国茶叶博物馆"],
     "重庆": ["洪崖洞", "解放碑步行街", "磁器口古镇", "长江索道", "武隆天生三桥",
              "南山一棵树观景台", "白公馆", "渣滓洞", "朝天门广场", "鹅岭二厂文创公园"],
+    # ---- 2026-09-30 第三批 12 城（热门旅游城市扩容）----
+    # 甄别口径：只收大众知名度高的自然/人文景区与真实网红打卡地
+    # （参考公开旅游热度：抖音/小红书常青目的地 + 大模型常识交叉核对）；
+    # 排除酒店、餐厅、商场、售楼处、度假地产等商业推广类 POI；
+    # 景点须距市中心 ≤1.5 度（test_spots_lie_near_their_city 硬约束），
+    # 故敦煌雅丹（西郊 180km）、西宁青海湖/茶卡（超省界距离）等不收。
+    "大理": ["大理古城", "崇圣寺三塔", "洱海生态廊道", "苍山", "双廊古镇",
+             "喜洲古镇", "蝴蝶泉", "南诏风情岛", "寂照庵", "磻溪村S湾"],
+    "西双版纳": ["告庄西双景", "中科院西双版纳热带植物园", "曼听御花园", "总佛寺",
+                 "野象谷", "勐泐大佛寺", "傣族园", "西双版纳原始森林公园", "基诺山寨"],
+    "张家界": ["武陵源风景名胜区", "天门山国家森林公园", "张家界大峡谷", "宝峰湖",
+               "黄龙洞", "天子山", "金鞭溪", "十里画廊", "黄石寨"],
+    "黄山": ["黄山风景区", "宏村", "西递", "屯溪老街", "徽州古城",
+             "呈坎", "齐云山", "新安江山水画廊", "黎阳in巷"],
+    "拉萨": ["布达拉宫", "大昭寺", "八廓街", "罗布林卡", "色拉寺",
+             "哲蚌寺", "扎基寺", "药王山", "西藏博物馆", "南山公园"],
+    "西宁": ["塔尔寺", "东关清真大寺", "北禅寺", "丹噶尔古城", "青海省博物馆",
+             "青藏高原野生动物园", "老爷山", "瞿昙寺", "青藏高原自然博物馆"],
+    "敦煌": ["莫高窟", "鸣沙山月牙泉", "沙洲夜市", "敦煌古城", "西千佛洞",
+             "阳关", "玉门关", "敦煌博物馆", "党河风情线"],
+    "大同": ["云冈石窟", "大同古城墙", "华严寺", "善化寺", "九龙壁",
+             "大同博物馆", "悬空寺", "北岳恒山", "大同土林"],
+    "泉州": ["开元寺", "清净寺", "关岳庙", "天后宫", "西街",
+             "洛阳桥", "清源山", "泉州海外交通史博物馆", "蟳埔村", "崇武古城"],
+    "威海": ["刘公岛", "威海国际海水浴场", "成山头", "华夏城", "猫头山",
+             "火炬八街", "悦海公园", "鸡鸣岛", "韩乐坊"],
+    "绍兴": ["鲁迅故里", "沈园", "兰亭", "东湖", "柯岩风景区",
+             "安昌古镇", "八字桥", "仓桥直街", "周恩来纪念馆", "大禹陵"],
+    "大连": ["星海广场", "大连老虎滩海洋公园", "金石滩国家旅游度假区", "滨海路",
+             "大连森林动物园", "俄罗斯风情街", "东港音乐喷泉", "大连威尼斯水城",
+             "发现王国", "棒棰岛"],
 }
 
 # ---- 门票：演示用近似值（非实时票价），只列常见收费景点，其余默认免费 ----
@@ -61,6 +92,19 @@ TICKET = {
     "圆明园": 10, "北海公园": 10, "鸟巢": 50,
     "灵隐寺": 75, "雷峰塔": 40, "西溪国家湿地公园": 80, "宋城": 320, "六和塔": 20,
     "长江索道": 20, "武隆天生三桥": 125, "南山一棵树观景台": 20,
+    # 第三批 12 城（2026-09-30）：只列把握较大的公开票价，其余随既有口径默认 0
+    "崇圣寺三塔": 75, "南诏风情岛": 50,
+    "中科院西双版纳热带植物园": 80, "野象谷": 60, "曼听御花园": 40,
+    "武陵源风景名胜区": 225, "天门山国家森林公园": 235, "宝峰湖": 96, "黄龙洞": 100,
+    "黄山风景区": 190, "宏村": 104, "西递": 104,
+    "布达拉宫": 200, "罗布林卡": 60, "色拉寺": 50, "哲蚌寺": 50,
+    "塔尔寺": 70,
+    "莫高窟": 238, "鸣沙山月牙泉": 110, "敦煌古城": 40, "阳关": 50, "玉门关": 90,
+    "云冈石窟": 120, "悬空寺": 125, "华严寺": 65, "北岳恒山": 55,
+    "清源山": 55, "崇武古城": 60,
+    "刘公岛": 138,
+    "沈园": 40, "兰亭": 80, "东湖": 50,
+    "大连森林动物园": 120,
 }
 
 # ---- 停留时长推断：三层判断（演示用参数，非真实游览数据）----
@@ -75,6 +119,15 @@ STAY_TEMPLE_NAME = ("寺", "祠", "堂", "观")
 
 # 名称里的状态后缀：不属于标准名，应剥离并记录为备注
 STATUS_SUFFIX = ("暂停开放", "已关闭", "停业", "维修中")
+
+# 检索结果名 → 展示标准名（2026-09-30 第三批甄别）：
+# 高德第一条常返回泛名/全称/售票处（如搜"屯溪老街"回"老街"、
+# 搜"发现王国"回"…售票处"）。只规范化**显示名**，坐标一律保留高德真值。
+NAME_FIX: dict[str, str] = {
+    "老街": "屯溪老街",
+    "西藏自治区拉萨市八廓街步行街": "八廓街",
+    "发现王国主题公园售票处": "发现王国主题公园",
+}
 
 
 def cleanup_name(name: str) -> tuple[str, str]:
@@ -224,6 +277,7 @@ def to_row(cand: dict, idx: int, name_hint: str = "") -> dict:
     """高德候选 → demo 数据行（门票/停留/开放时间为演示近似值）。"""
     type_str = cand["type_str"]
     std_name, note = cleanup_name(cand["name"])
+    std_name = NAME_FIX.get(std_name, std_name)
     open_h, close_h = guess_hours(type_str)
     return {
         "source_id": idx, "name": std_name,
@@ -244,25 +298,39 @@ def main() -> None:
                     help="扩容模式：按 AUTO_CITIES 自动抓风景名胜（无需手工景点名）")
     ap.add_argument("--limit", type=int, default=AUTO_SPOTS_PER_CITY,
                     help="自动模式下每城抓取的景点数")
+    ap.add_argument("--cities", default="",
+                    help="逗号分隔的城市子集（增量扩容）：只抓/只打印这些城市，"
+                         "已有城市数据原样保留。默认手动模式全量。")
     args = ap.parse_args()
 
     amap = Amap()
-    # 先读已有数据（--auto 增量扩容，不动已有城市）
+    # 先读已有数据（--auto/--cities 增量扩容，不动已有城市）
     existing: dict[str, list[dict]] = {}
     if OUT_FILE.exists():
         existing = json.loads(OUT_FILE.read_text(encoding="utf-8"))
     result: dict[str, list[dict]] = dict(existing)
 
+    picked: set[str] | None = None
+    if args.cities:
+        picked = {c.strip() for c in args.cities.split(",") if c.strip()}
+        unknown = picked - set(CITY_SPOT_QUERIES) - (set(AUTO_CITIES) if args.auto else set())
+        if unknown:
+            raise SystemExit(f"--cities 含未在清单里的城市：{sorted(unknown)}")
+
     print("=== 城市中心（地理编码真实值，供 backend/cities.py）===")
     centers = {}
     if args.auto:
         for city in AUTO_CITIES:
+            if picked and city not in picked:
+                continue
             info = amap.city_center(city)
             centers[city] = info
             print(f'    "{city}": ({info.get("lat")}, {info.get("lon")}),  '
                   f'# adcode={info.get("adcode")} level={info.get("level")}')
     else:
         for city in ["西安", *CITY_SPOT_QUERIES]:
+            if picked and city not in picked:
+                continue
             info = amap.city_center(city)
             centers[city] = info
             print(f'    "{city}": ({info.get("lat")}, {info.get("lon")}),  '
@@ -288,6 +356,8 @@ def main() -> None:
             result[city] = rows
     else:
         for city, names in CITY_SPOT_QUERIES.items():
+            if picked and city not in picked:
+                continue
             print(f"\n=== {city}（{len(names)} 个景点）===")
             rows = []
             for idx, name in enumerate(names, 1):
