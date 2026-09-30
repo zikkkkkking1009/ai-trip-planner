@@ -1199,7 +1199,7 @@ def food_recommend(city: str) -> dict:
                 entry["image"] = h.get("image") or (photos[0] if photos else "")
                 entry["ref"] = h.get("name", "")   # 图源参考店（仅详情展示用）
         except Exception:
-            pass    # 图搜失败就用首字占位，介绍仍在
+            pass    # 图源降级：搜失败就用首字占位，介绍仍在（不影响菜品展示）
         items.append(entry)
 
     with _food_lock:

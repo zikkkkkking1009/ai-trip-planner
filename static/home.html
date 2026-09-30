@@ -106,9 +106,6 @@
     --t:      .22s;
     --t-slow: .38s;
 
-    /* 痛点编号水印色（46px 大文本 ≥3:1，浏览器实测调定：
-       34% 混出仅 1.7:1 太淡；浅色 70% / 暗色 60% 实测 3.5:1 / 3.6:1） */
-    --num-tint: color-mix(in oklab, var(--accent) 70%, var(--surface));
   }
 
   *,*::before,*::after{ box-sizing:border-box; }
@@ -484,7 +481,7 @@
   #pain .tile::before{ content:counter(pain, decimal-leading-zero); counter-increment:pain;
                display:block; font-family:var(--font-display); font-size:46px;
                font-weight:800; line-height:1; letter-spacing:-0.03em;
-               color:var(--num-tint);
+               color:var(--accent);   /* 品牌钴蓝，浅 5.2:1 / 暗 6+:1 */
                margin-bottom:12px; }
   #pain .tile:hover{ border-color:var(--accent); }
 
@@ -710,6 +707,12 @@
   @keyframes idlePulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.07); } }
 
   #what .step::after{ animation:idleFlow 2.4s ease-in-out infinite; }
+
+  /* 触屏无 hover：按压态替代（transform 缩一下 = 「按到了」） */
+  @media (hover:none){
+    .tile:active, .limits div:active, .step:active, .metric:active{
+      transform:scale(.98); }
+  }
   #what .step:nth-child(2)::after{ animation-delay:.4s; }
   @keyframes idleFlow{
     0%,100%{ transform:translateY(-50%) translateX(0); opacity:1; }
@@ -848,8 +851,6 @@
       --stay: #8a82e9;    --note-ink: #cc7200; --note-soft: #2d1a0a; --note-line: #5a3f14;
       --unknown-ink: #939aa1;  --c-ctrl: #70767c;  --c-ref: #62676c;
 
-      /* 暗色编号水印：accent 已是亮蓝，60% 实测 3.6:1（70% 会过亮抢正文） */
-      --num-tint: color-mix(in oklab, var(--accent) 60%, var(--surface));
   }
 </style>
 <script>
