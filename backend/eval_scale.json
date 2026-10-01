@@ -1,0 +1,55 @@
+{
+  "purpose": "规模对照：启发式 vs CP-SAT（面试质询「50 个景点还快吗」的实测回答）",
+  "note": "合成坐标=真实西安景点确定性抖动（性能夹具）；通勤=haversine 直线估算（与线上一致）",
+  "rows": [
+    {
+      "n": 8,
+      "days": 3,
+      "heur_ms_median": 502.4,
+      "heur_score": 60.9,
+      "heur_unplaced": 0,
+      "cpsat_s": 0.13,
+      "cpsat_status": "OPTIMAL",
+      "cpsat_score": 60.9,
+      "cpsat_unplaced": 0,
+      "time_limit_s": 30
+    },
+    {
+      "n": 14,
+      "days": 3,
+      "heur_ms_median": 1197.2,
+      "heur_score": 94.4,
+      "heur_unplaced": 2,
+      "cpsat_s": 30.11,
+      "cpsat_status": "FEASIBLE",
+      "cpsat_score": 94.4,
+      "cpsat_unplaced": 2,
+      "time_limit_s": 30
+    },
+    {
+      "n": 25,
+      "days": 3,
+      "heur_ms_median": 1505.4,
+      "heur_score": 106.5,
+      "heur_unplaced": 12,
+      "cpsat_s": 60.26,
+      "cpsat_status": "FEASIBLE",
+      "cpsat_score": 105.5,
+      "cpsat_unplaced": 12,
+      "time_limit_s": 60
+    },
+    {
+      "n": 50,
+      "days": 3,
+      "heur_ms_median": 1507.6,
+      "heur_score": 117.8,
+      "heur_unplaced": 35,
+      "cpsat_s": 120.81,
+      "cpsat_status": "FEASIBLE",
+      "cpsat_score": 122.8,
+      "cpsat_unplaced": 35,
+      "time_limit_s": 120
+    }
+  ],
+  "speedup_at_14": 25.2
+}

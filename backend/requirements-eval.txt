@@ -2,7 +2,7 @@
 ortools==9.12.4544
 numpy==2.5.3
 pandas==3.0.6
-protobuf==7.36.2
+protobuf==5.29.6   # ortools 9.12 要求 protobuf<6；7.36.2 与它 ResolutionImpossible（2026-09-30 实测修复）
 absl-py==2.5.0
 immutabledict==4.3.1
 python-dateutil==2.9.0
