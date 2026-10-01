@@ -14,6 +14,7 @@ import re
 from functools import lru_cache
 
 from demo_data import DEMO_SPOTS
+from models import Spot
 from food_seeds import FOOD_SEEDS
 
 _K1, _B = 1.5, 0.75          # Okapi BM25 标准参数
@@ -91,6 +92,49 @@ def _index_cached() -> _Index:
     return _Index(build_corpus())
 
 
+# ---- R2 引用核查：每条引用必须落到库内可对齐实体（反幻觉闸门）----
+# 语料当前 100% 来自库内，"必过"是机制旁证；闸门真正兜底的是未来
+# 语料混入外部文本（攻略识别 / 网页抓取）的场景——对不上一律 verified=False。
+
+def _norm(name: str) -> str:
+    """归一化：剥括号内容（馆区/分馆后缀）→ 去标点空白 → 小写（对齐器同思路）。"""
+    s = re.sub(r"[（(【\[].*?[)）\]】]", "", name)
+    return _PUNCT.sub("", s).lower()
+
+
+@lru_cache(maxsize=1)
+def _entity_index() -> tuple[dict[tuple[str, str], Spot],
+                             dict[tuple[str, str], None]]:
+    """{(city, 归一名): Spot} 与 {(city, 归一名): None}（美食无坐标语义）。"""
+    spots: dict[tuple[str, str], Spot] = {}
+    for city, spot_list in DEMO_SPOTS.items():
+        for s in spot_list:
+            spots.setdefault((city, _norm(s.name)), s)
+    foods: dict[tuple[str, str], None] = {}
+    for city, food_list in FOOD_SEEDS.items():
+        for name, _intro in food_list:
+            foods.setdefault((city, _norm(name)), None)
+    return spots, foods
+
+
+def verify_citation(doc: dict[str, object]) -> dict[str, object]:
+    """单条引用核查：景点 → 库内对齐出真实坐标；美食 → 库内对齐即可。
+
+    对不上库内实体一律 verified=False（宁可标失败，不假装可核查）。
+    """
+    city = str(doc.get("city", ""))
+    name = str(doc.get("name", ""))
+    spots, foods = _entity_index()
+    key = (city, _norm(name))
+    if doc.get("type") == "美食":
+        ok = key in foods
+        return {"verified": ok, "lat": None, "lon": None}
+    spot = spots.get(key)
+    if spot is None:
+        return {"verified": False, "lat": None, "lon": None}
+    return {"verified": True, "lat": float(spot.lat), "lon": float(spot.lon)}
+
+
 def ask(q: str, city: str | None = None, k: int = 5) -> dict:
     """检索问答：返回带来源引用的结果（R2 将在条目上再做库内对齐核查）。"""
     from cities import normalize_city
@@ -108,7 +152,10 @@ def ask(q: str, city: str | None = None, k: int = 5) -> dict:
         "type": d["type"], "city": d["city"], "name": d["name"],
         "text": d["text"], "source": d["source"], "score": round(s, 3),
     } for d, s in scored[:kk]]
+    for r in results:                       # R2：引用核查（verified + 坐标落地）
+        r.update(verify_citation(r))
     return {
         "q": q, "city": city_n or None, "k": kk, "results": results,
+        "verified_count": sum(1 for r in results if r["verified"]),
         "index": {"docs": index.n, "cities": len(DEMO_SPOTS)},
     }
