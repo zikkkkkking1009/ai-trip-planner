@@ -38,7 +38,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | 项 | 值 |
 |----|----|
 | Python（托管，优先） | `C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe`（**裸 `python` 没有 pytest，必须用这个绝对路径**） |
-| Node（托管） | `C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2-3\node.exe`（`node` 在 PATH 上可直接用） |
+| Node（托管） | `C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2-5\node.exe`（**不在 PATH**，2026-10-02 实测须用全路径） |
 | jsdom 安装位置 | `C:\Users\Administrator\.workbuddy\binaries\node\workspace\node_modules`（`tools/` 下亦可解析） |
 | git | `E:\安装软件\Git\cmd\git.exe`（`git version 2.55.0.windows.5`，能连通 GitHub） |
 | 服务端口 | 8000，前端 `http://127.0.0.1:8000/app`（`/` 是首页） |
