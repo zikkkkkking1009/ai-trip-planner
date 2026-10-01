@@ -1,0 +1,46 @@
+{
+  "golden_n": 30,
+  "bm25": {
+    "method": "BM25+bigram（现线基线）",
+    "ranks": [
+      1,
+      1,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      null,
+      1,
+      null,
+      1,
+      null,
+      1,
+      1,
+      null,
+      null,
+      null,
+      null,
+      null,
+      6,
+      1
+    ],
+    "n": 30,
+    "hit1_pct": 66.7,
+    "hit5_pct": 70.0,
+    "mrr": 0.689
+  },
+  "vector": {
+    "method": "向量余弦",
+    "error": "不可用：Error code: 429 - {'error': {'code': '1113', 'message': '余额不足或无可用资源包,请充值。'}}"
+  }
+}
