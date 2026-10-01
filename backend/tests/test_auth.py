@@ -83,9 +83,10 @@ def test_all_write_endpoints_are_protected(with_token):
     这条比逐个写死的用例更难绕过 —— 将来新增写接口时，只要忘了加依赖，
     这里就会红。判据：除白名单外，凡是有副作用/花钱的路径都必须 401。
     """
-    # 留开清单（与 main.py 的注释一致）：监控、页面、静态、演示数据、城市表、服务状态
+    # 留开清单（与 main.py 的注释一致）：监控、页面、静态、演示数据、城市表、
+    # 语料检索（/ask 零 Key 只读，数据与 /demo/spots 同源公开）、服务状态
     open_paths = {"/health", "/", "/app", "/meta", "/cities",
-                  "/demo/spots", "/demo/config", "/static",
+                  "/demo/spots", "/demo/config", "/ask", "/static",
                   # FastAPI 自带的接口文档：**刻意留开**，不是漏网。
                   # ① 首页 footer 有意链到 /docs（作品集要展示 Swagger UI）；
                   # ② 文档只暴露接口形状，不泄露任何 Key；

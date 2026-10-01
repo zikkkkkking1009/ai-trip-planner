@@ -32,6 +32,7 @@ BACKEND = Path(__file__).resolve().parent.parent / "backend"
 LOG_EXEMPT_MODULES = {
     "models.py", "cities.py", "constraint_check.py", "demo_data.py",
     "food_seeds.py",  # 纯数据种子表，无 I/O 无分支（同 cities.py 口径）
+    "rag.py",         # 纯检索计算：语料来自内存数据，无 I/O 无分支
     "logging_setup.py",  # 它本身就是日志配置，再取 logger 无意义
     "media_cache.py",    # 只有读写与降级，关键失败已 log.warning（保留在豁免表是防未来改动）
     "fetch_spot_details.py",  # 一次性脚本：用 print 输出进度
