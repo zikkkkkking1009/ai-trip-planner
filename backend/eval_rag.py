@@ -2,9 +2,11 @@
 
 口径（ROADMAP R3，延续「发现瓶颈→假设→改造→对照」）：
 - 检索全库（不做城市过滤——golden query 大多不含城市名，对两种方法公平）；
-- BM25 = rag.ask 现线基线；向量 = 语料文本 + 查询各取 embedding，余弦全库排序；
-- embedding 走 LLM_FAST_* 通道（OpenAI 兼容 /embeddings，模型 embedding-3），
-  **语料向量一次性缓存进 data/rag_embed_cache.json**（gitignore），重跑零花费；
+- 三臂对照：BM25（rag.ask 现线基线）｜BM25 top-20 取候选→向量余弦重排（评审口径的「向量重排」）｜
+  纯向量余弦全库排序（诊断用，看两法互补性）；
+- embedding 通道可配置：优先 EMBED_API_KEY/EMBED_BASE_URL/EMBED_MODEL（OpenAI 兼容
+  /embeddings，如硅基流动 BAAI/bge-m3 免费档），未配置回退 LLM_FAST_*/LLM_*（智谱 embedding-3）；
+  **语料向量一次性缓存进 data/rag_embed_cache.json**（gitignore，按模型隔离），重跑零花费；
 - 指标函数为纯函数，有单测（test_rag_eval.py），embedding 调用不进测试。
 
 用法：cd backend && python eval_rag.py   →  backend/eval_rag.json
@@ -72,23 +74,31 @@ def eval_bm25(golden: list[dict[str, str]]) -> dict:
     return {"method": "BM25+bigram（现线基线）", "ranks": ranks, **metrics(ranks)}
 
 
-def _llm_fast() -> tuple[OpenAI, str]:
+def _embed_channel() -> tuple[OpenAI, str]:
+    """取向量通道：优先 EMBED_*（专用 embedding 通道），回退 LLM_FAST_*/LLM_*。"""
     from commute import load_env_file
     for k, v in load_env_file().items():     # 先落 .env 再读（顺序反了必假报未配置）
         os.environ.setdefault(k, v)
     import openai
-    api_key = os.environ.get("LLM_FAST_API_KEY") or os.environ.get("LLM_API_KEY")
-    base_url = os.environ.get("LLM_FAST_BASE_URL") or os.environ.get("LLM_BASE_URL")
+    api_key = (os.environ.get("EMBED_API_KEY") or os.environ.get("LLM_FAST_API_KEY")
+               or os.environ.get("LLM_API_KEY"))
+    base_url = (os.environ.get("EMBED_BASE_URL") or os.environ.get("LLM_FAST_BASE_URL")
+                or os.environ.get("LLM_BASE_URL"))
     if not api_key or not base_url:
-        raise RuntimeError("未配置 LLM_FAST_*/LLM_* 通道，无法取向量")
-    return openai.OpenAI(api_key=api_key, base_url=base_url, timeout=30), EMBED_MODEL
+        raise RuntimeError("未配置 EMBED_*/LLM_FAST_*/LLM_* 通道，无法取向量")
+    model = os.environ.get("EMBED_MODEL") or EMBED_MODEL
+    return openai.OpenAI(api_key=api_key, base_url=base_url, timeout=30), model
 
 
 def _embed_cached(client: OpenAI, model: str, texts: list[str]) -> list[list[float]]:
-    """带磁盘缓存的批量取向量：同文本永不二次计费。"""
+    """带磁盘缓存的批量取向量：同文本永不二次计费；缓存按模型隔离，换模型自动重建。"""
     cache: dict[str, list[float]] = {}
     if CACHE_FILE.exists():
-        cache = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        old = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        if old.get("model") == model:
+            cache = old["vectors"]
+        else:
+            print(f"  缓存属于旧模型 {old.get('model')}，弃用重建")
     missing = [t for t in texts if t not in cache]
     print(f"  向量缓存命中 {len(texts) - len(missing)}/{len(texts)}，需新取 {len(missing)} 条")
     for i in range(0, len(missing), BATCH):
@@ -106,7 +116,7 @@ def _embed_cached(client: OpenAI, model: str, texts: list[str]) -> list[list[flo
                 time.sleep(2 * attempt)
         print(f"  已取 {min(i + BATCH, len(missing))}/{len(missing)}")
         CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CACHE_FILE.write_text(json.dumps(cache), encoding="utf-8")
+        CACHE_FILE.write_text(json.dumps({"model": model, "vectors": cache}), encoding="utf-8")
     return [cache[t] for t in texts]
 
 
@@ -120,7 +130,8 @@ def _cosine(a: list[float], b: list[float]) -> float:
 def eval_vector(golden: list[dict[str, str]]) -> dict:
     docs = build_corpus()
     texts = [d["text"] for d in docs]
-    client, model = _llm_fast()
+    client, model = _embed_channel()
+    print(f"  向量通道模型：{model}")
     doc_vecs = _embed_cached(client, model, texts)
     q_vecs = _embed_cached(client, model, [e["q"] for e in golden])
     ranks = []
@@ -131,20 +142,43 @@ def eval_vector(golden: list[dict[str, str]]) -> dict:
     return {"method": f"向量余弦（{model}，无重排直接全库）", "ranks": ranks, **metrics(ranks)}
 
 
+def eval_rerank(golden: list[dict[str, str]], k: int = 20) -> dict:
+    """评审口径的「向量重排」臂：BM25 取 top-k 候选，再按向量余弦重排。"""
+    docs = build_corpus()
+    idx = {(d["name"], d["city"]): i for i, d in enumerate(docs)}
+    client, model = _embed_channel()
+    doc_vecs = _embed_cached(client, model, [d["text"] for d in docs])
+    q_vecs = _embed_cached(client, model, [e["q"] for e in golden])
+    ranks = []
+    for e, qv in zip(golden, q_vecs):
+        res = ask(e["q"], k=k)["results"]
+        # (重排键, 原名次, 条目)：键同则保 BM25 序；候选缺向量（不在语料）置最后
+        scored = sorted(
+            (-_cosine(qv, doc_vecs[idx[(r["name"], r["city"])]])
+             if (r["name"], r["city"]) in idx else 1e9, i, r)
+            for i, r in enumerate(res)
+        )
+        ranks.append(rank_of(e, [r for _, _, r in scored]))
+    return {"method": f"BM25 top-{k} → 向量重排（{model}）", "ranks": ranks, **metrics(ranks)}
+
+
 def main() -> None:
     golden = load_golden()
     print(f"golden {len(golden)} 条")
     bm = eval_bm25(golden)
     print(f"BM25 : hit@1={bm['hit1_pct']}% hit@5={bm['hit5_pct']}% MRR={bm['mrr']}")
-    try:
-        vec = eval_vector(golden)
-        print(f"向量 : hit@1={vec['hit1_pct']}% hit@5={vec['hit5_pct']}% MRR={vec['mrr']}")
-    except Exception as e:
-        # 向量臂失败不影响 BM25 基线——降级为 error 记录继续落盘（典型为外部配额问题，非代码缺陷）
-        log.warning("向量臂不可用，降级为 error 记录：%s", e)
-        vec = {"method": "向量余弦", "error": f"不可用：{e}"}
-        print(f"向量 : 不可用（{e}）—— BM25 结果照常落盘")
-    out = {"golden_n": len(golden), "bm25": bm, "vector": vec}
+    arms: dict[str, dict] = {}
+    for key, fn, label in (("rerank", eval_rerank, "重排"), ("vector", eval_vector, "向量")):
+        try:
+            arms[key] = fn(golden)
+            print(f"{label} : hit@1={arms[key]['hit1_pct']}% "
+                  f"hit@5={arms[key]['hit5_pct']}% MRR={arms[key]['mrr']}")
+        except Exception as e:
+            # 向量相关臂失败不影响 BM25 基线——降级为 error 记录继续落盘（典型为外部配额/网络问题，非代码缺陷）
+            log.warning("%s 臂不可用，降级为 error 记录：%s", label, e)
+            arms[key] = {"method": label, "error": f"不可用：{e}"}
+            print(f"{label} : 不可用（{e}）—— BM25 结果照常落盘")
+    out = {"golden_n": len(golden), "bm25": bm, **arms}
     OUT_FILE.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"已写入 {OUT_FILE}")
 

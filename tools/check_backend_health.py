@@ -52,7 +52,7 @@ RETRY_EXEMPT_FUNCS = {
                         "且一次可恢复的限流不该把状态定死成不可用",
     "_fetch": "天气模块：本身作为 retry_call 的入参，重试包在 daily_weather() 里",
     "_llm": "只是构造客户端，实际调用点在 parse_instruction/generate_reviews 里已包 retry_call",
-    "_llm_fast": "只是构造客户端，实际调用点 _embed_cached 自带 3 次退避重试（RAG 评测脚本）",
+    "_embed_channel": "只是构造客户端，实际调用点 _embed_cached 自带 3 次退避重试（RAG 评测脚本）",
     "fake": "bench/eval 脚本内的假客户端（离线压测用）",
     "_with_provider": "bench 脚本，重试会干扰延迟测量",
     "llm_baseline_plan": "离线评估脚本，失败即记为该场景失败",
