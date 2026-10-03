@@ -41,6 +41,12 @@ const FIXTURE = {
   },
 };
 
+/* /cities 的 stub 响应。为什么必须单独给：页面初始化时会先拉城市列表建下拉，
+   若 stub 一律回 /ask 的 fixture，d.cities 为 undefined → CITIES 为空数组 →
+   城市限定功能整条链路静默失效，而其余 20 多条断言照样全绿。
+   这是「显示绿但没覆盖」的坑，必须让这条路径真的被走到。 */
+const CITY_LIST = ['西安', '青岛', '大理', '拉萨', '杭州', '张家界'];
+
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
   if (cond) { pass++; console.log('  ✓ ' + name); }
@@ -52,7 +58,8 @@ function ok(name, cond, extra) {
    hero 动效的真机断言在 tools/hero_motion_check.js。 */
 const IGNORE = /getContext|Not implemented/i;
 
-function boot(handler) {
+function boot(handler, opts) {
+  const citiesFail = !!(opts && opts.citiesFail);
   const html = fs.readFileSync(HTML_PATH, 'utf-8');
   const vc = new VirtualConsole();
   const errs = [];
@@ -64,10 +71,22 @@ function boot(handler) {
     // 关键：stub 必须在页面脚本执行之前注入（jsdom 在构造时就运行 <script>）
     beforeParse(w) {
       w.fetch = function (u) {
-        state.url = String(u);
+        const url = String(u);
+        if (url.indexOf('/cities') >= 0) {
+          if (citiesFail) {
+            return Promise.resolve({
+              ok: false, status: 503, json: () => Promise.resolve({}),
+            });
+          }
+          return Promise.resolve({
+            ok: true, status: 200,
+            json: () => Promise.resolve({ cities: CITY_LIST }),
+          });
+        }
+        state.url = url;          // 只记录 /ask，避免被初始化请求覆盖
         return Promise.resolve({
           ok: true, status: 200,
-          json: () => Promise.resolve(handler(state.url)),
+          json: () => Promise.resolve(handler(url)),
         });
       };
     },
@@ -211,6 +230,71 @@ async function main() {
     ok('语料里的标签被转义（无注入元素）',
        w.document.querySelectorAll('.askitem img, .askitem script, .askans b').length === 0);
     ok('转义后原文仍可读', outText(w).includes('<script>'));
+  }
+
+  // 10. 城市范围限定 —— 跨城市污染的止血
+  //     「西安有什么好吃的」在全库检索下会靠 "吃的" 这个 bigram 把青岛·流亭猪蹄
+  //     捞到第 1（实测打分 6.937 vs 西安博物院 5.955）。限定城市后污染消失。
+  const askForm = w => w.document.getElementById('askForm');
+  const askCity = w => w.document.getElementById('askCity');
+  const submitWith = (w, q) => {
+    w.document.getElementById('askInput').value = q;
+    askForm(w).dispatchEvent(new w.Event('submit', { cancelable: true }));
+  };
+  const cityParam = url => {
+    const m = /city=([^&]*)/.exec(url || '');
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+
+  {
+    const { w, state } = boot(withAnswer(FIXTURE));
+    await wait(60);   // 等 /cities 的 stub 响应落地，否则 CITIES 还是空数组
+    if (!askCity(w)) {
+      // 没有城市下拉的旧版本：干净判负并跳过这组，不要崩在 TypeError 上
+      ok('城市下拉已填充（含「不限城市」）', false, '#askCity 不存在');
+      console.log('\n' + pass + '/' + (pass + fail) + ' 项通过\n');
+      process.exit(1);
+    }
+    ok('城市下拉已填充（含「不限城市」）',
+       askCity(w).options.length === CITY_LIST.length + 1,
+       '实际 ' + askCity(w).options.length);
+
+    submitWith(w, '西安有什么好吃的');
+    await wait(60);
+    ok('问题含城市名 → 自动限定该城市',
+       cityParam(state.url) === '西安', state.url);
+    ok('限定后 URL 仍带查询词', /q=/.test(state.url || ''), state.url);
+  }
+
+  {
+    const { w, state } = boot(withAnswer(FIXTURE));
+    await wait(60);
+    askCity(w).value = '青岛';
+    askCity(w).dispatchEvent(new w.Event('change'));   // 手动选择 → 以用户为准
+    submitWith(w, '西安有什么好吃的');
+    await wait(60);
+    ok('手动选过城市 → 不被 query 里的城市名覆盖',
+       cityParam(state.url) === '青岛', state.url);
+  }
+
+  {
+    const { w, state } = boot(withAnswer(FIXTURE));
+    await wait(60);
+    submitWith(w, '乳扇是什么');        // 不含任何城市名
+    await wait(60);
+    ok('问题不含城市名 → 不限定（URL 无 city）',
+       cityParam(state.url) === null, state.url);
+    ok('不限定时仍能正常检索', /\/ask\?q=/.test(state.url || ''), state.url);
+  }
+
+  // 10d. /cities 取不到时的降级：不能挡住主流程
+  {
+    const { w, state, errs } = boot(withAnswer(FIXTURE), { citiesFail: true });
+    await wait(60);
+    submitWith(w, '西安有什么好吃的');
+    await wait(60);
+    ok('城市列表取不到时不报错', errs.length === 0, errs.join(' | '));
+    ok('城市列表取不到时检索照常可用', /\/ask\?q=/.test(state.url || ''), state.url);
   }
 
   console.log('\n' + pass + '/' + (pass + fail) + ' 项通过\n');

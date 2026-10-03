@@ -640,6 +640,11 @@
             border:1px solid var(--border); border-radius:var(--r); }
   .askbar input[type=text]::placeholder { color:var(--muted-3); }
   .askbar input[type=text]:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .askbar select { flex:0 0 auto; max-width:120px; font:inherit; font-size:14px;
+            padding:11px 10px; color:var(--fg); background:var(--bg);
+            border:1px solid var(--border); border-radius:var(--r); cursor:pointer; }
+  .askbar select:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .askscope { font-size:12px; color:var(--muted-3); padding:9px 18px 0; }
   .askchips { display:flex; flex-wrap:wrap; gap:8px; align-items:center;
               padding:12px 18px; border-bottom:1px solid var(--border); }
   .askchip { font:inherit; font-size:13px; padding:6px 12px; cursor:pointer;
@@ -1561,8 +1566,12 @@
         <form class="askbar" id="askForm" autocomplete="off">
           <input type="text" id="askInput" aria-label="想问什么" maxlength="60"
                  placeholder="比如：乳扇是什么 / 大同古城 / 重庆夜景去哪">
+          <select id="askCity" aria-label="城市范围">
+            <option value="">不限城市</option>
+          </select>
           <button type="submit" class="btn btn-primary" id="askGo">检索</button>
         </form>
+        <div class="askscope" id="askScope">全库 38 城检索；问题里带城市名会自动限定范围。</div>
         <div class="askchips" id="askChips"></div>
         <label class="askopt"><input type="checkbox" id="askGen"> 生成答案（额外调用一次大模型）</label>
         <div class="askout" id="askOut"><div class="askhint">滚动到此处才建立索引，不拖累首屏…</div></div>
@@ -1881,9 +1890,44 @@ function loadMeta() {
   var chips = document.getElementById('askChips');
   var genBox = document.getElementById('askGen');
   var go = document.getElementById('askGo');
+  var citySel = document.getElementById('askCity');
+  var scope = document.getElementById('askScope');
   if (!out || !bar || !field) return;
 
   var lastAt = 0, genLeft = GEN_QUOTA;
+
+  /* 城市范围：默认全库检索，但「西安有什么好吃的」这类问题里带着城市名，
+     不限定的话会靠 "吃的" 这种无意义 bigram 把青岛的菜捞到第一条（实测过）。
+     所以问题里出现城市名就自动限定 —— 用户手动改过下拉则以用户为准。 */
+  var CITIES = [], userPicked = false;
+
+  function updateScope() {
+    if (!scope) return;
+    scope.textContent = citySel && citySel.value
+      ? '限定在 ' + citySel.value + '；清空下拉可回到全库检索。'
+      : '全库 ' + (CITIES.length || 38) + ' 城检索；问题里带城市名会自动限定范围。';
+  }
+
+  function autoCity(q) {
+    for (var i = 0; i < CITIES.length; i++) {
+      if (q.indexOf(CITIES[i]) >= 0) { citySel.value = CITIES[i]; return; }
+    }
+    citySel.value = '';
+  }
+
+  if (citySel) {
+    fetch('/cities').then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        CITIES = (d && d.cities) || [];
+        citySel.innerHTML = '<option value="">不限城市</option>' + CITIES.map(function (c) {
+          return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
+        }).join('');
+        updateScope();
+      })
+      .catch(function () { updateScope(); });  // 取不到就退回纯输入框，不挡主流程
+    citySel.addEventListener('change', function () { userPicked = true; updateScope(); });
+  }
+  field.addEventListener('input', function () { userPicked = false; });
 
   chips.innerHTML = '<span class="askhint">试试：</span>' + EXAMPLES.map(function (q) {
     return '<button type="button" class="askchip" data-q="' + esc(q) + '">' + esc(q) + '</button>';
@@ -1892,6 +1936,7 @@ function loadMeta() {
     var b = e.target && e.target.closest ? e.target.closest('.askchip') : null;
     if (!b) return;
     field.value = b.getAttribute('data-q') || '';
+    userPicked = false;
     run();
   });
   bar.addEventListener('submit', function (e) { e.preventDefault(); run(); });
@@ -1906,6 +1951,10 @@ function loadMeta() {
         + Math.ceil(wait / 1000) + ' 秒后再试。</div>';
       return;
     }
+    var city = '';
+    if (citySel && CITIES.length && !userPicked) { autoCity(q); updateScope(); }
+    if (citySel) city = citySel.value || '';
+
     var wantGen = !!(genBox && genBox.checked);
     if (wantGen && genLeft <= 0) {
       out.innerHTML = '<div class="askerr">本页的生成演示次数用完了（每人 ' + GEN_QUOTA
@@ -1917,7 +1966,9 @@ function loadMeta() {
     if (go) go.disabled = true;
     out.innerHTML = '<div class="askhint">检索中…</div>';
 
-    fetch('/ask?q=' + encodeURIComponent(q) + '&k=5' + (wantGen ? '&with_answer=1' : ''))
+    fetch('/ask?q=' + encodeURIComponent(q) + '&k=5'
+      + (city ? '&city=' + encodeURIComponent(city) : '')
+      + (wantGen ? '&with_answer=1' : ''))
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
