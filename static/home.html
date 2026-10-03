@@ -627,8 +627,60 @@
   .stat.is-ok .v { color:var(--ok-ink); }
   .stat.is-na .v { color:var(--warn-ink); }
   .stat.is-unknown .v { color:var(--unknown-ink); }   /* 探测没结论：不是好也不是坏 */
+
+  /* ---- 检索问答演示：把 /ask 摊开成人能试的样子 ----
+     与「接口清单」同一套纪律：结果是运行时真实接口的返回，不是写死在页面里的样例。
+     此前 R1~R4 把检索层做完了，但页面上没有入口 —— 等于「做了但演示不出来」。 */
+  .askbox { margin-top:36px; border:1px solid var(--border); border-radius:var(--r);
+            background:var(--surface); overflow:hidden; }
+  .askbar { display:flex; gap:10px; flex-wrap:wrap; padding:16px 18px;
+            border-bottom:1px solid var(--border); }
+  .askbar input[type=text] { flex:1 1 280px; min-width:0; font:inherit; font-size:15px;
+            padding:11px 14px; color:var(--fg); background:var(--bg);
+            border:1px solid var(--border); border-radius:var(--r); }
+  .askbar input[type=text]::placeholder { color:var(--muted-3); }
+  .askbar input[type=text]:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .askchips { display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+              padding:12px 18px; border-bottom:1px solid var(--border); }
+  .askchip { font:inherit; font-size:13px; padding:6px 12px; cursor:pointer;
+             color:var(--muted-2); background:var(--fill);
+             border:1px solid var(--border); border-radius:999px; }
+  .askchip:hover { color:var(--accent-deep); background:var(--accent-soft);
+                   border-color:var(--accent-line); }
+  .askopt { display:flex; align-items:center; gap:8px; padding:11px 18px;
+            font-size:13px; color:var(--muted-2); border-bottom:1px solid var(--border); }
+  .askopt input { accent-color:var(--accent-solid); }
+  .askout { padding:16px 18px; }
+  .askhint { font-size:13px; color:var(--muted-3); line-height:1.6; }
+  .askerr  { font-size:13px; color:var(--bad-ink); line-height:1.6; }
+  .askans { background:var(--fill); border:1px solid var(--border);
+            border-radius:var(--r); padding:13px 15px; margin-bottom:14px; }
+  .askans .who { font-size:11px; font-weight:700; letter-spacing:.06em;
+                 text-transform:uppercase; color:var(--muted-3); }
+  .askans .txt { margin-top:6px; font-size:15px; line-height:1.65; color:var(--fg); }
+  .askgate { display:inline-flex; align-items:center; gap:6px; margin-top:9px;
+             font-size:12px; padding:3px 9px; border-radius:5px; }
+  .askgate.ok  { color:var(--ok-ink);  background:var(--ok-soft);  border:1px solid var(--ok-line); }
+  .askgate.bad { color:var(--bad-ink); background:var(--bad-soft); border:1px solid var(--bad-line); }
+  .askgate.na  { color:var(--muted-2); background:var(--fill);    border:1px solid var(--border); }
+  .asklist { display:flex; flex-direction:column; }
+  .askitem { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px;
+             align-items:baseline; padding:11px 0; border-bottom:1px solid var(--border); }
+  .askitem:last-child { border-bottom:none; }
+  .askitem .nm { font-size:14px; font-weight:600; }
+  .askitem .tx { margin-top:4px; font-size:13px; color:var(--muted); line-height:1.55; }
+  .askitem .sc { font-size:12px; color:var(--muted-3); white-space:nowrap;
+                 font-variant-numeric:tabular-nums; }
+  .askv { margin-left:7px; font-size:11px; font-weight:700; letter-spacing:.04em;
+          padding:2px 7px; border-radius:4px; }
+  .askv.y { color:var(--ok-ink);   background:var(--ok-soft);   border:1px solid var(--ok-line); }
+  .askv.n { color:var(--warn-ink); background:var(--warn-soft); border:1px solid var(--border); }
   @media (max-width:900px){
     .statgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:560px){
+    .askitem { grid-template-columns:minmax(0,1fr); }
+    .askitem .sc { white-space:normal; }
   }
   @media (max-width:560px){
     .statgrid { grid-template-columns:1fr; }
@@ -1495,6 +1547,35 @@
     </div>
   </section>
 
+  <!-- 检索问答：R1~R4 把检索层做完了，但页面上没有入口 ——
+       面试官一句「演示一下 RAG」只能现开终端，等于没做。这里把它摊开成能直接试的样子。 -->
+  <section id="ask" class="sec-sm">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <span class="sec-kicker">现场试一下</span>
+        <h2 style="margin-top:14px">不信？自己问一句</h2>
+        <p>38 城 375 个景点加 223 条美食是真在库里的，检索不依赖任何 Key；
+           勾选「生成答案」会多调一次大模型，然后立刻对答案做一次引用回链核查。</p>
+      </div>
+      <div class="askbox reveal">
+        <form class="askbar" id="askForm" autocomplete="off">
+          <input type="text" id="askInput" aria-label="想问什么" maxlength="60"
+                 placeholder="比如：乳扇是什么 / 大同古城 / 重庆夜景去哪">
+          <button type="submit" class="btn btn-primary" id="askGo">检索</button>
+        </form>
+        <div class="askchips" id="askChips"></div>
+        <label class="askopt"><input type="checkbox" id="askGen"> 生成答案（额外调用一次大模型）</label>
+        <div class="askout" id="askOut"><div class="askhint">滚动到此处才建立索引，不拖累首屏…</div></div>
+      </div>
+      <p class="table-note">
+        结果是 <code>GET /ask</code> 的实时返回，不是写死在页面里的样例。
+        「引用回链核查」是一道防幻觉闸门：答案里提到的每个库内实体都必须出现在本次引用的片段里，
+        否则标为未落地 —— 宁可漏报，不误报。生成层对 API 默认关闭（公开接口不该自动烧配额），
+        这个演示框是显式把它打开给你看。
+      </p>
+    </div>
+  </section>
+
   <!-- 怎么工作 -->
   <section id="how">
     <div class="wrap">
@@ -1785,6 +1866,123 @@ function loadMeta() {
     }
   });
 }
+
+/* 检索问答演示：R1 检索 + R4 grounded 生成。
+   与接口清单同一套懒加载策略（滚到附近才动），失败时把原因说清楚而不是留个空框。
+   两道自我保护：① 3 秒冷却——额度是全场共享的；② 每人 8 次生成上限——
+   生成要花钱，纯检索不花钱、不设限。 */
+(function () {
+  var EXAMPLES = ['乳扇是什么', '大同古城', '重庆夜景去哪', '西安有哪些博物馆'];
+  var COOLDOWN_MS = 3000, GEN_QUOTA = 8;
+
+  var out = document.getElementById('askOut');
+  var bar = document.getElementById('askForm');
+  var field = document.getElementById('askInput');
+  var chips = document.getElementById('askChips');
+  var genBox = document.getElementById('askGen');
+  var go = document.getElementById('askGo');
+  if (!out || !bar || !field) return;
+
+  var lastAt = 0, genLeft = GEN_QUOTA;
+
+  chips.innerHTML = '<span class="askhint">试试：</span>' + EXAMPLES.map(function (q) {
+    return '<button type="button" class="askchip" data-q="' + esc(q) + '">' + esc(q) + '</button>';
+  }).join('');
+  chips.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('.askchip') : null;
+    if (!b) return;
+    field.value = b.getAttribute('data-q') || '';
+    run();
+  });
+  bar.addEventListener('submit', function (e) { e.preventDefault(); run(); });
+
+  function run() {
+    var q = (field.value || '').trim();
+    if (!q) { out.innerHTML = '<div class="askhint">先输入点什么，或者直接点上面的示例。</div>'; return; }
+
+    var wait = COOLDOWN_MS - (Date.now() - lastAt);
+    if (wait > 0) {
+      out.innerHTML = '<div class="askhint">慢一点 —— 这个演示接口是全场共享的，'
+        + Math.ceil(wait / 1000) + ' 秒后再试。</div>';
+      return;
+    }
+    var wantGen = !!(genBox && genBox.checked);
+    if (wantGen && genLeft <= 0) {
+      out.innerHTML = '<div class="askerr">本页的生成演示次数用完了（每人 ' + GEN_QUOTA
+        + ' 次）。取消勾选「生成答案」可以继续纯检索 —— 那部分不花钱。</div>';
+      return;
+    }
+    if (wantGen) genLeft--;
+    lastAt = Date.now();
+    if (go) go.disabled = true;
+    out.innerHTML = '<div class="askhint">检索中…</div>';
+
+    fetch('/ask?q=' + encodeURIComponent(q) + '&k=5' + (wantGen ? '&with_answer=1' : ''))
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(render)
+      .catch(function (err) {
+        out.innerHTML = '<div class="askerr">取不到结果（' + esc(err.message)
+          + '）。它由服务端实时检索生成，服务没起来时自然取不到。</div>';
+      })
+      .then(function () { if (go) go.disabled = false; });
+  }
+
+  function gateOf(a) {
+    if (a.grounded === true) return ['ok', '已通过引用回链核查'];
+    if (a.grounded === false) return ['bad', '未落地：' + (a.outside || []).join('、')];
+    return ['na', '未核查'];
+  }
+
+  function render(d) {
+    var html = '';
+    var a = d.answer;
+    if (a) {
+      if (a.text) {
+        var g = gateOf(a);
+        html += '<div class="askans"><div class="who">生成答案'
+          + (a.model ? ' · ' + esc(a.model) : '') + '</div>'
+          + '<div class="txt">' + esc(a.text) + '</div>'
+          + '<div><span class="askgate ' + g[0] + '">' + esc(g[1]) + '</span></div></div>';
+      } else {
+        html += '<div class="askans"><div class="who">生成层</div>'
+          + '<div class="txt" style="color:var(--muted)">这次没生成答案（'
+          + esc(a.note || '未知原因') + '）—— 检索结果照常可用。</div></div>';
+      }
+    }
+    var rs = d.results || [];
+    if (!rs.length) {
+      html += '<div class="askhint">库里没有命中「' + esc(d.q) + '」的条目。换个问法试试。</div>';
+    } else {
+      html += '<div class="asklist">' + rs.map(function (r) {
+        return '<div class="askitem"><div><span class="nm">' + esc(r.name) + '</span>'
+          + '<span class="askv ' + (r.verified ? 'y' : 'n') + '">'
+          + (r.verified ? '已对齐' : '未对齐') + '</span>'
+          + '<div class="tx">' + esc(r.text) + '</div></div>'
+          + '<div class="sc">' + esc(r.city) + ' · ' + esc(r.type) + ' · '
+          + esc(r.score) + '</div></div>';
+      }).join('') + '</div>';
+      html += '<div class="askhint" style="margin-top:12px">命中 ' + rs.length + ' 条、已对齐 '
+        + esc(d.verified_count || 0) + ' 条 · 语料共 ' + esc((d.index || {}).docs || 0) + ' 条</div>';
+    }
+    out.innerHTML = html;
+  }
+
+  // 滚到附近才提示可交互，不让首屏多做一件事
+  if (!('IntersectionObserver' in window)) { out.innerHTML = '<div class="askhint">输入问题后按「检索」。</div>'; return; }
+  var ob = new IntersectionObserver(function (entries) {
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].isIntersecting) {
+        ob.disconnect();
+        out.innerHTML = '<div class="askhint">输入问题，或点上面的示例。</div>';
+        return;
+      }
+    }
+  }, { rootMargin: '300px 0px' });
+  ob.observe(out);
+})();
 
 /* 技术附录默认折叠：带 #api / #status 锚点进来（或点页脚链接）时自动展开，
    否则浏览器会跳到一个「看不见」的位置。 */

@@ -77,6 +77,20 @@ jobs:
           }
           tail -n 3 smoke_hotel.log
 
+      # 首页检索问答演示框的运行时断言。
+      # 立这道门的原因：R1~R4 把检索层做完了却只在后端，页面没有入口 ——
+      # 而「新增一个交互 UI」恰恰是最容易在后续改版中被整块删掉又没人发现的东西。
+      # 这套用例含反向断言（grounded=false 必须标红、LLM 降级不能崩），
+      # 并已验证「拿改动前的 home.html 跑会干净报红」，不是恒绿的摆设。
+      - name: Home Q&A demo runtime smoke test (jsdom)
+        run: |
+          NODE_PATH=tools/node_modules node tools/home_ask_smoke.js > smoke_home_ask.log 2>&1 || {
+            echo "HOME ASK SMOKE FAILED, dumping tail to annotation..."
+            python -c "import urllib.parse; print('::error::' + urllib.parse.quote(open('smoke_home_ask.log', encoding='utf-8', errors='ignore').read()[-1500:]))"
+            exit 1
+          }
+          tail -n 3 smoke_home_ask.log
+
       # ruff / mypy（C3）。为什么必须进 CI：
       # 「缺常量导致接口 500」这类问题能靠肉眼 review 漏掉、也能被单元测试漏掉，
       # 但 pyflakes 一眼就看得到。配置见 backend/ruff.toml 与 backend/mypy.ini。

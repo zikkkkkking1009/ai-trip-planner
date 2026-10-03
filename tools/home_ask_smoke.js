@@ -1,0 +1,220 @@
+/**
+ * 首页「检索问答演示框」的运行时验证（jsdom 真跑脚本，不依赖真浏览器）。
+ *
+ * 为什么必须有这一份：
+ * 静态检查只能证明语法对，证明不了「点了以后真的渲染出东西」。本项目出过一次事故——
+ * `const esc = ...` 遮蔽了全局转义函数 `esc()`，静态检查（语法 / 命名 / 对比度）全绿，
+ * 但详情卡渲染到一半抛错、内容大面积缺失，异常还被 `.catch()` 吞掉。
+ * 所以这里除了正向断言，还给每条闸门配了**反向用例**：反例上也成立才算数。
+ *
+ * 覆盖范围（R1 检索 + R4 grounded 生成层的对外表现）：
+ *   初始渲染 / 默认不烧 LLM / 勾选后才生成 / grounded 徽章三态 /
+ *   LLM 降级不崩 / 零命中 / 请求失败 / 冷却防刷 / XSS 转义
+ *
+ * 用法：
+ *   NODE_PATH=tools/node_modules node tools/home_ask_smoke.js
+ *   NODE_PATH=tools/node_modules node tools/home_ask_smoke.js /path/to/old.html   # 验证测试有效性
+ * 需要 jsdom（CI 里 `npm install jsdom@30.1.1 --no-save --prefix tools`）。
+ */
+const fs = require('fs');
+const path = require('path');
+const { JSDOM, VirtualConsole } = require('jsdom');
+
+const REPO = path.resolve(__dirname, '..');
+const HTML_PATH = process.argv[2] || path.join(REPO, 'static', 'home.html');
+
+/* 真实响应快照：2026-10-04 取自 GET /ask?q=乳扇是什么&k=5&with_answer=1。
+   断言全部由这份 fixture 驱动（不硬编码「乳扇」），语料变动时只需更新快照，
+   脚本会报出实际值而不是含糊地绿。 */
+const FIXTURE = {
+  q: '乳扇是什么', city: null, k: 5,
+  results: [{
+    type: '美食', city: '大理', name: '乳扇',
+    text: '乳扇 牛奶做的扇形干酪，炭火烤软蘸玫瑰糖 大理',
+    source: '美食种子库', score: 9.551, verified: true, lat: null, lon: null,
+  }],
+  verified_count: 1,
+  index: { docs: 598, cities: 38 },
+  answer: {
+    text: '乳扇是牛奶做的扇形干酪，常在大理炭火烤软后蘸玫瑰糖食用。',
+    model: 'glm-4-flash-250414', grounded: true, outside: [],
+  },
+};
+
+let pass = 0, fail = 0;
+function ok(name, cond, extra) {
+  if (cond) { pass++; console.log('  ✓ ' + name); }
+  else { fail++; console.log('  ✗ ' + name + (extra ? '  → ' + extra : '')); }
+}
+
+/* jsdom 不实现 fetch，也实现不了 canvas WebGL（hero 夜空极光要用）。
+   这两条是环境固有限制而非页面 bug —— 与 tools/frontend_smoke.js 同样处理，
+   hero 动效的真机断言在 tools/hero_motion_check.js。 */
+const IGNORE = /getContext|Not implemented/i;
+
+function boot(handler) {
+  const html = fs.readFileSync(HTML_PATH, 'utf-8');
+  const vc = new VirtualConsole();
+  const errs = [];
+  vc.on('jsdomError', e => { if (!IGNORE.test(e.message || '')) errs.push(e.message); });
+  const state = { url: null };
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole: vc,
+    url: 'http://127.0.0.1:8000/',
+    // 关键：stub 必须在页面脚本执行之前注入（jsdom 在构造时就运行 <script>）
+    beforeParse(w) {
+      w.fetch = function (u) {
+        state.url = String(u);
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: () => Promise.resolve(handler(state.url)),
+        });
+      };
+    },
+  });
+  return { dom, w: dom.window, errs, state };
+}
+
+// 只有带 with_answer=1 的请求才该拿到 answer —— 否则测不出「默认关」这件事
+const withAnswer = d => u =>
+  (/with_answer=1/.test(u || '') ? d : Object.assign({}, d, { answer: undefined }));
+
+const chips = w => [...w.document.querySelectorAll('.askchip')];
+const outText = w => w.document.getElementById('askOut').textContent;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const clone = o => JSON.parse(JSON.stringify(o));
+
+async function main() {
+  console.log('\n=== 首页检索问答演示框 · 运行时验证 ===\n');
+  const NAME = FIXTURE.results[0].name;
+
+  // 1. 初始渲染
+  {
+    const { w, errs } = boot(withAnswer(FIXTURE));
+    ok('页面脚本无运行时错误', errs.length === 0, errs.join(' | '));
+    ok('示例 chip 已渲染', chips(w).length > 0, '实际 ' + chips(w).length);
+    ok('演示框 section 存在', !!w.document.getElementById('ask'));
+    ok('既有元素未被破坏（#apiTable）', !!w.document.getElementById('apiTable'));
+  }
+
+  // 1b. 演示框整体缺失时直接判负退出：
+  // 否则后面会崩在 TypeError（chips[0] undefined）而不是干净地红 ——
+  // 用这份脚本去测「改动前的版本」时就是这条路径（已验证：会正确地失败）。
+  {
+    const { w } = boot(withAnswer(FIXTURE));
+    if (!w.document.getElementById('ask') || !chips(w).length) {
+      console.log('  ✗ 演示框或其示例缺失，后续用例无法运行');
+      console.log('\n' + pass + '/' + (pass + 1) + ' 项通过\n');
+      process.exit(1);
+    }
+  }
+
+  // 2. 点示例 → 纯检索（不带生成）
+  {
+    const { w, state } = boot(withAnswer(FIXTURE));
+    chips(w)[0].click();
+    await wait(60);
+    ok('点击 chip 触发 /ask 请求', /\/ask\?q=/.test(state.url || ''), state.url);
+    ok('默认不叠加生成（URL 无 with_answer）', !/with_answer/.test(state.url || ''), state.url);
+    ok('渲染出检索结果条目',
+       w.document.querySelectorAll('.askitem').length === FIXTURE.results.length,
+       '实际 ' + w.document.querySelectorAll('.askitem').length);
+    ok('结果含命中名称', outText(w).includes(NAME));
+    ok('默认不出现生成答案区', !w.document.querySelector('.askans'));
+  }
+
+  // 3. 勾选生成 → 答案 + grounded 徽章
+  {
+    const { w, state } = boot(withAnswer(FIXTURE));
+    w.document.getElementById('askGen').checked = true;
+    chips(w)[0].click();
+    await wait(60);
+    ok('勾选后 URL 带 with_answer=1', /with_answer=1/.test(state.url || ''), state.url);
+    ok('渲染出生成答案区 .askans', !!w.document.querySelector('.askans'));
+    ok('答案正文出现', outText(w).includes(FIXTURE.answer.text.slice(0, 12)));
+    const gate = w.document.querySelector('.askgate');
+    ok('出现 grounded 徽章', !!gate);
+    ok('grounded=true → 标记为已通过核查',
+       !!gate && gate.classList.contains('ok') && gate.textContent.includes('已通过'),
+       gate ? gate.className + ' / ' + gate.textContent : 'none');
+  }
+
+  // 4. 【反向】grounded=false 必须标红 —— 闸门不能恒绿
+  {
+    const bad = clone(FIXTURE);
+    bad.answer = { text: '乳扇和过桥米线都是大理名吃。', model: 'm', grounded: false, outside: ['过桥米线'] };
+    const { w } = boot(withAnswer(bad));
+    w.document.getElementById('askGen').checked = true;
+    chips(w)[0].click();
+    await wait(60);
+    const gate = w.document.querySelector('.askgate');
+    ok('【反向】grounded=false → 徽章为 bad', !!gate && gate.classList.contains('bad'),
+       gate ? gate.className : 'none');
+    ok('【反向】徽章列出未落地实体', !!gate && gate.textContent.includes('过桥米线'),
+       gate ? gate.textContent : 'none');
+  }
+
+  // 5. 【反向】LLM 降级（text=null）不能崩、原因要可见
+  {
+    const deg = clone(FIXTURE);
+    deg.answer = { text: null, grounded: null, outside: [], note: '生成不可用：通道挂了' };
+    const { w, errs } = boot(withAnswer(deg));
+    w.document.getElementById('askGen').checked = true;
+    chips(w)[0].click();
+    await wait(60);
+    ok('【反向】降级时仍渲染检索结果', w.document.querySelectorAll('.askitem').length > 0);
+    ok('【反向】降级原因对用户可见', outText(w).includes('通道挂了'));
+    ok('【反向】降级不抛运行时错误', errs.length === 0, errs.join(' | '));
+  }
+
+  // 6. 零命中
+  {
+    const empty = { q: '不存在的问题XYZ', results: [], verified_count: 0, index: { docs: 598 } };
+    const { w } = boot(withAnswer(empty));
+    chips(w)[0].click();
+    await wait(60);
+    ok('零命中时给出说明而非空白', outText(w).includes('没有命中'));
+  }
+
+  // 7. 请求失败
+  {
+    const { w } = boot(withAnswer(FIXTURE));
+    w.fetch = () => Promise.reject(new Error('HTTP 500'));
+    chips(w)[0].click();
+    await wait(60);
+    ok('请求失败时给出可读错误', outText(w).includes('取不到结果'));
+    ok('失败文案含具体原因', outText(w).includes('HTTP 500'));
+  }
+
+  // 8. 冷却（公开接口，额度是全场共享的）
+  {
+    const { w } = boot(withAnswer(FIXTURE));
+    chips(w)[0].click();
+    await wait(60);
+    chips(w)[0].click();
+    ok('连点触发冷却提示（防刷配额）', outText(w).includes('慢一点'));
+  }
+
+  // 9. 转义：语料里的标签不能被解析成元素
+  {
+    const evil = clone(FIXTURE);
+    evil.results = [{
+      type: '美食', city: 'X', name: '<img src=x onerror=alert(1)>',
+      text: '<script>bad()</script>', score: 1, verified: false,
+    }];
+    evil.verified_count = 0;
+    evil.answer = { text: '<b>不该被解析</b>', model: 'm', grounded: true, outside: [] };
+    const { w } = boot(withAnswer(evil));
+    w.document.getElementById('askGen').checked = true;
+    chips(w)[0].click();
+    await wait(60);
+    ok('语料里的标签被转义（无注入元素）',
+       w.document.querySelectorAll('.askitem img, .askitem script, .askans b').length === 0);
+    ok('转义后原文仍可读', outText(w).includes('<script>'));
+  }
+
+  console.log('\n' + pass + '/' + (pass + fail) + ' 项通过\n');
+  process.exit(fail ? 1 : 0);
+}
+
+main().catch(e => { console.error('脚本自身出错:', e); process.exit(1); });
