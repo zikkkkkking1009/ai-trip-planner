@@ -240,6 +240,32 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   check('令牌：跨域请求不带 X-App-Token（防泄露）',
     headerVal(crossCall.init && crossCall.init.headers, 'X-App-Token') === null);
 
+  // N) 步骤切换时页头收起。
+  //    ②③ 步页面主角是景点/行程，顶部那 235px 宣传语只剩干扰（真机实测占首屏 28%，
+  //    收起后 240px → 62px）。但 #chips 必须留着：规划完成后它被替换成状态摘要
+  //    （总门票/已排/校验），是那一屏最该被看见的信息 —— 所以只收 h1 与副标题。
+  {
+    const heroEl = () => window.document.querySelector('#pagePlan > header.hero');
+    const compact = () => !!(heroEl() && heroEl().classList.contains('compact'));
+    window.setStep(1, true);
+    check('第①步：页头完整展开', !compact());
+    window.setStep(2, true);
+    check('第②步：页头收起（compact）', compact());
+    window.setStep(3, true);            // 前面已跑完「开始规划」，plan 存在
+    check('第③步：页头仍收起', compact());
+    check('第③步：状态摘要 chips 还在（没被一起藏掉）',
+      heroEl().querySelectorAll('.chip').length > 0,
+      '实际 ' + heroEl().querySelectorAll('.chip').length + ' 个');
+    window.setStep(1, true);
+    check('退回第①步：页头恢复展开', !compact());
+
+    // 逐条判断：不能对拼接后的整体做 test，否则「某条含 .chips」+
+    // 「另一条含 display:none」会被误判成同一条（第一版就是这么写错的）
+    const rules = html.match(/#pagePlan > header\.hero\.compact[^}]*}/g) || [];
+    check('收起规则不隐藏 .chips（防手滑改坏）',
+      !rules.some(r => /\.chips/.test(r) && /display\s*:\s*none/.test(r)));
+  }
+
   if (errors.length) {
     console.log('\n运行时错误：');
     errors.slice(0, 5).forEach(e => console.log('   - ' + e.slice(0, 160)));

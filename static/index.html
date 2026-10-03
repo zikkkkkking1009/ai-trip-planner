@@ -173,6 +173,14 @@
                 background:rgba(250,250,248,.07);
                 border:1px solid rgba(250,250,248,.3);
                 color:rgba(250,250,248,.92); }
+  /* ②③ 步把页头收起：进到「挑景点」「行程」之后，用户要的是景点和行程本身，
+     顶部那 235px 的宣传语只剩干扰（实测占首屏 28%）。
+     但 #chips 必须留着 —— 规划完成后它会被替换成状态摘要（总门票 / 已排 / 校验 / 实查缓存），
+     那是这一屏最该被看见的信息。所以只收 h1 和副标题。 */
+  #pagePlan > header.hero.compact { padding:16px 24px 14px; }
+  #pagePlan > header.hero.compact h1,
+  #pagePlan > header.hero.compact .meta { display:none; }
+  #pagePlan > header.hero.compact .chips { margin-top:0; }
   /* 「我的」页头复用同一条色带，只是更薄（它没有 chips，重点是下面的列表）——
      两页共用同一个 hero 类，切换时才不会一个有色带一个没有。 */
   #pageUser > header.hero { padding:40px 24px 36px; }
@@ -2308,6 +2316,9 @@ function setStep(n, skipRender) {
   wstep = n;
   const layout = $('planLayout');
   if (layout) layout.dataset.step = String(n);
+  // 页头在 ②③ 步收起（见 CSS .hero.compact）：此刻页面主角是景点/行程，不是宣传语
+  const heroHead = document.querySelector('#pagePlan > header.hero');
+  if (heroHead) heroHead.classList.toggle('compact', n !== 1);
   const s1 = $('step1Panel'), s2 = $('step2Panel'), s3p = $('step3Panel'),
         wr = $('wizRight'), s3 = $('stage3');
   if (s1) s1.hidden = n !== 1;
