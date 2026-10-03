@@ -59,7 +59,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | 实体对齐 F1 | **100%**（**22 条**标注，转人工率 **13.6%**；改进前 90%/20%） | `python eval_aligner.py` |
 | 三方对照（朴素 / 求解器 / LLM 直排） | 求解器 100% 无冲突、0 预算违规；LLM 直排质量分 0.921 但违规 8 次 | `backend/eval_results.json` |
 | RAG 检索（golden 30 条） | **desc 增强后重测（2026-10-04）**：BM25 hit@1 **90.0%** / hit@5 **100%** / MRR **0.940**（增强前 66.7/70.0/0.689）——短板实证在语料不在算法，维持 BM25 | `backend/eval_rag.json` |
-| RAG 三臂对照（增强后） | 向量重排 90.0/100/**0.950**、纯向量 86.7/100/0.940——重排仅 +0.01 MRR（30 条里 1 条的差距，噪音级），**不采纳向量重排在增强后仍成立**；增强前互补性数据（BM25 8 条盲区 vs 向量深排）见 eval_rag.json 历史 | `backend/eval_rag.json` |
+| RAG 三臂对照（增强后） | 向量重排 90.0/100/**0.950**、纯向量 86.7/100/0.933——重排仅 +0.01 MRR（30 条里 1 条的差距，噪音级），**不采纳向量重排在增强后仍成立**；增强前互补性数据（BM25 8 条盲区 vs 向量深排）见 eval_rag.json 历史 | `backend/eval_rag.json` |
 | RAG 生成层（R4） | `/ask?with_answer=1` 基于**本次检索片段**生成 ≤100 字答案（glm-4-flash + retry_call，失败降级 text=None）+ **实体回链核查 `grounded`**（答案实体必须 ∈ 引用片段，子串豁免防误报）；**默认关**——公开白名单接口不自动烧 LLM 配额 | `backend/tests/test_rag_gen.py` |
 | 语料增强（R5） | `spot_desc.py` 360 条一句话描述（公开常识、无营销话术，测试闸门管覆盖率/键名一致/纪律），`build_corpus` 对 desc 空景点兜底；三臂重测 BM25 hit@1 66.7→90.0 | `backend/spot_desc.py` |
 | 单元测试 | **437 个**全过（**0 skipped**） | `pytest backend/tests/ -q` |

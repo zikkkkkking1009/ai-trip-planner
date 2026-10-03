@@ -6,8 +6,11 @@
 - 策略：L1 = 贪心构造 + 2-opt / 跨日搬运 优化（本文件实现）
         L2 = OR-Tools CP-SAT 对比最优解（TODO，见 README 路线图）
 
-通勤目前用「haversine 距离 / 市内均速 + 固定开销」估算，
-接口留好了：把 commute_min 换成高德路径规划 API 即可（记得加缓存）。
+通勤：solve_plan/Solver 的 commute_fn 参数注入。线上（/plan、/plan/async、/simulate、
+稳健性复检）自 v0.3 起注入 CommuteMatrix.minutes——高德 /v3/distance 真实驾车时长
+（三级缓存 + 无 Key 自动降级估算）；haversine 估算只用于无 Key 兜底与离线评测口径
+（eval 脚本掐 Key 跑纯算法计时，刻意不触网）。2026-10-04 真机取证：兵马俑→陕历博
+真实 65.5min vs 估算 124.4min，缓存命中率 100%（backend/.commute_cache.json）。
 """
 from __future__ import annotations
 
