@@ -9,17 +9,22 @@ ROADMAP R1（2026-09-30 立项）：中厂评审指出「工程扎实但 AI 偏�
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
 from functools import lru_cache
 
 from demo_data import DEMO_SPOTS
+from editor import _llm
 from models import Spot
 from food_seeds import FOOD_SEEDS
+from reliability import retry_call
 
 _K1, _B = 1.5, 0.75          # Okapi BM25 标准参数
 _PUNCT = re.compile(r"[\s·、，,。.\-—()（）【】\[\]!！?？:：;；\"'`~～]+")
 _K_LIMIT = 10
+
+log = logging.getLogger(__name__)
 
 
 def tokenize(text: str) -> list[str]:
@@ -135,8 +140,76 @@ def verify_citation(doc: dict[str, object]) -> dict[str, object]:
     return {"verified": True, "lat": float(spot.lat), "lon": float(spot.lon)}
 
 
-def ask(q: str, city: str | None = None, k: int = 5) -> dict:
-    """检索问答：返回带来源引用的结果（R2 将在条目上再做库内对齐核查）。"""
+# ---- R4 生成层：grounded 生成——答案只准出自检索片段，实体回链核查（反幻觉）----
+
+def check_grounding(answer: str, cited_names: set[str],
+                    all_names: set[str]) -> dict[str, object]:
+    """生成答案的实体回链核查（纯函数，离线可测）。
+
+    答案里出现的库内实体必须来自本次引用片段；未引用实体若只是被引用实体
+    的子串（「古城」⊂「大同古城」）视为同一提及，不算违规——宁可漏报不误报。
+    """
+    ans = _norm(answer)
+    cited = {n for n in (_norm(x) for x in cited_names) if n}
+
+    def spans(text: str, needle: str) -> list[tuple[int, int]]:
+        found: list[tuple[int, int]] = []
+        i = 0
+        while (j := text.find(needle, i)) >= 0:
+            found.append((j, j + len(needle)))
+            i = j + 1
+        return found
+
+    cited_spans = [sp for n in cited for sp in spans(ans, n)]
+    outside: list[str] = []
+    for name in all_names:
+        n = _norm(name)
+        if not n or n in cited:
+            continue
+        uncovered = [sp for sp in spans(ans, n)
+                     if not any(cs[0] <= sp[0] and sp[1] <= cs[1]
+                                for cs in cited_spans)]
+        if uncovered:
+            outside.append(name)
+    outside.sort()
+    return {"grounded": not outside, "outside": outside}
+
+
+def generate_answer(q: str, results: list[dict[str, object]]) -> dict[str, object]:
+    """R4 生成层：只准依据检索片段作答（≤100 字），答案实体回链核查。
+
+    LLM 失败/超时一律降级为 text=None——宁可无生成，不给未经核查的答案。
+    """
+    try:
+        client, model = _llm(fast=True)
+        snippets = "\n".join(
+            f"[{i}] {r['type']}｜{r['city']}｜{r['name']}｜{r['text']}"
+            for i, r in enumerate(results, 1))
+        resp = retry_call(lambda: client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content":
+                 "你是旅游问答助手。只使用资料中的信息作答，禁止编造资料里没有的"
+                 "景点、美食或事实；答案不超过 100 字，直接给结论。"},
+                {"role": "user", "content": f"问题：{q}\n\n资料：\n{snippets}"},
+            ],
+            temperature=0.1,
+        ), what="RAG 答案生成 LLM 调用")
+        text = (resp.choices[0].message.content or "").strip()
+    except Exception as e:  # 降级：生成不可用不影响检索结果本身，宁可缺答案不编答案
+        log.warning("RAG 生成降级：%s: %s", type(e).__name__, e)
+        return {"text": None, "grounded": None, "outside": [],
+                "note": f"生成不可用：{e}"}
+    if not text:
+        return {"text": None, "grounded": None, "outside": [], "note": "生成返回为空"}
+    grounding = check_grounding(text, {str(r["name"]) for r in results},
+                                {d["name"] for d in _index_cached().docs})
+    return {"text": text, "model": model, **grounding}
+
+
+def ask(q: str, city: str | None = None, k: int = 5,
+        with_answer: bool = False) -> dict:
+    """检索问答：带来源引用；with_answer=True 叠加 grounded 生成层（失败自动降级）。"""
     from cities import normalize_city
     q_toks = tokenize(q)
     index = _index_cached()
@@ -154,8 +227,11 @@ def ask(q: str, city: str | None = None, k: int = 5) -> dict:
     } for d, s in scored[:kk]]
     for r in results:                       # R2：引用核查（verified + 坐标落地）
         r.update(verify_citation(r))
-    return {
+    out: dict[str, object] = {
         "q": q, "city": city_n or None, "k": kk, "results": results,
         "verified_count": sum(1 for r in results if r["verified"]),
         "index": {"docs": index.n, "cities": len(DEMO_SPOTS)},
     }
+    if with_answer:                         # R4：默认关——公开接口不自动烧 LLM 配额
+        out["answer"] = generate_answer(q, results)
+    return out

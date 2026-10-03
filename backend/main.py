@@ -9,7 +9,7 @@
 - GET  /                演示页（浏览器看实时进度与行程）
 - GET  /cities          可演示城市列表（前端城市选择器数据源）
 - GET  /demo/spots      按城市返回演示景点（零 Key 可跑）
-- GET  /ask             内置语料检索问答（BM25 基线，零 Key 零成本）
+- GET  /ask             内置语料检索问答（BM25 基线零 Key；with_answer=1 叠加 LLM 生成，默认关）
 - POST /plan            排期主接口（同步，简单场景/CI 用）
 - POST /plan/async      异步排期：立即返回 task_id，后台求解
 - GET  /task/{id}       任务状态轮询（降级方案）
@@ -479,14 +479,15 @@ def demo_spot_list(city: str = DEFAULT_CITY) -> dict:
 
 
 @app.get("/ask")
-def ask_corpus(q: str, city: str | None = None, k: int = 5) -> dict:
-    """R1 检索基线（ROADMAP 2026-09-30 立项）：基于内置语料的行程问答骨架。
+def ask_corpus(q: str, city: str | None = None, k: int = 5,
+               with_answer: bool = False) -> dict:
+    """R1 检索基线 + R4 grounded 生成层（ROADMAP 2026-09-30 立项）。
 
-    BM25 + 字符 bigram（零新依赖、零 Key、离线可测）；语料 = 38 城预置景点 +
-    美食种子。每条结果带 source 引用；R2 引用核查（复用 aligner）与
-    R3 向量重排对照为后续增量。
+    BM25 + 字符 bigram 检索（零 Key），每条结果带 source 引用 + R2 引用核查；
+    with_answer=1 时基于检索片段生成 ≤100 字答案并做实体回链核查（默认关——
+    公开白名单接口不自动烧 LLM 配额），LLM 失败自动降级为纯检索结果。
     """
-    return rag_ask(q=q, city=city, k=k)
+    return rag_ask(q=q, city=city, k=k, with_answer=with_answer)
 
 
 @app.get("/cities")
