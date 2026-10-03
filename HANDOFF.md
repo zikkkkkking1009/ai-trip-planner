@@ -2,7 +2,7 @@
 
 > 用途：**新会话读这一份就能无损接上下文**。
 > ✅ **2026-09-24 已同步**：**SSH 已配好**（`~/.ssh/id_ed25519`，remote 已切 `git@github.com:zikkkkkking1009/ai-trip-planner.git`），58 个提交已推上远程 `main`（`f79fa7f..5f86b91`）。以后 `git push` 免交互。
-> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 424**、接口 **20 → 33**、前端冒烟 **12 → 22+48**（详见二、六节）。
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 433**、接口 **20 → 33**、前端冒烟 **12 → 22+48**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -17,7 +17,7 @@ cd "D:\workby room\ai-trip-planner"
 # 启动服务（当前应有实例在跑，先探测再决定是否重启）
 cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-# 单元测试（424 个）
+# 单元测试（433 个）
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
 # 前端静态检查（共 12 项：语法 / 遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / CSS 非法属性 / 文档完整性 / Markdown 标记泄漏 / 对比度达标 / 无容器级硬编码颜色）——在项目根目录跑
@@ -60,7 +60,8 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | 三方对照（朴素 / 求解器 / LLM 直排） | 求解器 100% 无冲突、0 预算违规；LLM 直排质量分 0.921 但违规 8 次 | `backend/eval_results.json` |
 | RAG 检索（golden 30 条） | BM25 hit@1 **66.7%** / hit@5 70.0% / MRR **0.689**；向量重排三指标全劣化 ⇒ **数据决定不采纳，维持 BM25** | `backend/eval_rag.json` |
 | RAG 三臂对照要点 | 纯向量 hit@5 **76.7%** / MRR **0.704** *反而高于 BM25*，但经重排后掉到 60.0/0.647 ⇒ 短板在**重排**不在向量。互补性：BM25 有 8 条 top-10 全盲区、向量全找回（含 1 条 hit@1），但 4 条深排 39~118 名。**重测条件 = 语料 desc 增强** | 同上 |
-| 单元测试 | **424 个**全过（**0 skipped**） | `pytest backend/tests/ -q` |
+| RAG 生成层（R4） | `/ask?with_answer=1` 基于**本次检索片段**生成 ≤100 字答案（glm-4-flash + retry_call，失败降级 text=None）+ **实体回链核查 `grounded`**（答案实体必须 ∈ 引用片段，子串豁免防误报）；**默认关**——公开白名单接口不自动烧 LLM 配额 | `backend/tests/test_rag_gen.py` |
+| 单元测试 | **433 个**全过（**0 skipped**） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **12 项**全绿；冒烟 **22/22**（行程渲染）+ **48/48**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态） | `tools/` |
 | 接口数 | **33 个**（15 GET / 16 POST / 1 DELETE / 1 WS）。较 09-28 新增主力：`/ask`（RAG 检索问答）、`/plan/recheck` + `/plan/edit`（结果侧确定性编辑）、`/poi/search`、`/food` ×4（美食情报卡） | `backend/main.py` |
 
@@ -77,7 +78,8 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 **导出与复用**（`.ics` 逐景点 VEVENT 可导入手机日历 / `@media print` 只留行程 / 复制行程纯文本 /
 「我的」页按收藏挑景点落回 Step2）→
 **检索问答 `/ask`**（`rag.py`：BM25 + 字符 bigram 零新依赖，语料 38 城 375 景 + 223 美食；
-**R2 引用核查把每条引用对齐库内实体**——景点落真实坐标 `verified` + `lat/lon`，反幻觉闸门）。
+**R2 引用核查把每条引用对齐库内实体**——景点落真实坐标 `verified` + `lat/lon`，反幻觉闸门；
+**R4 生成层**：`with_answer=1` 基于本次检索片段生成 ≤100 字答案 + 实体回链核查 `grounded`（默认关，LLM 失败降级为纯检索））。
 
 ⚠️ **给后续维护的三条**：
 ① `backend/food_seeds.py` 是**数据表不是逻辑**，已被 `check_backend_health.py` 的 `city_literal` 豁免——改它不用改审计；
@@ -116,6 +118,10 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
     小规模别用启发式；N≥14 起 CP-SAT 撞时限只能给 FEASIBLE，实时交互用启发式是**三维权衡的合理选择**而非偷懒。
     ⚠️ 由此推出一个对外口径纪律：**「gap ≤3% 覆盖 100%」只对 8~14 景点成立**（N=50 时 CP-SAT 反超 4%），
     README / ROADMAP / 首页均已标注作用域，别再把它当普适结论。
+17. **RAG 生成层默认关 + 实体回链核查（2026-10-04，R4）**：`/ask?with_answer=1` 才生成答案
+    （glm-4-flash + `retry_call`，失败降级 text=None）——公开白名单接口不能让匿名请求自动烧 LLM 配额。
+    生成答案跑 `check_grounding`：**答案实体必须 ∈ 本次引用片段**（子串豁免防误报：「古城」⊂「大同古城」
+    算同一提及，宁可漏报不误报）——R2 的反幻觉闸门从「引用」延伸到「生成文本」。
 
 ---
 
@@ -217,7 +223,7 @@ B8 部署 **✅ 阶段一已完成**（2026-09-28~29）  ← 原为"用户已明
 
 | 工具 | 作用 | 命令 |
 |------|------|------|
-| `pytest` | **424** 个单元测试 | `python -m pytest backend/tests/ -q` |
+| `pytest` | **433** 个单元测试 | `python -m pytest backend/tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查 **12 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / **CSS 非法属性** / 文档完整性 / **Markdown 标记泄漏** / **对比度达标** / **无容器级硬编码颜色**）；设计稿 HTML 也一并检查配色 | `python tools/check_frontend.py` |
 | `tools/check_contrast.py` | **页面级对比度门禁**（读 static/ 里真实的 `:root` / 暗色块，按「角色 × 参照底」断言 WCAG） | `python tools/check_contrast.py` |
 | `tools/contrast_runtime.js` | **浏览器运行时对比度实测**（真渲染，非推算）；`--all` 跑明暗两套 | `node tools/contrast_runtime.js static/index.html static/home.html --all` |

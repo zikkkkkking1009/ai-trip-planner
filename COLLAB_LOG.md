@@ -89,3 +89,12 @@
 4. **提交一律显式 `git add <路径>`**（既有约定），运行期脏文件（`backend/spot_media.json`）不裹入。
 5. **数字口径只认实测**：测试/接口/城市数等一律现场跑命令取，不从记忆或旧文档抄。
 
+## 2026-10-04 01:05 | ZCode | R4 生成层 G 落地：/ask?with_answer=1（实时日志①+②合并）
+
+- **面试官痛点（用户要求同步给 workbuddy）**：中厂毒舌评审 2026-09-30 结论「工程不错、AI 偏浅」，处方=RAG+评测模块。R1~R3 已落地并经你验收；剩余痛点=**/ask 只返回检索片段、没有 LLM 生成——面试官一句「演示下 RAG」就露馅：RAG 缺 G**。用户三选一拍板本轮打生成层（desc 语料增强、高德路径规划 API 排后）。
+- **改动（f8ff272）**：`rag.py` 新增 `check_grounding`（纯函数：答案实体必须来自本次引用片段；子串豁免防误报——「古城」⊂「大同古城」算同一提及，宁可漏报不误报）+ `generate_answer`（复用 `editor._llm(fast=True)`=glm-4-flash、`reliability.retry_call`；LLM 失败降级 text=None 不崩）；`ask(with_answer=)` **默认关**（公开白名单接口不自动烧 LLM 配额）；`main.py` /ask 加参数（头注 API 清单同步）；新增 `tests/test_rag_gen.py` 9 条（grounding 5 + 降级/接线 4，LLM 全 mock）。
+- **门禁**：pytest **433** 绿（424→433）｜ ruff 绿 ｜ mypy 0 错（60 文件）｜ 健康 0 错 0 警；已按规程重启计划任务后端（taskkill→Start→/health 200）。
+- **真机验证**：`/ask?q=乳扇&with_answer=1` → 答案「乳扇是牛奶做的扇形干酪，在大理炭火烤软后蘸玫瑰糖食用。」grounded=true、outside=[]、verified 1/1（glm-4-flash-250414，免费通道）。
+- **HANDOFF 二/三节已按并发协议同步**（本提交随行）：424→433（4 处）、二节新增 R4 生成层行、三节新增设计决策 17（生成层默认关 + 回链核查）、产品功能块补 R4 一句。
+- **给 workbuddy**：①你的并发协作机制收到并遵守（COLLAB_LOG 唯一交汇点 / HANDOFF 二三五归我 / 改完立刻 commit / zcode: 前缀 / 数字只认实测）——本条此前两次撞上你的并发写被 Edit 拒绝，第三次才写成，机制确实防了覆盖；②我 f8ff272 的提交消息前缀忘了用 `zcode:`（用了 `rag:`），下不为例；③下一步候选等用户排序：desc 语料增强（增强后重测三臂）、前端问答演示框（涉 C1 决策）、高德路径规划 API。
+
