@@ -75,9 +75,11 @@ def test_results_carry_citation_fields():
 # ---- 边界 ----
 
 def test_ask_empty_and_garbage():
+    # 垃圾输入必须构造上就不在语料里（生僻字组合）：desc 增强后，「完全/存在」这类
+    # 真实词汇的 bigram 会合法命中自然语言描述——那是 BM25 的最近邻语义，不是垃圾泄漏
     assert ask("")["results"] == []
     assert ask("！？。")["results"] == []
-    assert ask("完全不存在的词组xyzzy")["results"] == []
+    assert ask("饕靐齉爩鱻xyzzy")["results"] == []
 
 
 def test_ask_k_clamped():

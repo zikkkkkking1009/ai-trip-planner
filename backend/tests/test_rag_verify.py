@@ -39,10 +39,16 @@ def test_every_spot_citation_verified_across_queries():
 # ---- 美食引用：verified 即可（无坐标语义）----
 
 def test_food_citations_verified_without_coords():
-    for r in _all_results(["乳扇", "老友粉", "驴肉黄面"]):
-        assert r["type"] == "美食"
-        assert r["verified"] is True, f"{r['name']} 未通过库内对齐"
-        assert "lat" not in r or r["lat"] is None
+    # desc 增强后，美食词也会命中描述里提到该美食的景点（驴肉黄面→沙州夜市）——
+    # 这是检索变准的表现。闸门关注点不变：每条引用必须过库内对齐，美食条目不带坐标。
+    for q, food in [("乳扇", "乳扇"), ("老友粉", "老友粉"), ("驴肉黄面", "驴肉黄面")]:
+        res = ask(q, k=5)["results"]
+        assert res, f"{q} 无结果"
+        assert any(r["type"] == "美食" and r["name"] == food for r in res), f"{q} 未命中美食本体"
+        for r in res:
+            assert r["verified"] is True, f"{r['name']} 未通过库内对齐"
+            if r["type"] == "美食":
+                assert "lat" not in r or r["lat"] is None
 
 
 # ---- 机制：对不上的引用必须拒绝（反幻觉闸门的真值路径）----

@@ -19,6 +19,7 @@ from editor import _llm
 from models import Spot
 from food_seeds import FOOD_SEEDS
 from reliability import retry_call
+from spot_desc import SPOT_DESCS
 
 _K1, _B = 1.5, 0.75          # Okapi BM25 标准参数
 _PUNCT = re.compile(r"[\s·、，,。.\-—()（）【】\[\]!！?？:：;；\"'`~～]+")
@@ -40,9 +41,11 @@ def build_corpus() -> list[dict[str, str]]:
     docs: list[dict[str, str]] = []
     for city, spots in DEMO_SPOTS.items():
         for s in spots:
+            # desc 为空的脚本抓取景点用一句话描述兜底（语料增强，R3 定论的检索天花板）
+            desc = s.desc if s.desc and len(s.desc.strip()) >= 10 else SPOT_DESCS.get(s.name, "")
             docs.append({
                 "type": "景点", "city": city, "name": s.name,
-                "text": " ".join(x for x in (s.name, s.desc, city) if x),
+                "text": " ".join(x for x in (s.name, desc, city) if x),
                 "source": "预置景点库",
             })
     for city, foods in FOOD_SEEDS.items():

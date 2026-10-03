@@ -213,8 +213,9 @@ def _int_env(name: str, default: int) -> int:
 # 换成会透传真实 IP 的隧道/反代后，`client_ip()` 会自动开始按人计数，届时可调回小值。
 RATE_LIMIT_PER_MIN = _int_env("RATE_LIMIT_PER_MIN", 120)
 
-# 只对**会花钱/触发外部调用**的路径计数。
-RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather", "/food")
+# 只对**会花钱/触发外部调用**的路径计数。/ask 整体计入：with_answer=1 会烧 LLM 配额，
+# 而限流按路径前缀无法区分查询参数，纯检索的少量误伤可接受（2026-10-04 workbuddy 风险登记后补入）。
+RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather", "/food", "/ask")
 
 
 def is_costly_path(path: str) -> bool:

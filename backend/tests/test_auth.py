@@ -164,7 +164,7 @@ def test_costly_path_matching_is_exact_not_naive_prefix():
     """
     for p in ("/plan", "/plan/async", "/plan/edit", "/extract",
               "/poi/detail", "/poi/reviews", "/hotel/search",
-              "/hotel/recommend", "/hotel/set", "/weather"):
+              "/hotel/recommend", "/hotel/set", "/weather", "/ask"):
         assert main.is_costly_path(p), f"{p} 应该计入额度（它会花钱）"
     for p in ("/plans", "/plans/delete", "/plans/abc", "/task/000000000000",
               "/meta", "/health", "/cities", "/favorites", "/demo/spots",

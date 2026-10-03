@@ -32,6 +32,7 @@ BACKEND = Path(__file__).resolve().parent.parent / "backend"
 LOG_EXEMPT_MODULES = {
     "models.py", "cities.py", "constraint_check.py", "demo_data.py",
     "food_seeds.py",  # 纯数据种子表，无 I/O 无分支（同 cities.py 口径）
+    "spot_desc.py",  # 纯数据表：景点一句话描述（同 food_seeds 口径）
     "rag.py",         # 纯检索计算：语料来自内存数据，无 I/O 无分支
     "logging_setup.py",  # 它本身就是日志配置，再取 logger 无意义
     "media_cache.py",    # 只有读写与降级，关键失败已 log.warning（保留在豁免表是防未来改动）
@@ -294,6 +295,7 @@ REQUIRED_CONSTS = {
 CITY_LITERAL_ALLOW = {
     "cities.py", "demo_data.py", "models.py",
     "food_seeds.py",   # 城市特色美食种子表：按城市名索引就是它的数据结构（同 demo_data）
+    "spot_desc.py",   # 景点一句话描述表：按景点名索引就是它的数据结构（同 food_seeds）
     "fetch_spot_details.py", "editor.py", "extractor.py",  # 提示词里有示例（「西安必吃啥」等）
     "run_demo.py", "run_demo_amap.py", "evaluation.py", "bench_models.py", "eval_simulation.py", "eval_preference.py", "eval_cluster.py",
 }
