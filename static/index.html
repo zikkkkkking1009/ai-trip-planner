@@ -265,8 +265,21 @@
   .entry .desc { color:var(--muted-2); font-size:12px; line-height:1.65; }
   .entry .intro { color:var(--dim); font-size:12px; margin-top:2px; }
   .fav { align-self:center; background:none; border:none; font-size:20px; cursor:pointer; flex-shrink:0; padding:4px; }
-  .unplanned { background:var(--bad-soft); color:var(--bad-ink); font-size:12px; padding:7px 12px;
-               border-radius:9px; margin-bottom:8px; }
+  /* 「未安排」不再是角落里一行小字。勾了却没排进去的景点，用户需要知道
+     「哪些 / 为什么 / 怎么改」—— 只报个数等于没报（真机实测：勾 14 排 12，
+     剩下 2 个以 12px 灰字挂在总览下方，很容易被当成噪音滑过去）。 */
+  .unplanned { background:var(--bad-soft); border:1px solid var(--bad-line); color:var(--bad-ink);
+               font-size:12px; padding:11px 13px; border-radius:9px; margin-bottom:8px; }
+  .unplanned-h { font-weight:700; display:flex; align-items:center; gap:6px; }
+  .unplanned-h .licon { flex:0 0 auto; }
+  .unplanned-names { margin-top:6px; line-height:1.75; }
+  .unplanned-why { margin-top:4px; opacity:.82; }
+  .unplanned-act { margin-top:9px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .unplanned-act span { opacity:.82; }
+  .unplanned-act button { font:inherit; font-size:12px; padding:5px 11px; cursor:pointer;
+                          color:var(--bad-ink); background:transparent;
+                          border:1px solid var(--bad-line); border-radius:7px; }
+  .unplanned-act button:hover { background:var(--surface); }
   .changes { background:var(--ok-soft); border:1px solid var(--ok-line); color:var(--ok-ink);
              font-size:12px; border-radius:10px; padding:8px 12px; margin-bottom:10px; }
   /* 地图 */
@@ -2976,12 +2989,19 @@ function renderItin() {
   // 方向 C：day 0 = 横向总览时间线；day ≥ 1 = 当天竖向时间线 + 当天小地图
   if (currentDay === 0) {
     v.insertAdjacentHTML('beforeend', renderOverview(plan));
-    (plan.unplanned || []).forEach(u => {
+    const un = plan.unplanned || [];
+    if (un.length) {
+      const why = [...new Set(un.map(u => u.reason))].join('；');
       const p = document.createElement('div');
       p.className = 'unplanned';
-      p.textContent = `未安排：${esc(u.name)}（${esc(u.reason)}）`;
+      p.innerHTML =
+        `<div class="unplanned-h">${ICON_WARN} 有 ${un.length} 个景点没排进去</div>`
+        + `<div class="unplanned-names">${un.map(u => esc(u.name)).join('、')}</div>`
+        + `<div class="unplanned-why">原因：${esc(why)}</div>`
+        + `<div class="unplanned-act"><span>把行程多加 1 天，或去掉其中几个，都可能排得下。</span>`
+        + `<button type="button" data-act="wiz-back">去改日期 →</button></div>`;
       v.appendChild(p);
-    });
+    }
     fillSpotThumbs();
     return;
   }

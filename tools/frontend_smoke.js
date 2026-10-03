@@ -58,13 +58,18 @@ function makeFetchStub() {
   };
 }
 
+/* 「未安排」卡片要能测到，就必须让这个字段可控 —— 硬编码 [] 的话，
+   那段渲染逻辑永远不会被走到，而其余断言照样全绿（典型的假绿）。
+   默认空数组，保持既有断言的初始状态不变。 */
+let PLAN_UNPLANNED = [];
+
 function fakePlan() {
   return {
     city: '西安', total_cost: 30, total_score: 8,
     hotel: { name: '测试酒店', lat: 34.261, lon: 108.942 },
     check_report: { passed: true, violations: [],
       stats: { spots_planned: 1, commute_api: { api_calls: 0 }, cache_hit_rate: 1 } },
-    unplanned: [], reply: '', changes: [],
+    unplanned: PLAN_UNPLANNED, reply: '', changes: [],
     days: [{ day: 1, commute_min: 12, cost: 30, active_min: 60,
       spots: [{ name: SPOT, arrive_h: 9, depart_h: 10, ticket: 30,
                 desc: '测试描述', image: 'http://img/1.jpg', intro: '科教文化服务 · 评分4.8' }] }],
@@ -264,6 +269,29 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const rules = html.match(/#pagePlan > header\.hero\.compact[^}]*}/g) || [];
     check('收起规则不隐藏 .chips（防手滑改坏）',
       !rules.some(r => /\.chips/.test(r) && /display\s*:\s*none/.test(r)));
+  }
+
+  // O) 「未安排」卡片：勾了却没排进去的景点必须说清「哪些 / 为什么 / 怎么改」。
+  //    真机实测：勾 14 排 12，剩下 2 个原先只是总览下方的一行 12px 灰字，很容易滑过去。
+  {
+    PLAN_UNPLANNED = [
+      { name: '青龙寺', reason: '时间窗装不下' },
+      { name: '<b>注入</b>景点', reason: '时间窗装不下' },
+    ];
+    window.document.getElementById('go').click();     // 再规划一次，这次带未安排
+    await sleep(200);
+    const card = window.document.querySelector('.unplanned');
+    check('未安排卡片已渲染', !!card);
+    if (card) {
+      check('卡片列出具体景点名', card.textContent.includes('青龙寺'));
+      check('卡片说明原因', card.textContent.includes('时间窗装不下'));
+      check('卡片给出路（可点去改日期）',
+        !!card.querySelector('button[data-act="wiz-back"]'));
+      check('卡片标题报了数量', /2\s*个景点没排进去/.test(card.textContent));
+      check('未安排景点名被转义（无注入元素）',
+        card.querySelectorAll('b').length === 0);
+    }
+    PLAN_UNPLANNED = [];
   }
 
   if (errors.length) {
