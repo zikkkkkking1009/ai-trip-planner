@@ -53,3 +53,13 @@ def test_golden_intent_file_valid():
     assert set(data["tags"]) == set(SPOT_TAGS)
     for row in data["queries"]:
         assert row["tag"] in SPOT_TAGS and row["q"].strip()
+
+
+# ---- auto-tag 负结果守门（2026-10-04 实验被 realbench 否决，防止将来无意复活）----
+
+def test_no_auto_filter_for_mixed_noun_intent_query():
+    """「专名+意图」混合 query 不得被单标签自动过滤误伤（西安回民街小吃 → 景点·回民街）。"""
+    out = ask("西安回民街小吃")
+    assert out["results"], "应有结果"
+    assert str(out["results"][0]["name"]) == "回民街"
+    assert out.get("tag") is None

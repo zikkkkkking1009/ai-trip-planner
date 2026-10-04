@@ -370,10 +370,10 @@ def ask(q: str, city: str | None = None, k: int = 5,
     picked = list(range(index.n))
     if city_n:
         picked = [i for i in picked if index.docs[i]["city"] == city_n]
-    if tag:                                 # R6：标签过滤（结构性意图，过滤比加权准）
-        picked = [i for i in picked
-                  if isinstance(doc_tags := index.docs[i].get("tags"), list)
-                  and tag in doc_tags]
+    if tag:                                 # R6：标签过滤（结构性意图，过滤比加权准）。
+        picked = [i for i in picked         # 刻意只支持显式传参：auto-tag 实验被 realbench
+                  if isinstance(doc_tags := index.docs[i].get("tags"), list)  # 否决——「西安回民街小吃」
+                  and tag in doc_tags]      # 这类专名+意图混合 query 会被单标签误伤（见 COLLAB_LOG）
     kind = detect_kind(q)
     # 问的是美食就不查门票（「西安有什么好吃的多少钱」问的是菜价不是门票）
     attr = detect_attr(q) if kind != "美食" else None
@@ -434,6 +434,7 @@ def ask(q: str, city: str | None = None, k: int = 5,
         "city_source": ("参数" if city else "问题识别" if auto_city
                         else "top1 锚定" if anchor else None),
         "kind": kind,                    # 识别出的意图（None = 没听懂，前端可据此不强凑）
+        "tag": tag,                      # R6：生效的标签过滤（None = 未过滤；auto-tag 实验已否决）
         "attr": attr,                    # 识别出的属性诉求（None = 没在问字段）
         "fallback_count": sum(1 for d, _s, fb in filled if fb),
         "verified_count": sum(1 for r in results if r["verified"]),
