@@ -154,13 +154,118 @@ const COLLECT = function () {
   return out;
 };
 
+/**
+ * 自测：验证「半透明背景逐层合成」真的算对了。
+ *
+ * 为什么要这个：`bgOf()` 曾经只接受 a>=0.99 的祖先背景色，把半透明层整层丢弃 ——
+ * 结果深色玻璃底上的白字被拿去和 body 的纸白底比，测出 1:1，一排假红。
+ * 修完之后「灯变绿」只能证明不再误报，**不能证明算法是对的**：把下限放到 0 也能让灯变绿。
+ * 所以这里用合成页面做正反双向断言 —— 每个用例的期望值都是手算的独立数字。
+ */
+async function selftest(browser) {
+  const CASES = [
+    {
+      name: '半透明深底 + 白字 = 达标（旧实现此处误报 1:1）',
+      probe: '路书',
+      html: `<style>body{margin:0;background:#f9f8f5}
+        .nav{background:rgba(8,12,19,.62);padding:20px}
+        .nav a{color:#fafaf8;font-size:16px}</style>
+        <div class="nav"><a href="#">路书</a></div>`,
+      ok: true, range: [4.5, 7.0],
+    },
+    {
+      name: '半透明深底 + 深墨字 = 不达标（防「无脑全放宽」）',
+      probe: '深字',
+      html: `<style>body{margin:0;background:#f9f8f5}
+        .nav{background:rgba(8,12,19,.62);padding:20px}
+        .nav a{color:#0e0e10;font-size:16px}</style>
+        <div class="nav"><a href="#">深字</a></div>`,
+      // 底合成后 rgb(99.6,101.7,104.9) 相对亮度 0.1314，深墨字 0.0045
+      // → (0.1314+0.05)/(0.0045+0.05) = 3.33（实测 3.31，差在 sRGB 量化）
+      ok: false, range: [3.1, 3.5],
+    },
+    {
+      name: '两层半透明叠加 = 按层合成（1.86:1，不是 1.0）',
+      probe: '叠两层',
+      html: `<style>body{margin:0;background:#f9f8f5}
+        .l1{background:rgba(0,0,0,.5);padding:20px}
+        .l2{background:rgba(255,255,255,.5);padding:20px}
+        .l2 a{color:#fff;font-size:16px}</style>
+        <div class="l1"><div class="l2"><a href="#">叠两层</a></div></div>`,
+      ok: false, range: [1.7, 2.1],
+    },
+    {
+      name: '不透明底 + 白字 = 1.0 不达标（原路径没被改坏）',
+      probe: '白底白字',
+      html: `<style>body{margin:0;background:#fff}
+        .box{background:#fff;padding:20px}
+        .box a{color:#fff;font-size:16px}</style>
+        <div class="box"><a href="#">白底白字</a></div>`,
+      ok: false, range: [1.0, 1.05],
+    },
+    {
+      name: '不透明深底 + 白字 = 达标（常规路径仍正常）',
+      probe: '常规',
+      html: `<style>body{margin:0;background:#f9f8f5}
+        .box{background:#151619;padding:20px}
+        .box a{color:#fafaf8;font-size:16px}</style>
+        <div class="box"><a href="#">常规</a></div>`,
+      ok: true, range: [12.0, 20.0],
+    },
+  ];
+
+  const fails = [];
+  for (const c of CASES) {
+    const before = fails.length;
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    await page.setContent(c.html, { waitUntil: 'load' });
+    const rows = await page.evaluate(COLLECT);
+    await ctx.close();
+    const row = rows.find((r) => r.text === c.probe);
+    if (!row) { fails.push(`${c.name}：没量到探针元素「${c.probe}」`); }
+    else {
+      if (row.ok !== c.ok) {
+        fails.push(`${c.name}：期望 ok=${c.ok}，实测 ok=${row.ok}（${row.ratio}:1）`);
+      }
+      if (row.ratio < c.range[0] || row.ratio > c.range[1]) {
+        fails.push(`${c.name}：实测 ${row.ratio}:1 落在期望区间 [${c.range[0]}, ${c.range[1]}] 之外`);
+      }
+    }
+    const got = row ? `${row.ratio}:1（期望 ${c.ok ? '达标' : '不达标'}，区间 ${c.range}）` : '未量到';
+    console.log(`  ${fails.length === before ? '✓' : '✗'} ${c.name}  →  ${got}`);
+  }
+
+  console.log('');
+  if (fails.length) {
+    console.log(`✗ 自测失败 ${fails.length} 项：`);
+    for (const f of fails) console.log('   - ' + f);
+    return 1;
+  }
+  console.log(`✅ 运行时对比度自测通过（${CASES.length} 例：正向 2 · 反向 2 · 合成口径 1）`);
+  return 0;
+}
+
 (async () => {
   const argv = process.argv.slice(2);
   const showAll = argv.includes('--all');
   const forceDark = argv.includes('--dark');
+  const runSelfTest = argv.includes('--selftest');
   const files = argv.filter((a) => !a.startsWith('--'));
+  if (runSelfTest && !files.length) {
+    const { chromium } = loadPlaywright();
+    const exe = findBrowser();
+    if (!exe) {
+      console.error('✗ 找不到本机 Chrome/Edge。请安装其一，或改用 --executable-path。');
+      process.exit(2);
+    }
+    const b2 = await chromium.launch({ executablePath: exe });
+    const rc = await selftest(b2);
+    await b2.close();
+    process.exit(rc);
+  }
   if (!files.length) {
-    console.error('用法: node tools/contrast_runtime.js <页面路径> [更多页面…] [--dark] [--all]');
+    console.error('用法: node tools/contrast_runtime.js <页面路径> [更多页面…] [--dark] [--all] [--selftest]');
     process.exit(2);
   }
 
