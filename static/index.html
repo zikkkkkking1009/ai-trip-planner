@@ -282,6 +282,28 @@
   .unplanned-act button:hover { background:var(--surface); }
   .changes { background:var(--ok-soft); border:1px solid var(--ok-line); color:var(--ok-ink);
              font-size:12px; border-radius:10px; padding:8px 12px; margin-bottom:10px; }
+  /* 规划前容量预估（POST /plan/capacity）：勾完景点先算一次「装不装得下」，
+     别等跑完规划才在结果里看到「未安排」——那时候已经花掉一次等待。
+     三态刻意分开：装得下（绿）／可能排不下（黄，**不是红**——它不是错误，
+     是需要人拍板的取舍）／不显示。
+     措辞纪律：后端 message 已按「可能／大概」给出口径，前端**不加工成确定性**。
+     配色说明：警示态用 --note-*（黄）而非 --warn-*，因为 --warn-line 未定义
+     （只有 --ok-line / --bad-line / --note-line），引用未定义变量会让整条声明
+     静默失效回退继承值 —— 页面只是"边框淡了点"，肉眼看不出来。 */
+  .capbar { font-size:12px; border-radius:9px; padding:9px 12px; margin-bottom:9px;
+            border:1px solid var(--border); background:var(--fill); color:var(--muted-2);
+            display:flex; align-items:flex-start; gap:7px; line-height:1.55; }
+  .capbar[hidden] { display:none; }
+  .capbar .licon { flex:0 0 auto; margin-top:1px; }
+  .capbar.ok  { background:var(--ok-soft);   border-color:var(--ok-line);   color:var(--ok-ink); }
+  .capbar.note { background:var(--note-soft); border-color:var(--note-line); color:var(--note-ink); }
+  .capbar .cap-t { font-weight:700; }
+  .capbar .cap-d { opacity:.86; }
+  /* 落选名单可能很长（实测压时间窗后能到 11 个 = 4 行），
+     不限高的话预警条比正文还高，把「开始规划」按钮顶到屏幕外 —— 喧宾夺主。
+     限 2 行 + 真实可滚动：信息不丢，视觉不抢。 */
+  .capbar .cap-names { margin-top:4px; opacity:.86;
+                       max-height:2.9em; overflow-y:auto; }
   /* 地图 */
   #mapView { padding:8px 14px 24px; position:relative; }
   #map { height:56vh; min-height:360px; width:100%; border-radius:14px; }
@@ -1470,6 +1492,9 @@
           </div>
           <div id="pickList" class="picklist" hidden></div>
         </div>
+      <!-- 规划前容量预估：勾完景点立刻算「装不装得下」。默认 hidden ——
+           没勾景点时没有可预估的东西，不占空间也不给「0 个景点」这种废话。 -->
+      <div class="capbar" id="capBar" hidden></div>
       <button class="go" id="go">开始规划</button>
       <!-- 规划进度条：原来进度只写进折叠的日志面板，主界面毫无反馈 → 看着像卡住。
            放在按钮正下方（点完按钮视线就在这），显示当前阶段 + 百分比。 -->
@@ -1991,6 +2016,8 @@ function calApply() {
   // 日期改动与当前行程不一致时，明示需要重新规划（日期只作用于新规划）
   if (plan) window.dateMismatch = (dayCount() !== plan.days.length);
   if (plan) renderItin();
+  // 天数变了 = 容量结论可能整个翻转（第①步就改比等到第②步再发现强）
+  capacityRefresh();
 }
 
 // ---- 底图：默认高德瓦片（GCJ-02）；TILE_PROVIDER=osm 时切 OSM + 坐标转换 ----
@@ -2030,6 +2057,72 @@ $('extractBtn').onclick = async () => {
   } finally { btn.disabled = false; }
 };
 
+// ---- 规划前容量预估（POST /plan/capacity，后端 solver.capacity_estimate）----
+// 为什么要有：原来「勾 14 只排 12」这件事，只有跑完规划才在结果里以一行 12px 灰字
+// 告知 —— 用户已经等完一次了。改在**点规划之前**说清，代价是毫秒级纯算术。
+// 三条纪律：
+//   1. 参数与 POST /plan/async **同源**（同一份构造逻辑），否则改了一处忘了另一处，
+//      会出现「预警说装得下、规划说排不下」的自相矛盾。
+//   2. 措辞按后端口径，**不加工成确定性**：后端给的是 NN 粗估，误差存在，
+//      所以文案必须是「可能排不下」而不是「排不下」。
+//   3. 失败静默隐藏：预算是锦上添花，为它弹红/中断主流程是本末倒置。
+function capacityPlanReq() {
+  return { city: currentCity, days: dayCount(),
+    budget: $('budget').value === '' ? null : Number($('budget').value),
+    daily_start_h: timeToH($('start').value || '09:00'),
+    daily_end_h: timeToH($('end').value || '18:00'),
+    preference: currentPref, robustness: currentRob, spots,
+    hotel: pendingHotel || null };
+}
+
+let capTimer = null, capSeq = 0;
+function capacityRefresh() {
+  // 防抖：批量勾选时不必每个卡片都打一次接口。
+  clearTimeout(capTimer);
+  capTimer = setTimeout(runCapacity, 250);
+}
+
+async function runCapacity() {
+  const bar = $('capBar');
+  if (!bar) return;
+  if (!spots.length) { bar.hidden = true; bar.textContent = ''; return; }  // 没勾=没得预估
+  const seq = ++capSeq;          // 请求序号：连点时只认最后一次，防旧响应覆盖新状态
+  bar.hidden = false;
+  bar.className = 'capbar';
+  bar.textContent = '正在估算时间窗装不装得下…';
+  let d;
+  try {
+    const res = await fetch('/plan/capacity', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(capacityPlanReq())});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    d = await res.json();
+  } catch (e) {
+    if (seq === capSeq) { bar.hidden = true; bar.textContent = ''; }  // 静默，不打扰主流程
+    return;
+  }
+  if (seq !== capSeq) return;     // 已有更新的请求在跑，丢弃这次结果
+  // 后端 message 已含完整人话（缺口 / 建议 / 「可能」口径），直接上屏不改写。
+  // 但仍要自己排版出「装得下 / 可能排不下」两级 + 落选的景点名（要 esc）。
+  const names = Array.isArray(d.likely_unplanned) ? d.likely_unplanned : [];
+  const head = d.fits ? '时间窗装得下' : '可能排不下';
+  bar.className = 'capbar ' + (d.fits ? 'ok' : 'note');
+  // likely_unplanned 的名字来自后端、会进 innerHTML，必须逐个转义。
+  bar.innerHTML = '<span class="licon" aria-hidden="true">' + ICON_WARN + '</span><div>'
+    + '<span class="cap-t">' + esc(head) + '</span>'
+    + '<span class="cap-d">　' + esc(d.message || '') + '</span>'
+    + (names.length ? '<div class="cap-names">可能落选：' + names.map(esc).join('、') + '</div>' : '')
+    + '</div>';
+}
+
+// 每天出发/返回时间：容量 = 天数 × (end−start) × 60，这两个框直接就是公式里的因子，
+// 改完不重算 = 预警在说谎。用 change 而非 input（time 输入器拖动时会连发 input，
+// 每敲一下就打一次接口没意义）。
+['start', 'end'].forEach(function (id) {
+  const el = $(id);
+  if (el) el.addEventListener('change', capacityRefresh);
+});
+
 $('go').onclick = async () => {
   if (!spots.length) {
     log('提示', '还没选景点 —— 先勾几个，或粘攻略识别');
@@ -2040,12 +2133,7 @@ $('go').onclick = async () => {
   window.dateMismatch = false;  // 新规划按新日期生成，清除不一致提示
   window.cityMismatch = false;  // 新规划按当前城市生成
   gpShow();                     // 立刻给反馈：进度条出现（否则点完毫无动静，像卡住）
-  const req = { city: currentCity, days: dayCount(),
-    budget: $('budget').value==='' ? null : Number($('budget').value),
-    daily_start_h: timeToH($('start').value || '09:00'),
-    daily_end_h: timeToH($('end').value || '18:00'),
-    preference: currentPref, robustness: currentRob, spots,
-    hotel: pendingHotel || null };   // 先选好的酒店，作为规划入参（后端 PlanRequest.hotel）
+  const req = capacityPlanReq();   // 与容量预警同一份构造，避免两处参数漂移
   try {
     const res = await fetch('/plan/async', {method:'POST',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(req)});
@@ -2351,6 +2439,8 @@ function setStep(n, skipRender) {
   } else {
     if (n === 2) { renderPickStage(); renderPick(); }
     renderWizRight();
+    // 进第②步先算一次：用户可能在第①步改过天数/时间窗，那会直接改变容量结论
+    if (n === 2 && !skipRender) capacityRefresh();
   }
 }
 
@@ -2480,6 +2570,7 @@ function advancePick(action) {
   const wrap = $('psCard');
   if (wrap) wrap.classList.add('ps-out');
   renderWizRight();                       // chips 即时同步
+  capacityRefresh();                      // 逐张舞台增删 → 重算容量
   setTimeout(() => {
     if (wrap) { wrap.classList.remove('ps-out'); renderPickStage(); }
     pickBusy = false;
@@ -2587,6 +2678,7 @@ function addRemotePoi(i) {
   log('挑点', '已加入「' + r0.name + '」');
   searchPois();
   renderWizRight();
+  capacityRefresh();                      // 搜索加入景点 → 重算容量
 }
 
 // 预置卡片切换：就地改该卡 class（不全量重建 —— 逐张弹入动画只在进步骤/搜索时播）
@@ -2611,6 +2703,7 @@ function togglePick(name) {
   }
   renderWizRight();
   renderPickStage();          // 总览里改状态 → 进度条同步
+  capacityRefresh();          // 勾选变了 → 重算容量（防抖）
 }
 
 // ---- 向导事件绑定（顶层一次绑定；DOM 在本 script 之前已解析） ----

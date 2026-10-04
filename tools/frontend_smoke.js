@@ -54,6 +54,7 @@ function makeFetchStub() {
     }
     if (u.includes('/poi/reviews')) return jsonRes({ reviews: REVIEWS });
     if (u.includes('/plan/async')) return jsonRes({ task_id: 'smoke', ws_url: '/ws/smoke' });
+    if (u.includes('/plan/capacity')) return jsonRes(CAPACITY);
     return jsonRes({});
   };
 }
@@ -62,6 +63,15 @@ function makeFetchStub() {
    那段渲染逻辑永远不会被走到，而其余断言照样全绿（典型的假绿）。
    默认空数组，保持既有断言的初始状态不变。 */
 let PLAN_UNPLANNED = [];
+
+/* 容量预估的返回体做成可注入，同理：不控制它的话，
+   「可能排不下」那条渲染路径永远不会被走到，而其余断言照样全绿（假绿）。
+   默认给「装得下」态（fits=true），不影响既有断言的初始状态。 */
+let CAPACITY = {
+  available_min: 1080, needed_min: 300, fits: true, shortage_min: 0,
+  likely_planned: 1, likely_unplanned: [],
+  message: '容量预估：2 天时间窗约 1080 分钟，1 个景点预计装得下（含通勤粗估）。',
+};
 
 function fakePlan() {
   return {
@@ -292,6 +302,87 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         card.querySelectorAll('b').length === 0);
     }
     PLAN_UNPLANNED = [];
+  }
+
+  // P) 规划前容量预警（POST /plan/capacity）。立这组断言的原因很直接：
+  //    这块 UI 是「提醒用户别白等一次规划」，一旦被后续改版整块删掉，
+  //    静态检查与后端测试**全都发现不了** —— 只有真跑一遍看 DOM 才抓得到。
+  {
+    const capOf = () => window.document.getElementById('capBar');
+    const shown = () => { const b = capOf(); return b && !b.hidden; };
+
+    // 存在性前置：若页面根本没有这套逻辑，后面所有调用都会抛 TypeError，
+    // 脚本以 exit 2 异常终止 —— 那不算「验证了断言报红」，只算崩了。
+    // 先判存在，缺失则直接判负退出，让反向验证拿到的是干净的红色清单。
+    check('容量预警：#capBar 容器存在', !!capOf());
+    check('容量预警：capacityRefresh / runCapacity 已挂载',
+      typeof window.capacityRefresh === 'function'
+      && typeof window.runCapacity === 'function');
+    if (typeof window.capacityRefresh !== 'function') {
+      check('容量预警：勾了景点后自动出现', false, '逻辑缺失，跳过');
+      check('容量预警：装得下态措辞', false, '逻辑缺失，跳过');
+      check('容量预警：装得下态配色类', false, '逻辑缺失，跳过');
+      check('容量预警：带警示图标', false, '逻辑缺失，跳过');
+      check('容量预警：装不下时显示', false, '逻辑缺失，跳过');
+      check('容量预警：装不下态措辞', false, '逻辑缺失，跳过');
+      check('容量预警：装不下态配色类', false, '逻辑缺失，跳过');
+      check('容量预警：列出可能落选的景点名', false, '逻辑缺失，跳过');
+      check('容量预警：落选名转义', false, '逻辑缺失，跳过');
+      check('容量预警：接口失败静默隐藏', false, '逻辑缺失，跳过');
+    } else {
+    // 装得下（fits=true）
+    CAPACITY = { available_min: 1080, needed_min: 300, fits: true, shortage_min: 0,
+      likely_planned: 1, likely_unplanned: [],
+      message: '容量预估：2 天时间窗约 1080 分钟，1 个景点预计装得下（含通勤粗估）。' };
+    window.capacityRefresh(); await sleep(320);
+    check('容量预警：勾了景点后自动出现', shown());
+    check('容量预警：装得动用「装得下」措辞',
+      (capOf()?.textContent || '').includes('装得下')
+      && !/可能排不下/.test(capOf()?.textContent || ''),
+      capOf()?.textContent?.slice(0, 40));
+    check('容量预警：装得下态用 ok 配色类',
+      (capOf()?.className || '').includes('ok'));
+    check('容量预警：带警示图标（不靠纯文字传达）',
+      !!capOf()?.querySelector('.licon svg'));
+
+    // 可能排不下（fits=false）：措辞必须是「可能」，不能被前端改成确定性
+    CAPACITY = { available_min: 540, needed_min: 900, fits: false, shortage_min: 360,
+      likely_planned: 1,
+      likely_unplanned: ['青龙寺', '<b>注入</b>景点'],
+      message: '容量预警：2 天时间窗约 540 分钟，勾选的 2 个景点可能排不下（缺口约 360 分钟）。' };
+    window.capacityRefresh(); await sleep(320);
+    check('容量预警：装不下时显示', shown());
+    check('容量预警：装不下用「可能排不下」而非断言式',
+      /可能排不下/.test(capOf()?.textContent || '')
+      && !/一定排不下|肯定排不下|排不下，/.test(capOf()?.textContent || ''),
+      capOf()?.textContent?.slice(0, 50));
+    check('容量预警：装不下态用 note（黄）而非 bad（红）',
+      (capOf()?.className || '').includes('note')
+      && !/unplanned/.test(capOf()?.className || ''));
+    check('容量预警：列出可能落选的景点名',
+      (capOf()?.textContent || '').includes('青龙寺'));
+    check('容量预警：落选名被转义（无注入元素）',
+      capOf()?.querySelectorAll('b').length === 0,
+      'b=' + capOf()?.querySelectorAll('b').length);
+
+    // 【反向】接口失败必须静默隐藏，不能在主流程里弹红/留半截文案
+    CAPACITY = null;
+    const realFetch = window.fetch;
+    window.fetch = (u, i) => String(u).includes('/plan/capacity')
+      ? Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) })
+      : realFetch(u, i);
+    window.capacityRefresh(); await sleep(320);
+    check('容量预警：接口失败时静默隐藏（不留残缺文案）', !shown());
+    window.fetch = realFetch;
+    }   // end else：逻辑存在才跑上面这批 DOM 级断言
+
+    // 空 spots 分支必须早退：不发请求、不显示「0 个景点」这种废话。
+    // 直接读源码验这个分支，比在浏览器里清空 spots 更可靠（spots 是闭包变量，
+    // 从测试侧清不掉，硬清反而会造出一个页面真实走不到的状态）。
+    // 放在 else 外：这条验的是源码形态，不依赖函数挂载。
+    check('容量预警：空 spots 时早退（不发请求、不显示 0 个景点）',
+      /if\s*\(\s*!spots\.length\s*\)\s*\{[^}]*bar\.hidden\s*=\s*true/.test(html),
+      'runCapacity 内须有 !spots.length 早退分支');
   }
 
   if (errors.length) {
