@@ -91,13 +91,20 @@ const COLLECT = function () {
     b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1,
   });
   const bgOf = (el) => {
+    // 半透明背景必须逐层 alpha 合成，不能因为「不是不透明色」就整层丢弃。
+    // 旧实现只接受 a >= 0.99 的祖先色，于是 `.nav` 的 rgba(8,12,19,.62) 玻璃底
+    // 被跳过，纸白字直接对上 body 的纸白底 —— 白字白底测出 1:1，是假红不是真红。
+    const layers = [];
     let n = el;
     while (n && n !== document.documentElement) {
       const c = parse(getComputedStyle(n).backgroundColor);
-      if (c && c.a >= 0.99) return c;
+      if (c && c.a > 0) { layers.push(c); if (c.a >= 0.99) break; }
       n = n.parentElement;
     }
-    return { r: 255, g: 255, b: 255, a: 1 };
+    // layers 是「元素自身 → 祖先」，所以从最外层往里叠
+    let base = { r: 255, g: 255, b: 255, a: 1 };
+    for (let i = layers.length - 1; i >= 0; i--) base = over(layers[i], base);
+    return { r: base.r, g: base.g, b: base.b, a: 1 };
   };
   const desc = (el) => {
     let s = el.tagName.toLowerCase();
