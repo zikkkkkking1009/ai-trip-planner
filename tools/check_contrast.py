@@ -182,6 +182,28 @@ def token_usage(html: str) -> dict[str, dict[str, int]]:
     return usage
 
 
+def var_refs(html: str) -> dict[str, int]:
+    """统计全文件每个令牌被 var() 消费的次数（不分属性、不分位置）。
+
+    与 token_usage 的分工：token_usage 回答「引用挂在哪个属性上」（供角色判定），
+    但它的正则只认 `属性: 值 var(...)` 形态，实测会漏掉三类真实引用 ——
+    ① JS 赋值 `c.style.background = 'var(--note-soft)'`（预警条就这么用，
+      2026-10-04 workbuddy 据此登记「在用的 --note-* 被误报死令牌」）；
+    ② `var(--t, fallback)` 逗号前的令牌（如 --steps / --y）；
+    ③ 同一声明里第 2 个起的 var()（`transition: color var(--t) var(--e)` 里的 --e）。
+    本函数只回答「有没有被消费」：全文件每个 var(--token) 出现都算（注释先剥掉，
+    避免把注释里的示例算进去）。定义不算引用 —— :root 与暗色块里的 `--token:`
+    再定义救不活死令牌：每颗颜色令牌都定义亮暗两份，若把定义当引用，
+    死令牌检查对整个调色板永久失效。
+    """
+    scan = re.sub(r"/\*.*?\*/|<!--.*?-->", "", html, flags=re.S)
+    refs: dict[str, int] = {}
+    for m in re.finditer(r"var\(\s*(--[a-z0-9-]+)\s*[,)]", scan):
+        name = m.group(1).lstrip("-")
+        refs[name] = refs.get(name, 0) + 1
+    return refs
+
+
 def role_of(prop: str) -> str:
     return _PROPS_OF.get(prop, "other")
 
@@ -316,18 +338,23 @@ def resolve(name: str, lum: dict[str, float]) -> float | None:
     return None
 
 
-def audit_page(rel: str, strict: bool = False
+def audit_page(rel: str, strict: bool = False,
+               other_refs: dict[str, int] | None = None
                ) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
     """读文件并审计。返回 (错误, 已知债命中, 未登记令牌, 报告行, 贴线脆弱项)。"""
     path = ROOT / rel
     if not path.exists():
         return [f"{rel}：文件不存在"], [], [], [], []
-    return audit_html(rel, path.read_text(encoding="utf-8"), strict)
+    return audit_html(rel, path.read_text(encoding="utf-8"), strict, other_refs)
 
 
-def audit_html(rel: str, html: str, strict: bool = False
+def audit_html(rel: str, html: str, strict: bool = False,
+               other_refs: dict[str, int] | None = None
                ) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
-    """审计一段页面 HTML。与 audit_page 分离，便于 --selftest 对改坏的副本做验证。"""
+    """审计一段页面 HTML。与 audit_page 分离，便于 --selftest 对改坏的副本做验证。
+
+    other_refs：其余审计页的 var() 引用计数（死令牌跨页合并判定用；自测可省略）。
+    """
     raw, lum, alias = extract_tokens(html)
     usage = token_usage(html)
 
@@ -433,10 +460,14 @@ def audit_html(rel: str, html: str, strict: bool = False
         if strict:
             errors.append(f"{rel} 有未登记角色的颜色令牌：{detail}")
 
-    # 死令牌：定义了但页面一处没用
-    dead = [n for n in raw if n in lum and not usage.get(n)]
+    # 死令牌：定义了但没有任何 var() 消费。引用按 var_refs 全文件统计（含 JS 形态），
+    # 并与其它审计页合并判定 —— 令牌是两页共享的调色板，--note-* 只在规划页消费、
+    # --accent-ink 只在首页消费，只看本页会把共享令牌误报成死令牌。
+    refs = dict(other_refs) if other_refs else {}
+    refs.update(var_refs(html))
+    dead = [n for n in raw if n in lum and not refs.get(n)]
     if dead:
-        report.append(f"  ⚠ 定义了但零引用（死令牌）：{', '.join('--' + d for d in sorted(dead))}")
+        report.append(f"  ⚠ 定义了但零引用（死令牌，跨页统计）：{', '.join('--' + d for d in sorted(dead))}")
 
     # 别名令牌没有自己的颜色，指向哪个目标也要一并露出（首页/规划页各有 --acc/--dim/--line）
     if alias:
@@ -529,6 +560,31 @@ def selftest() -> int:
     if not any("文字用途→收紧" in line for line in rep5):
         fails.append("阈值自动收紧逻辑没有生效（未出现「文字用途→收紧」标记）")
 
+    # 6) 死令牌统计（2026-10-04 workbuddy 登记的盲区：--note-* 被误报零引用）。
+    #    a) 全文件 var() 引用要数得到：--note-* 在 .capbar.note 规则与 JS 预警条里
+    #       真实消费，本页审计不得报它死令牌；
+    #    b) 跨页合并：本页零引用、他页在用的 --accent-ink，传入他页引用后不再报死；
+    #    c) 反向：注入一颗谁都不消费的令牌，死令牌检查必须仍然报出来。
+    def _dead_of(lines: list[str]) -> str:
+        return next((ln for ln in lines if "死令牌" in ln), "")
+
+    _e, _d, _u, rep6, _f = audit_html(rel, html)
+    dead6 = _dead_of(rep6)
+    if any(f"--{t}" in dead6 for t in ("note-ink", "note-line", "note-soft")):
+        fails.append("死令牌统计仍漏计全文件 var() 引用：--note-* 被误报（.capbar.note 与 JS 预警条在用）")
+    if "--accent-ink" not in dead6:
+        fails.append("死令牌检查疑似被废：本页零引用的 --accent-ink（未传他页引用时）竟未报死；"
+                     "若它已在页内被消费，请换一颗真零引用的令牌重钉此断言")
+    dead6b = _dead_of(audit_html(rel, html, other_refs={"accent-ink": 1})[3])
+    if "--accent-ink" in dead6b:
+        fails.append("跨页合并没生效：他页在用的 --accent-ink 仍被本页报成死令牌")
+    extra6 = re.sub(r"(--stay:\s*#[0-9a-fA-F]{6};)",
+                    r"\1\n    --never-used-color: oklch(70% 0.10 200);", html)
+    if extra6 == html:
+        fails.append("自测失效：没能注入 --never-used-color")
+    elif "--never-used-color" not in _dead_of(audit_html(rel, extra6)[3]):
+        fails.append("注入零引用令牌 --never-used-color 后没有被报死令牌 —— 死令牌检查失效")
+
     print("=" * 96)
     if fails:
         print(f"❌ 自测失败 {len(fails)} 项：")
@@ -551,17 +607,28 @@ def main() -> int:
     all_debt: list[str] = []
     all_fragile: list[str] = []
 
+    # 死令牌按跨页合并判定：先数出各页的 var() 引用，给每页传「其余页」的并集
+    refs_by_page: list[dict[str, int]] = []
     for rel in pages:
+        path = ROOT / rel
+        refs_by_page.append(var_refs(path.read_text(encoding="utf-8")) if path.exists() else {})
+
+    for i, rel in enumerate(pages):
         path = ROOT / rel
         if not path.exists():
             all_errors.append(f"{rel}：文件不存在")
             continue
+        other_refs: dict[str, int] = {}
+        for j, refs in enumerate(refs_by_page):
+            if j != i:
+                for name, n in refs.items():
+                    other_refs[name] = other_refs.get(name, 0) + n
         print("=" * 96)
         print(f"{rel}")
         print("=" * 96)
         print(f"{'令牌':<17}{'实测':>10}  {'下限':>4}  判定  角色 / 参照底 / 页面用法")
         print("-" * 96)
-        errors, debt, unreg, report, fragile = audit_page(rel, strict)
+        errors, debt, unreg, report, fragile = audit_page(rel, strict, other_refs)
         for line in report:
             print(line)
         print()
