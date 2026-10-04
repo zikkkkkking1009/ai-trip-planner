@@ -2,7 +2,7 @@
 
 > 用途：**新会话读这一份就能无损接上下文**。
 > ✅ **2026-09-24 已同步**：**SSH 已配好**（`~/.ssh/id_ed25519`，remote 已切 `git@github.com:zikkkkkking1009/ai-trip-planner.git`），58 个提交已推上远程 `main`（`f79fa7f..5f86b91`）。以后 `git push` 免交互。
-> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 437**、接口 **20 → 33**、前端冒烟 **12 → 22+48**（详见二、六节）。
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 445**、接口 **20 → 34**、前端冒烟 **12 → 22+48**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -17,7 +17,7 @@ cd "D:\workby room\ai-trip-planner"
 # 启动服务（当前应有实例在跑，先探测再决定是否重启）
 cd backend && "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000
 
-# 单元测试（437 个）
+# 单元测试（445 个）
 "C:\Users\Administrator\.workbuddy\binaries\python\envs\default\Scripts\python.exe" -m pytest backend/tests/ -q
 
 # 前端静态检查（共 12 项：语法 / 遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / CSS 非法属性 / 文档完整性 / Markdown 标记泄漏 / 对比度达标 / 无容器级硬编码颜色）——在项目根目录跑
@@ -62,9 +62,9 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | RAG 三臂对照（增强后） | 向量重排 90.0/100/**0.950**、纯向量 86.7/100/0.933——重排仅 +0.01 MRR（30 条里 1 条的差距，噪音级），**不采纳向量重排在增强后仍成立**；增强前互补性数据（BM25 8 条盲区 vs 向量深排）见 eval_rag.json 历史 | `backend/eval_rag.json` |
 | RAG 生成层（R4） | `/ask?with_answer=1` 基于**本次检索片段**生成 ≤100 字答案（glm-4-flash + retry_call，失败降级 text=None）+ **实体回链核查 `grounded`**（答案实体必须 ∈ 引用片段，子串豁免防误报）；**默认关**——公开白名单接口不自动烧 LLM 配额 | `backend/tests/test_rag_gen.py` |
 | 语料增强（R5） | `spot_desc.py` 360 条一句话描述（公开常识、无营销话术，测试闸门管覆盖率/键名一致/纪律），`build_corpus` 对 desc 空景点兜底；三臂重测 BM25 hit@1 66.7→90.0 | `backend/spot_desc.py` |
-| 单元测试 | **437 个**全过（**0 skipped**） | `pytest backend/tests/ -q` |
+| 单元测试 | **445 个**全过（**0 skipped**） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **12 项**全绿；冒烟 **22/22**（行程渲染）+ **48/48**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态） | `tools/` |
-| 接口数 | **33 个**（15 GET / 16 POST / 1 DELETE / 1 WS）。较 09-28 新增主力：`/ask`（RAG 检索问答）、`/plan/recheck` + `/plan/edit`（结果侧确定性编辑）、`/poi/search`、`/food` ×4（美食情报卡） | `backend/main.py` |
+| 接口数 | **34 个**（15 GET / 17 POST / 1 DELETE / 1 WS）。较 09-28 新增主力：`/ask`（RAG 检索问答）、`/plan/recheck` + `/plan/edit`（结果侧确定性编辑）、`/plan/capacity`（规划前容量预估）、`/poi/search`、`/food` ×4（美食情报卡） | `backend/main.py` |
 
 **产品功能**：**桌面网站形态**（顶部毛玻璃导航 + Hero + 左表单/右结果双栏，<1024px 自动降级单列；已去掉 460px 手机壳）、**桌宠式 AI 对话助手**（右下角常驻角色：眨眼/呼吸/光标跟随/四表情，点击展开气泡面板，消息气泡 + 动态快捷指令 + 思考动画；能改行程**也能回答行程问题**；对话操控走主模型，消息用 textContent 防 XSS）、**偏好选择**（均衡 / 少走路 / 省钱 / 多玩，权重经扫描标定）、**稳健性模拟**（1000 次抽样估"按时走完的概率"+ 给出"去掉哪个景点能提升多少"，一键执行；参数敏感性见实验七）、**多城市**（**38 城 375 个景点**预置 = 西安 14 手写 + 37 城 361 条脚本抓取，坐标全部来自高德真实抓取；任意城市走「粘攻略→识别城市→对齐」，`build_demo_data.py --auto` 可继续扩容）、**粘贴攻略自动识别景点**（LLM 抽取 + 城市识别 + 低置信度条目自动跳过）、日历选期、地图按天分色 + 图例开关、景点详情卡（实景图灯箱 / AI 介绍 / 好评避雷双卡 / 地址一键导航）、**酒店选择器（2026-09-24 重做：打开即推荐附近酒店，无需先搜索；关键词收窄；分页「加载更多」每页 25 条；卡片给出评分 / 归一化档位 / 区域 / 到行程中心的真实距离 / 地址 / 电话 / 多图画廊；三种排序 + 档位·评分筛选；一键更换；就地小地图；⚠️ 没有真实房价——高德免费接口不含房价，字段留空即不显示、绝不编造）**、**住宿锚点**（每天起点终点，往返通勤计入；支持「先选酒店再规划」，`PlanRequest.hotel` 透传并回显）、对话式修改（多轮记忆）、历史规划（预览 / 软删除 / 批量清理）、收藏、免费模型通道。
 
@@ -228,7 +228,7 @@ B8 部署 **✅ 阶段一已完成**（2026-09-28~29）  ← 原为"用户已明
 
 | 工具 | 作用 | 命令 |
 |------|------|------|
-| `pytest` | **437** 个单元测试 | `python -m pytest backend/tests/ -q` |
+| `pytest` | **445** 个单元测试 | `python -m pytest backend/tests/ -q` |
 | `tools/check_frontend.py` | 前端静态检查 **12 项**（JS 语法 / 全局遮蔽 / 硬编码坐标 / 属性插值转义 / CSS 自引用 / 未定义 CSS 变量 / **CSS 非法属性** / 文档完整性 / **Markdown 标记泄漏** / **对比度达标** / **无容器级硬编码颜色**）；设计稿 HTML 也一并检查配色 | `python tools/check_frontend.py` |
 | `tools/check_contrast.py` | **页面级对比度门禁**（读 static/ 里真实的 `:root` / 暗色块，按「角色 × 参照底」断言 WCAG） | `python tools/check_contrast.py` |
 | `tools/contrast_runtime.js` | **浏览器运行时对比度实测**（真渲染，非推算）；`--all` 跑明暗两套 | `node tools/contrast_runtime.js static/index.html static/home.html --all` |

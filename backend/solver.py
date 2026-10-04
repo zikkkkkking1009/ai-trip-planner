@@ -501,3 +501,90 @@ class Solver:
                 day=i + 1, spots=vspots, commute_min=round(comm, 1),
                 cost=round(cost, 1), active_min=round(active, 0)))
         return day_plans, unplanned, round(total_cost, 1), round(total_score, 1)
+
+
+# ---- 规划前容量预估（/plan/capacity 用）：纯算术 + NN 贪心，毫秒级零配额零网络 ----
+
+def _est_commute_min(a: Spot | Hotel, b: Spot | Hotel) -> float:
+    """容量估算用的通勤粗估（与 commute_min 同口径：haversine/市内均速+固定开销）。"""
+    if (a.lat, a.lon) == (b.lat, b.lon):
+        return 0.0
+    km = haversine_km(a.lat, a.lon, b.lat, b.lon)
+    return max(10.0, km / CITY_SPEED_KMH * 60 + COMMUTE_OVERHEAD_MIN)
+
+
+def capacity_estimate(req: PlanRequest) -> dict:
+    """估算当前时间窗能不能装下全部勾选景点——规划前预警，不跑求解器、零网络。
+
+    口径：available = days×(end−start)×60；needed = Σ停留 + NN 链路通勤粗估；
+    装不下时逐日 NN 装箱估「大概率排得进几个」。NN 是粗估（真求解有全局优化与
+    开放时间窗约束），调用方措辞必须用「可能」，不用「一定」。
+    """
+    spots = list(req.spots)
+    if not spots:
+        raise ValueError("景点列表为空")
+    window = (req.daily_end_h - req.daily_start_h) * 60.0
+    available = req.days * window
+    hotel = req.hotel
+
+    # NN 链路：needed = Σ(通勤 + 停留)（住酒店则含回酒店收尾段）
+    remaining = spots[:]
+    cur: Spot | Hotel = hotel or spots[0]
+    needed = 0.0
+    while remaining:
+        nxt = min(remaining, key=lambda s: haversine_km(cur.lat, cur.lon, s.lat, s.lon))
+        needed += _est_commute_min(cur, nxt) + nxt.stay_min
+        remaining.remove(nxt)
+        cur = nxt
+    if hotel is not None:
+        needed += _est_commute_min(cur, hotel)
+
+    out: dict[str, object] = {
+        "available_min": round(available, 1),
+        "needed_min": round(needed, 1),
+        "fits": needed <= available + 1e-9,
+        "shortage_min": round(max(0.0, needed - available), 1),
+    }
+    if out["fits"]:
+        out.update({
+            "likely_planned": len(spots), "likely_unplanned": [],
+            "message": (f"容量预估：{req.days} 天时间窗约 {available:.0f} 分钟，"
+                        f"{len(spots)} 个景点预计装得下（含通勤粗估）。"),
+        })
+        return out
+
+    # 装不下：逐日装箱（first-fit：按距离序找第一个装得下的，比纯 NN 少留冤枉洞），
+    # 估「大概率排得进几个」与名单
+    pool = spots[:]
+    for _ in range(req.days):
+        cur2: Hotel | Spot | None = hotel
+        t = 0.0
+        while True:
+            if not pool:
+                break
+            placed = False
+            # 按「停留最短」优先装（对应真实求解器挑便宜景点揽客的行为）——给出乐观上界
+            for cand in sorted(pool, key=lambda s: (s.stay_min, s.source_id)):
+                step = (float(cand.stay_min) if cur2 is None
+                        else _est_commute_min(cur2, cand) + cand.stay_min)
+                back = _est_commute_min(cand, hotel) if hotel else 0.0
+                if t + step + back > window:
+                    continue
+                t += step
+                pool.remove(cand)
+                cur2 = cand
+                placed = True
+                break
+            if not placed:
+                break
+    unplanned = [s.name for s in pool]
+    planned = len(spots) - len(unplanned)
+    out.update({
+        "likely_planned": planned,
+        "likely_unplanned": unplanned,
+        "message": (f"容量预警：{req.days} 天时间窗约 {available:.0f} 分钟，勾选的 "
+                    f"{len(spots)} 个景点可能排不下（缺口约 {out['shortage_min']:.0f} 分钟，"
+                    f"优先安排停留短的大概排进 {planned} 个）。多加 1 天、调长时间窗，"
+                    f"或去掉约 {len(unplanned)} 个景点，都可能排得下。"),
+    })
+    return out

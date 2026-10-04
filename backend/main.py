@@ -58,7 +58,7 @@ from extractor import extract_guide
 from media_cache import (get_media, suspected_wrong_city,
                          update_media)
 from models import PlanRequest, PlanResult
-from solver import Solver
+from solver import Solver, capacity_estimate
 from weather import daily_weather
 
 # Key 可用性自检。selftest 顶层**只**依赖标准库（项目内 import 全部写在函数里），
@@ -384,6 +384,21 @@ def _service_status() -> dict:
 def health() -> dict:
     """健康检查：求解器、通勤数据源、内存任务队列的实时状态（首页「服务状态」与它同源）。"""
     return _service_status()
+
+
+@app.post("/plan/capacity", dependencies=[Depends(verify_token)])
+def plan_capacity(req: PlanRequest) -> dict:
+    """规划前容量预估（2026-10-04，workbuddy 登记的「勾 14 只排 12 无预警」）：毫秒级粗估。
+
+    不跑求解器、零网络零配额——纯算术 + NN 贪心装箱（solver.capacity_estimate）。
+    估算有误差（真实通勤走高德、求解有全局优化），前端措辞用「可能排不下」。
+    """
+    if not req.spots:
+        raise HTTPException(400, "景点列表为空")
+    try:
+        return capacity_estimate(req)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @app.post("/plan", dependencies=[Depends(verify_token)], response_model=PlanResult)
