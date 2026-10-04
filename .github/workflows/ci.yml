@@ -126,6 +126,23 @@ jobs:
           }
           tail -n 4 realbench.log
 
+      # 排序质量门禁：量「一条 query 多个相关实体」的 top-k 质量。
+      # 为什么这道不可省 —— 上面两道量的是「该不该答」「答对没」，
+      # 都没量**排序形状**：rag_golden.json 每条 query 只允许 1 个 ground truth
+      # （eval_rag.py:46 禁止重复 q），所以「top1 对但 2-5 名全是噪声」与
+      # 「top1-3 名都对」在 hit@1/hit@5/MRR 下同分（都记 rank=1）。
+      # 实测现线：precision@5 只有 0.58 —— 「北京必去的地方」top5 里
+      # 第 2、3 名是烤鸭和卤煮（美食串味）。这个数字比 hit@1 90% 难看得多，
+      # 但它才是用户实际感受到的排序质量。先把尺子立起来，再谈提升。
+      - name: RAG ranking quality gate (multi-ground-truth)
+        run: |
+          python tools/rag_rank_eval.py > rank.log 2>&1 || {
+            echo "RAG RANKING REGRESSED, dumping to annotation..."
+            python -c "import urllib.parse; print('::error::' + urllib.parse.quote(open('rank.log', encoding='utf-8', errors='ignore').read()[-1800:]))"
+            exit 1
+          }
+          tail -n 3 rank.log
+
       - name: Smoke test solver demo (no API key needed)
         working-directory: backend
         run: python run_demo.py
