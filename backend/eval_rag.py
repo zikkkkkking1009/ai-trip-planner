@@ -32,6 +32,7 @@ if str(BACKEND) not in sys.path:
 from rag import ask, build_corpus  # noqa: E402
 
 GOLDEN_FILE = BACKEND / "rag_golden.json"
+GOLDEN_INTENT_FILE = BACKEND / "rag_golden_intent.json"
 OUT_FILE = BACKEND / "eval_rag.json"
 CACHE_FILE = BACKEND.parent / "data" / "rag_embed_cache.json"
 EMBED_MODEL = "embedding-3"
@@ -129,7 +130,7 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 def eval_vector(golden: list[dict[str, str]]) -> dict:
     docs = build_corpus()
-    texts = [d["text"] for d in docs]
+    texts = [str(d["text"]) for d in docs]
     client, model = _embed_channel()
     print(f"  向量通道模型：{model}")
     doc_vecs = _embed_cached(client, model, texts)
@@ -147,7 +148,7 @@ def eval_rerank(golden: list[dict[str, str]], k: int = 20) -> dict:
     docs = build_corpus()
     idx = {(d["name"], d["city"]): i for i, d in enumerate(docs)}
     client, model = _embed_channel()
-    doc_vecs = _embed_cached(client, model, [d["text"] for d in docs])
+    doc_vecs = _embed_cached(client, model, [str(d["text"]) for d in docs])
     q_vecs = _embed_cached(client, model, [e["q"] for e in golden])
     ranks = []
     for e, qv in zip(golden, q_vecs):
@@ -160,6 +161,42 @@ def eval_rerank(golden: list[dict[str, str]], k: int = 20) -> dict:
         )
         ranks.append(rank_of(e, [r for _, _, r in scored]))
     return {"method": f"BM25 top-{k} → 向量重排（{model}）", "ranks": ranks, **metrics(ranks)}
+
+
+def _tag_frac(results: list[dict[str, object]], tag: str) -> float:
+    """top-k 里含要求标签的比例（意图过滤的质量口径）。"""
+    if not results:
+        return 0.0
+    hit = 0
+    for r in results:
+        tags = r.get("tags")
+        if isinstance(tags, list) and tag in tags:
+            hit += 1
+    return hit / len(results)
+
+
+def eval_intent() -> dict:
+    """意图臂（R6，ZCode）：rag_golden_intent.json 的口语 query，量两件事——
+
+    ① intent_recovery：rag_intent.parse_intent 能否从 query 召回标注标签；
+    ② tag_precision5：ask(tag=标签) 后 top5 含该标签的比例（对照：不过滤裸检索）。
+    差值就是意图过滤的价值。全程离线（不走 embedding/LLM）。
+    """
+    from rag_intent import parse_intent
+    rows = json.loads(GOLDEN_INTENT_FILE.read_text(encoding="utf-8"))["queries"]
+    recovered = 0
+    prec_f: list[float] = []
+    prec_n: list[float] = []
+    for row in rows:
+        q, tag = row["q"], row["tag"]
+        recovered += tag in parse_intent(q)
+        prec_f.append(_tag_frac(ask(q, k=5, tag=tag)["results"], tag))
+        prec_n.append(_tag_frac(ask(q, k=5)["results"], tag))
+    n = len(rows)
+    return {"n": n,
+            "intent_recovery": round(recovered / n, 3),
+            "tag_precision5_with_filter": round(sum(prec_f) / n, 3),
+            "tag_precision5_without": round(sum(prec_n) / n, 3)}
 
 
 def main() -> None:
@@ -178,7 +215,16 @@ def main() -> None:
             log.warning("%s 臂不可用，降级为 error 记录：%s", label, e)
             arms[key] = {"method": label, "error": f"不可用：{e}"}
             print(f"{label} : 不可用（{e}）—— BM25 结果照常落盘")
-    out = {"golden_n": len(golden), "bm25": bm, **arms}
+    try:                                    # R6 意图臂：全程离线，失败也不拖累其他臂
+        intent = eval_intent()
+        print(f"意图 : recovery={intent['intent_recovery']} "
+              f"precision5(过滤)={intent['tag_precision5_with_filter']} "
+              f"(裸)={intent['tag_precision5_without']}")
+    except Exception as e:
+        log.warning("意图臂不可用，降级为 error 记录：%s", e)
+        intent = {"error": f"不可用：{e}"}
+        print(f"意图 : 不可用（{e}）")
+    out = {"golden_n": len(golden), "bm25": bm, "intent": intent, **arms}
     OUT_FILE.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"已写入 {OUT_FILE}")
 

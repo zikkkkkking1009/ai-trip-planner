@@ -531,14 +531,15 @@ def demo_spot_list(city: str = DEFAULT_CITY) -> dict:
 
 @app.get("/ask")
 def ask_corpus(q: str, city: str | None = None, k: int = 5,
-               with_answer: bool = False) -> dict:
-    """R1 检索基线 + R4 grounded 生成层（ROADMAP 2026-09-30 立项）。
+               with_answer: bool = False, tag: str | None = None) -> dict:
+    """R1 检索基线 + R4 grounded 生成层 + R6 标签过滤（ROADMAP 2026-09-30 立项）。
 
-    BM25 + 字符 bigram 检索（零 Key），每条结果带 source 引用 + R2 引用核查；
+    BM25 + 字符 bigram 检索（零 Key），每条结果带 source 引用 + R2 引用核查
+    + R6 结构化字段（tags/ticket/stay_min）；tag= 允许标签过滤（免费/亲子/室内等）；
     with_answer=1 时基于检索片段生成 ≤100 字答案并做实体回链核查（默认关——
     公开白名单接口不自动烧 LLM 配额），LLM 失败自动降级为纯检索结果。
     """
-    return rag_ask(q=q, city=city, k=k, with_answer=with_answer)
+    return rag_ask(q=q, city=city, k=k, with_answer=with_answer, tag=tag)
 
 
 @app.get("/cities")

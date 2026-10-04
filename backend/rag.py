@@ -14,10 +14,12 @@ import math
 import re
 from functools import lru_cache
 
+from corpus_fields import food_tags, spot_fields
 from demo_data import DEMO_SPOTS
 from editor import _llm
 from models import Spot
 from food_seeds import FOOD_SEEDS
+from rag_intent import parse_intent
 from reliability import retry_call
 from spot_desc import SPOT_DESCS
 
@@ -136,7 +138,7 @@ def _fact_coverage() -> dict[str, str]:
     """字段覆盖率（如 门票 62/375）——拒答文案要报实数，不能拍脑袋写个「大部分」。"""
     docs = [d for d in _index_cached().docs if d["type"] == "景点"]
     n = len(docs)
-    return {a: f"{sum(1 for d in docs if p.search(d['text']))}/{n}"
+    return {a: f"{sum(1 for d in docs if p.search(str(d['text'])))}/{n}"
             for a, p in FACT_PATTERNS.items()}
 
 
@@ -166,9 +168,13 @@ def spot_facts(s: Spot) -> str:
     return " ".join(parts)
 
 
-def build_corpus() -> list[dict[str, str]]:
-    """语料文档：{type, city, name, text, source}（每次新建，测试可用）。"""
-    docs: list[dict[str, str]] = []
+def build_corpus() -> list[dict[str, object]]:
+    """语料文档：{type, city, name, text, source} + R6 结构化字段（每次新建，测试可用）。
+
+    R6 起携带 tags/ticket/ticket_known/stay_min/open_h/close_h，供 /ask 的 tag
+    过滤与前端卡片使用；文本层字段拼串见 spot_facts（workbuddy）。
+    """
+    docs: list[dict[str, object]] = []
     for city, spots in DEMO_SPOTS.items():
         for s in spots:
             # desc 为空的脚本抓取景点用一句话描述兜底（语料增强，R3 定论的检索天花板）
@@ -177,6 +183,7 @@ def build_corpus() -> list[dict[str, str]]:
                 "type": "景点", "city": city, "name": s.name,
                 "text": " ".join(x for x in (s.name, desc, city, spot_facts(s)) if x),
                 "source": "预置景点库",
+                **spot_fields(s),
             })
     for city, foods in FOOD_SEEDS.items():
         for name, intro in foods:
@@ -184,6 +191,8 @@ def build_corpus() -> list[dict[str, str]]:
                 "type": "美食", "city": city, "name": name,
                 "text": " ".join(x for x in (name, intro, city) if x),
                 "source": "美食种子库",
+                "tags": food_tags(), "ticket": None, "ticket_known": False,
+                "stay_min": None, "open_h": None, "close_h": None,
             })
     return docs
 
@@ -191,14 +200,14 @@ def build_corpus() -> list[dict[str, str]]:
 class _Index:
     """BM25 索引：名字权重 ×2（查询意图主要落在专名上）。"""
 
-    def __init__(self, docs: list[dict[str, str]]):
+    def __init__(self, docs: list[dict[str, object]]):
         self.docs = docs
         self.tfs: list[dict[str, int]] = []
         self.dls: list[int] = []
         df: dict[str, int] = {}
         for d in docs:
             tf: dict[str, int] = {}
-            for tok in tokenize(d["name"]) * 2 + tokenize(d["text"]):
+            for tok in tokenize(str(d["name"])) * 2 + tokenize(str(d["text"])):
                 tf[tok] = tf.get(tok, 0) + 1
             self.tfs.append(tf)
             self.dls.append(sum(tf.values()))
@@ -336,13 +345,17 @@ def generate_answer(q: str, results: list[dict[str, object]]) -> dict[str, objec
     if not text:
         return {"text": None, "grounded": None, "outside": [], "note": "生成返回为空"}
     grounding = check_grounding(text, {str(r["name"]) for r in results},
-                                {d["name"] for d in _index_cached().docs})
+                                {str(d["name"]) for d in _index_cached().docs})
     return {"text": text, "model": model, **grounding}
 
 
 def ask(q: str, city: str | None = None, k: int = 5,
-        with_answer: bool = False) -> dict:
-    """检索问答：带来源引用；with_answer=True 叠加 grounded 生成层（失败自动降级）。"""
+        with_answer: bool = False, tag: str | None = None) -> dict:
+    """检索问答：带来源引用；with_answer=True 叠加 grounded 生成层（失败自动降级）。
+
+    tag（R6，ZCode）：标签过滤（免费/亲子/室内…，来自 rag_intent.parse_intent
+    或前端显式传入），与 city 同为检索前过滤。
+    """
     from cities import normalize_city
     q_toks = tokenize(q)
     index = _index_cached()
@@ -357,15 +370,23 @@ def ask(q: str, city: str | None = None, k: int = 5,
     picked = list(range(index.n))
     if city_n:
         picked = [i for i in picked if index.docs[i]["city"] == city_n]
+    if tag:                                 # R6：标签过滤（结构性意图，过滤比加权准）
+        picked = [i for i in picked
+                  if isinstance(doc_tags := index.docs[i].get("tags"), list)
+                  and tag in doc_tags]
     kind = detect_kind(q)
     # 问的是美食就不查门票（「西安有什么好吃的多少钱」问的是菜价不是门票）
     attr = detect_attr(q) if kind != "美食" else None
     unsupported = detect_unsupported(q)      # 库里没有的：硬拒答
+    if unsupported and "室内" in parse_intent(q):
+        # 豁免：「下雨天能去哪」问的是室内选项，不是问天气——tag 过滤能答，不拒
+        unsupported = None
     scores = index.score(q_toks) if not unsupported else [0.0] * index.n
     if kind:                            # 只加权不过滤：过滤会连正确的专名命中一起丢掉
         scores = [s * _KIND_BOOST if index.docs[i]["type"] == kind else s
                   for i, s in enumerate(scores)]
-    scored = [(index.docs[i], scores[i]) for i in picked if scores[i] > 0]
+    scored: list[tuple[dict[str, object], float]] = [(index.docs[i], scores[i])
+                                                     for i in picked if scores[i] > 0]
     scored.sort(key=lambda x: -x[1])
     # 城市锚定：用户没说城市时，以 top1 所在城市为准，其它城市一律丢弃。
     # 一个回答里混着好几个城市的条目对用户就是噪音——实测「兵马俑门票多少钱」会捎上
@@ -378,25 +399,31 @@ def ask(q: str, city: str | None = None, k: int = 5,
         # ×1.5 领先才敢替用户定城市：同名实体跨城重复（「土笋冻」厦门/泉州语料里都有，
         # 分数几乎持平）时锚下去就是把正确答案删掉——那种时候宁可两个城市都给。
         if scored[0][1] >= _ANCHOR_MARGIN * best_other:
-            anchor = top_city
+            anchor = str(top_city)
             scored = [x for x in scored if x[0]["city"] == anchor]
     kk = max(1, min(k, _K_LIMIT))
     # 兜底：听得懂意图（美食/景点）且命中不足时，按「同城 + 同类型」补齐并打
     # fallback 标记——宁可给一份标了「非精确匹配」的同城清单，也不跨城市塞噪音。
     # 认不出意图时不补：那说明我们也不知道用户想要什么，补什么都可能是噪音。
-    filled: list[tuple[dict[str, str], float, bool]] = [(d, s, False)
-                                                        for d, s in scored[:kk]]
+    filled: list[tuple[dict[str, object], float, bool]] = [(d, s, False)
+                                                           for d, s in scored[:kk]]
     if kind and city_n and len(filled) < kk and not unsupported:
-        have = {d["name"] for d, _, _ in filled}
+        have = {str(d["name"]) for d, _, _ in filled}
         for d in index.docs:
             if len(filled) >= kk:
                 break
             if d["city"] != city_n or d["type"] != kind or d["name"] in have:
                 continue
+            if tag:                          # tag 场景下补齐也必须带标签
+                doc_tags = d.get("tags")
+                if not isinstance(doc_tags, list) or tag not in doc_tags:
+                    continue
             filled.append((d, 0.0, True))
     results = [{
         "type": d["type"], "city": d["city"], "name": d["name"],
         "text": d["text"], "source": d["source"], "score": round(s, 3),
+        "tags": d.get("tags", []), "ticket": d.get("ticket"),
+        "ticket_known": d.get("ticket_known", False), "stay_min": d.get("stay_min"),
         **({"fallback": True} if fb else {}),
     } for d, s, fb in filled]
     for r in results:                       # R2：引用核查（verified + 坐标落地）
