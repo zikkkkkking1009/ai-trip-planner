@@ -19,7 +19,7 @@ from demo_data import DEMO_SPOTS
 from editor import _llm
 from models import Spot
 from food_seeds import FOOD_SEEDS
-from rag_intent import parse_intent
+from rag_intent import intent_keywords, parse_intent
 from reliability import retry_call
 from spot_desc import SPOT_DESCS
 
@@ -179,22 +179,42 @@ def build_corpus() -> list[dict[str, object]]:
         for s in spots:
             # desc 为空的脚本抓取景点用一句话描述兜底（语料增强，R3 定论的检索天花板）
             desc = s.desc if s.desc and len(s.desc.strip()) >= 10 else SPOT_DESCS.get(s.name, "")
+            fields = spot_fields(s)
+            raw_tags = fields["tags"]
+            tags = (list(raw_tags) if isinstance(raw_tags, list) else []) + ["景点"]   # 类型也进标签：tag=景点 可过滤、可评测
             docs.append({
                 "type": "景点", "city": city, "name": s.name,
-                "text": " ".join(x for x in (s.name, desc, city, spot_facts(s)) if x),
+                "text": " ".join(x for x in (s.name, desc, city, spot_facts(s)) if x)
+                        + _intent_expansion(tags),
                 "source": "预置景点库",
-                **spot_fields(s),
+                **{**fields, "tags": tags},
             })
     for city, foods in FOOD_SEEDS.items():
         for name, intro in foods:
             docs.append({
                 "type": "美食", "city": city, "name": name,
-                "text": " ".join(x for x in (name, intro, city) if x),
+                "text": " ".join(x for x in (name, intro, city) if x)
+                        + _intent_expansion(food_tags()),
                 "source": "美食种子库",
                 "tags": food_tags(), "ticket": None, "ticket_known": False,
                 "stay_min": None, "open_h": None, "close_h": None,
             })
     return docs
+
+
+def _intent_expansion(tags: list[str]) -> str:
+    """文档扩展（R6）：把各标签的意图同义词拼进语料文本。
+
+    「适合带孩子」「下雨天能去哪」这类意图词在景点简介里一次都不出现，
+    BM25 只能靠稀有 bigram 撞——把 rag_intent 规则表的关键词（单一事实源）
+    按标签拼到文本尾部，意图 query 就能直接命中。只拼 ≥2 字词且去重。
+    """
+    words: list[str] = []
+    for t in tags:
+        for kw in intent_keywords(t):
+            if kw not in words:
+                words.append(kw)
+    return (" " + " ".join(words)) if words else ""
 
 
 class _Index:
