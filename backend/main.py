@@ -120,6 +120,15 @@ async def request_context(request: Request, call_next):
                 {"detail": f"请求过于频繁：每分钟最多 {RATE_LIMIT_PER_MIN} 次，请稍后再试"},
                 status_code=429, headers={"X-Request-Id": rid})
 
+    if path == "/ask" and request.query_params.get("with_answer") in ("1", "true", "True"):
+        if ask_gen_limit_hit(t0):
+            request_id_var.reset(token)
+            log.warning("答案生成配额命中 path=%s（>%d 次/分钟）", path, ASK_GEN_RATE_LIMIT_PER_MIN)
+            return JSONResponse(
+                {"detail": f"答案生成额度已满：每分钟最多 {ASK_GEN_RATE_LIMIT_PER_MIN} 次，"
+                           "取消勾选「生成答案」可继续免费检索"},
+                status_code=429, headers={"X-Request-Id": rid})
+
     try:
         response = await call_next(request)
     except Exception:
@@ -217,6 +226,16 @@ RATE_LIMIT_PER_MIN = _int_env("RATE_LIMIT_PER_MIN", 120)
 # 而限流按路径前缀无法区分查询参数，纯检索的少量误伤可接受（2026-10-04 workbuddy 风险登记后补入）。
 RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather", "/food", "/ask")
 
+# /ask 的 with_answer=1 烧 LLM 配额，且隧道不透传 IP（全场共享一桶）——按 IP 配额无意义，
+# 所以生成走**独立的全局桶**（默认 10 次/分钟）。换隧道后 client_ip 按人生效，此桶仍作总闸。
+ASK_GEN_RATE_LIMIT_PER_MIN = _int_env("ASK_GEN_RATE_LIMIT_PER_MIN", 10)
+_ask_gen_hits: deque[float] = deque()
+
+# 是否信任上游的 XFF / X-Real-IP（限流按真实访客分桶）。
+# 默认 0：2026-10-04 实测花生壳是直通代理、伪造头原样到达，信任它 = 限流可被无限绕过。
+# 换成可信反代（追加/覆盖式写入真实来源）时在 .env 设 TRUST_PROXY_HEADERS=1。
+TRUST_PROXY_HEADERS = _int_env("TRUST_PROXY_HEADERS", 0)
+
 
 def is_costly_path(path: str) -> bool:
     """是否是"花钱路径"。
@@ -237,28 +256,28 @@ _rate_lock = threading.Lock()
 
 
 def client_ip(request: Request) -> str:
-    """取真实客户端 IP。
+    """取限流身份。
 
-    ⚠️ **这是隧道场景的关键点**：花生壳这类内网穿透的请求都从**本机**发起，
-    `request.client.host` 恒为 127.0.0.1 —— 直接按它限流会把所有朋友算成同一个人
-    （30 次/分钟 被全场共享）。真实 IP 在 `X-Forwarded-For` 里。
+    ⚠️ **2026-10-04 复测修正（推翻 09-28 的部分结论）**：真正的「信任 XFF」发生在
+    **uvicorn 自带的 ProxyHeadersMiddleware**——它默认信任来自 127.0.0.1 的请求，把
+    `request.client` 改写成 `X-Forwarded-For` 的值，发生在本函数之前。花生壳是直通
+    代理（客户端伪造头原样到达，实测伪造 203.0.113.77 穿隧道后 ip=203.0.113.77），
+    于是伪造头等于**无限换桶绕过限流**。09-28 旧结论「花生壳一个头都不发」只对
+    「客户端没带头」的请求成立，当时没测伪造头。
+    修复分两层：
+    1. **uvicorn 层（真闸门）**：start-backend.bat 加 `--no-proxy-headers`，
+       request.client 恢复为真实 TCP 对端（隧道下恒为 127.0.0.1，全场共享一桶）；
+    2. **应用层（显式开关，纵深防御）**：`TRUST_PROXY_HEADERS=1`（.env）才允许读
+       转发头。两层必须同时打开才按「真实访客」限流——只该在上游是可信反代
+       （追加式 nginx / 覆盖式网关）时一起打开。
+    打开后的取值规则（保留原有两道防线）：
 
-    但 XFF 是**可伪造**的，不能无条件相信，所以有两道防线：
-
-    1. 只在"直连方是回环"（即请求来自本机隧道客户端）时才采信 XFF。这样局域网里的
-       机器伪造 XFF 也没用，只会被按自己的真实 IP 限流。
-    2. **取最后一个值，不是第一个。** 标准反代（nginx 的 `$proxy_add_x_forwarded_for`
-       这类）是**追加**：`XFF = <客户端自带的> + ", " + <真实 peer>`。所以**第一个
-       元素恰恰是攻击者自己塞进来的**，取它会让人用一个伪造头就换一个限流桶、直接绕过限流；
-       最后一个才是可信代理追加的真实来源。若代理是整条覆盖式写入（不带追加），
-       最后一个同样等于真实 IP —— 两种实现下取"最后"都更安全。
+    1. 只在"直连方是回环"时才读转发头。局域网机器伪造 XFF 没用，按自己的真实 IP 限流。
+    2. **取最后一个值，不是第一个。** 标准反代是**追加**：`XFF = <客户端自带的> + ", "
+       + <真实 peer>`，第一个元素恰是攻击者塞的；取最后对追加式/覆盖式代理都更安全。
     """
     peer = request.client.host if request.client else "-"
-    if peer in ("127.0.0.1", "::1"):
-        # 两种常见写法都认：X-Forwarded-For（追加式）与 X-Real-IP（覆盖式）。
-        # 实测（2026-09-28，花生壳免费 HTTPS 映射）：**它两个都不发**，
-        # 隧道来的请求解析出来仍是 127.0.0.1 ⇒ 限流实际是"全场共享一份额度"。
-        # 这段代码留着是为了换隧道/加反代时能自动生效。
+    if TRUST_PROXY_HEADERS and peer in ("127.0.0.1", "::1"):
         xff = request.headers.get("x-forwarded-for", "")
         if xff:
             last = xff.split(",")[-1].strip()
@@ -295,7 +314,23 @@ def rate_limit_hit(ip: str, now: float) -> bool:
         if len(_rate_hits) > 4096:
             for k in [k for k, v in _rate_hits.items() if not v][:1024]:
                 _rate_hits.pop(k, None)
-        return False
+    return False
+
+
+def ask_gen_limit_hit(now: float) -> bool:
+    """答案生成的独立全局配额（滑动窗口 60 秒）；超限返回 True。
+
+    为什么是全局桶而不是按 IP：花生壳不透传转发头（2026-09-28/10-04 两次实测），
+    所有公网请求解析出来都是 127.0.0.1，按 IP 分桶等于没有分桶；生成答案烧 LLM 配额，
+    必须有一个不管来源的总闸。换隧道后 client_ip 按人生效，此桶继续作全局总闸。
+    """
+    with _rate_lock:
+        while _ask_gen_hits and now - _ask_gen_hits[0] > 60.0:
+            _ask_gen_hits.popleft()
+        if len(_ask_gen_hits) >= ASK_GEN_RATE_LIMIT_PER_MIN:
+            return True
+        _ask_gen_hits.append(now)
+    return False
 
 
 def _plan_snapshot_file(task_id: object) -> Path | None:

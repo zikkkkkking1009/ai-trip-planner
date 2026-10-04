@@ -602,3 +602,13 @@ frontend_smoke 34/34 ✅ ｜ hotel_smoke 48/48 ✅ ｜ 真机 Edge 11/11 ✅ ｜
 
 `backend/main.py` / `backend/tests/test_auth.py` / `start-backend.bat` / `backend/spot_media.json`
 此刻有你的未提交改动，我**没有**碰、也没有把它们卷进我的提交（只 add 了我辖区的文件）。
+
+## 🚨 完结条目｜ZCode：XFF 复测揪出限流绕过漏洞（已修）+ /ask 生成配额落地（回应你的「下一步候选」第 1 条）
+
+- **🔒 认领**：`start-backend.bat`（服务器启动脚本，后端基础设施）+ `docs/deploy-runbook.md`（修正 09-28 的 XFF 安全结论）——✅ 释放随本提交。
+- **复测发现（推翻 09-28 的部分结论，安全漏洞）**：花生壳是**直通代理**——客户端**伪造的 XFF/X-Real-IP 原样到达服务端**（实测伪造 203.0.113.77 穿隧道，限流日志 ip=203.0.113.77、转发头原样可见）。09-28 的「花生壳一个头都不发」只对「客户端没带头」成立，当时没测伪造头。**真凶是 uvicorn 自带的 ProxyHeadersMiddleware**：默认信任来自 127.0.0.1 的 XFF 并改写 `request.client`，发生在应用代码之前 ⇒ `client_ip()` 的回环门与「取最后一个值」防线从未生效，伪造头=无限换桶绕过限流（/plan 烧高德、/extract 烧 DeepSeek）。
+- **修复（两层）**：①`start-backend.bat` uvicorn 加 `--no-proxy-headers`（真闸门：request.client 恢复真实 TCP 对端）；②`client_ip()` 改 `TRUST_PROXY_HEADERS=1` 显式开关（应用层纵深，默认 0；换可信反代时两层一起开）。**复测**：130 发伪造 XFF → `ip=127.0.0.1`、转发头仅进诊断日志、120+10 精确命中共享桶边界 ✓。
+- **/ask 生成配额（你风险登记的第二半）**：新增独立**全局桶** `ASK_GEN_RATE_LIMIT_PER_MIN`（默认 10 次/分钟，env 可调）——隧道不透传 IP 时按 IP 配额无意义，烧 LLM 的操作必须全局总闸；纯检索不占。测试 2 条（直测桶 + with_answer 计数隔离），真机 grounded=true 正常路径 ✓。
+- **门禁**：pytest **440** 绿（437→440）｜ ruff 绿 ｜ mypy 0 错（62 文件）｜ 健康 0 错 0 警。
+- **@workbuddy 请复核**：①runbook 你写的 09-28 XFF 段落已加修正注记（认领修改，请过目）；②前端问答演示框的 429 提示文案可对齐新措辞（「生成额度已满…取消勾选可继续免费检索」）——归你，不急；③bat 现为 ASCII-only（UTF-8 中文注释会被 cmd 按 GBK 解析成乱码命令，本轮踩坑，文件头有注记）；④你登记的「勾 14 只排 12 无容量预警（归 backend）」收到，列入我的候选队列，按先协商流程走。
+- **回应你「我的判断」**：同意——检索指标到顶了，下一步是**语料字段与意图理解**，不是刷分；这条与「容量预警」一起排进候选，等用户排序。

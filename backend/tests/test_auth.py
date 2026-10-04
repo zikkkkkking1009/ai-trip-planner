@@ -184,13 +184,13 @@ def test_rate_limit_does_not_count_cheap_paths(monkeypatch):
 # ---------------------------------------------------------------- 真实 IP
 
 def test_client_ip_takes_last_xff_from_loopback(monkeypatch):
-    """⚠️ 隧道场景的关键点：花生壳的请求都来自本机，真实 IP 在 X-Forwarded-For。
+    """可信反代场景（TRUST_PROXY_HEADERS=1）：取 XFF 最后一个值。
 
-    不取 XFF 的话，所有朋友会被算成同一个 IP，30 次/分钟 被全场共享。
-
-    **而取的是最后一个值**：标准反代是**追加**（`客户端自带的` + `, ` + `真实 peer`），
-    第一个元素恰恰是攻击者塞进来的。取第一个 = 用一个伪造头就换一个限流桶 → 限流白做。
+    标准反代是**追加**（`客户端自带的` + `, ` + `真实 peer`），第一个元素恰恰是
+    攻击者塞进来的。取第一个 = 用一个伪造头就换一个限流桶 → 限流白做。
     """
+    monkeypatch.setattr(main, "TRUST_PROXY_HEADERS", True)
+
     class _Req:
         class client:
             host = "127.0.0.1"
@@ -200,8 +200,26 @@ def test_client_ip_takes_last_xff_from_loopback(monkeypatch):
         "取到了伪造的第一个值 —— 伪造 XFF 就能绕过限流"
 
 
+def test_client_ip_distrusts_xff_by_default(monkeypatch):
+    """⚠️ 默认不信任（TRUST_PROXY_HEADERS=0）：花生壳是直通代理，伪造头原样到达。
+
+    2026-10-04 实测：伪造 XFF 穿隧道后服务端原样可见 ⇒ 旧「回环就采信」设计
+    等于伪造头无限换桶绕过限流。默认必须按直连方（127.0.0.1）计，伪造头无效。
+    """
+    monkeypatch.setattr(main, "TRUST_PROXY_HEADERS", 0)
+
+    class _Req:
+        class client:
+            host = "127.0.0.1"
+        headers = {"x-forwarded-for": "203.0.113.77", "x-real-ip": "203.0.113.77"}
+    assert main.client_ip(_Req) == "127.0.0.1", \
+        "默认配置下伪造头不该被采信 —— 否则限流可被无限绕过"
+
+
 def test_client_ip_single_xff_still_works(monkeypatch):
     """覆盖式写入（整条就是真实 IP）的实现也要正常。"""
+    monkeypatch.setattr(main, "TRUST_PROXY_HEADERS", True)
+
     class _Req:
         class client:
             host = "127.0.0.1"
@@ -211,8 +229,35 @@ def test_client_ip_single_xff_still_works(monkeypatch):
 
 def test_client_ip_ignores_spoofed_xff_from_lan(monkeypatch):
     """但 XFF 可伪造：直连方不是回环时**不能**采信，否则局域网内可随意刷额度。"""
+    monkeypatch.setattr(main, "TRUST_PROXY_HEADERS", True)
+
     class _Req:
         class client:
             host = "192.168.1.50"
         headers = {"x-forwarded-for": "203.0.113.7"}
     assert main.client_ip(_Req) == "192.168.1.50"
+
+
+# ---------------------------------------------------------------- /ask 生成配额（2026-10-04）
+
+def test_ask_gen_limit_hit_direct(monkeypatch):
+    """生成答案走**独立全局桶**：隧道不透传 IP，按 IP 配额无意义；烧 LLM 的操作必须全局设上限。"""
+    monkeypatch.setattr(main, "_ask_gen_hits", deque())
+    monkeypatch.setattr(main, "ASK_GEN_RATE_LIMIT_PER_MIN", 2)
+    assert main.ask_gen_limit_hit(1.0) is False
+    assert main.ask_gen_limit_hit(2.0) is False
+    assert main.ask_gen_limit_hit(3.0) is True, "第 3 次应超 2 次/分钟的生成配额"
+    assert main.ask_gen_limit_hit(80.0) is False, "滑动窗口 60 秒，1.0 已出窗"
+
+
+def test_ask_gen_quota_only_counts_with_answer(monkeypatch):
+    """配额只数 with_answer=1：纯检索零成本，不该被生成桶拦。"""
+    monkeypatch.setattr(main, "_rate_hits", defaultdict(deque))
+    monkeypatch.setattr(main, "_ask_gen_hits", deque())
+    monkeypatch.setattr(main, "ASK_GEN_RATE_LIMIT_PER_MIN", 1)
+    monkeypatch.setattr("rag.generate_answer",
+                        lambda q, results: {"text": "测试答案", "grounded": True})
+    assert client.get("/ask?q=乳扇&with_answer=1").status_code == 200
+    assert client.get("/ask?q=乳扇&with_answer=1").status_code == 429, "第 2 次生成应 429"
+    assert client.get("/ask?q=乳扇").status_code == 200, "纯检索不占生成配额"
+    assert client.get("/ask?q=乳扇&with_answer=false").status_code == 200
