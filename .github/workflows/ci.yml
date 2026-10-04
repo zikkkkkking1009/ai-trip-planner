@@ -112,6 +112,20 @@ jobs:
           }
           tail -n 5 pytest_output.txt
 
+      # RAG 真实问题基准：用「用户真会问的话」给检索层打分。
+      # 为什么必须进 CI —— 现有的 golden 30 条是自造的（query→专名），hit@1 90.0 / MRR 0.940
+      # 看起来很漂亮，但换成真实问法实测 12 条只有 3 条全对（「西安有什么好吃的」→ 青岛·流亭猪蹄、
+      # 「拉萨必去的景点」→ 威海·猫头山）。**分数高和能用是两回事**，缺的就是这道门。
+      # 它只做退化拦截：分数低于基线直接红；高于基线只提醒抬基线，不判负。
+      - name: RAG real-question benchmark (regression gate)
+        run: |
+          python tools/rag_realbench.py > realbench.log 2>&1 || {
+            echo "RAG REALBENCH REGRESSED, dumping to annotation..."
+            python -c "import urllib.parse; print('::error::' + urllib.parse.quote(open('realbench.log', encoding='utf-8', errors='ignore').read()[-1800:]))"
+            exit 1
+          }
+          tail -n 4 realbench.log
+
       - name: Smoke test solver demo (no API key needed)
         working-directory: backend
         run: python run_demo.py

@@ -25,6 +25,23 @@ _K1, _B = 1.5, 0.75          # Okapi BM25 标准参数
 _PUNCT = re.compile(r"[\s·、，,。.\-—()（）【】\[\]!！?？:：;；\"'`~～]+")
 _K_LIMIT = 10
 
+# ---- 让检索「听懂真实问法」（2026-10-04，tools/rag_realbench.py 实测驱动）----
+# 背景：自造 golden 30 条上 hit@1 90.0 / MRR 0.940，但换成真实问法 12 条只有 3 条全对。
+# 翻车集中在两点，**都不是算法不够好，是没听懂问题**：
+#   ① 用户说了城市，后端不认 —— city 得调用方显式传，而前端 R5 前从来不传
+#      （「西安有什么好吃的」→ 青岛·流亭猪蹄，因为「吃的」这个稀有 bigram 压过「西安」）
+#   ② 「好吃 / 玩多久 / 几点关门」这些意图词在语料里一次都不出现，
+#      BM25 只能靠稀有 bigram 撞（「拉萨必去的景点」→ 威海·猫头山，「必去」IDF 极高）
+# 所以补的是意图理解，不是换检索算法。
+_FOOD_HINT = ("好吃", "美食", "吃什么", "小吃", "特色菜", "餐厅", "味道",
+              "夜宵", "早点", "吃")
+_SPOT_HINT = ("景点", "景区", "好玩", "值得去", "必去", "游览", "参观",
+              "门票", "票价", "开放", "几点", "多久", "玩")
+# ×1.6：实测够翻转「黄山要爬多久」→ 美食·黄山烧饼 这类错位，又压不下
+# 「西安回民街小吃」里正确命中的景点（那条景点 22.9 分、同城美食 0 分，差着量级）
+_KIND_BOOST = 1.6
+_ANCHOR_MARGIN = 1.5          # top1 领先其它城市多少倍才敢把城市定死（见 ask 里的说明）
+
 log = logging.getLogger(__name__)
 
 
@@ -36,6 +53,52 @@ def tokenize(text: str) -> list[str]:
     return [s[i:i + 2] for i in range(len(s) - 1)]
 
 
+def detect_city(q: str) -> str | None:
+    """从问题里认城市：最长匹配（「西双版纳」不能被短名截走）。认不出返回 None。"""
+    hit = ""
+    for c in DEMO_SPOTS:
+        if c in q and len(c) > len(hit):
+            hit = c
+    return hit or None
+
+
+def detect_kind(q: str) -> str | None:
+    """认用户要的是景点还是美食；两边都像 / 都不像就返回 None（不做无根据的偏向）。"""
+    food = any(w in q for w in _FOOD_HINT)
+    spot = any(w in q for w in _SPOT_HINT)
+    if food and not spot:
+        return "美食"
+    if spot and not food:
+        return "景点"
+    return None
+
+
+def _hhmm(h: float) -> str:
+    hh = int(h)
+    return f"{hh:02d}:{int(round((h - hh) * 60)):02d}"
+
+
+# models.Spot 的默认值：等于它俩说明「没有这个数据」，不能当事实写进语料
+_DEF_OPEN_H = float(Spot.model_fields["open_h"].default)
+_DEF_CLOSE_H = float(Spot.model_fields["close_h"].default)
+
+
+def spot_facts(s: Spot) -> str:
+    """拼进语料的字段 —— **只拼库里真有的**，缺的宁可不写。
+
+    硬约束（2026-10-04 查源数据得出的，不是估计）：
+    375 个景点里 313 个 ticket=0（无票价来源，高德免费档 `biz_ext.cost` 实测空）、
+    358 个开放时间是模型默认值 8:00–18:00、spot_media.json 103 条 opentime 全空。
+    把「免费」或「8:00–18:00」写进语料就是编造 —— 检索会照着编的回答用户。
+    """
+    parts = [f"建议游玩{s.stay_min}分钟"]      # 求解器自己的参数，写「建议」不是声明事实
+    if s.ticket > 0:
+        parts.append(f"门票{s.ticket:g}元")
+    if not (s.open_h == _DEF_OPEN_H and s.close_h == _DEF_CLOSE_H):
+        parts.append(f"开放时间{_hhmm(s.open_h)}-{_hhmm(s.close_h)}")
+    return " ".join(parts)
+
+
 def build_corpus() -> list[dict[str, str]]:
     """语料文档：{type, city, name, text, source}（每次新建，测试可用）。"""
     docs: list[dict[str, str]] = []
@@ -45,7 +108,7 @@ def build_corpus() -> list[dict[str, str]]:
             desc = s.desc if s.desc and len(s.desc.strip()) >= 10 else SPOT_DESCS.get(s.name, "")
             docs.append({
                 "type": "景点", "city": city, "name": s.name,
-                "text": " ".join(x for x in (s.name, desc, city) if x),
+                "text": " ".join(x for x in (s.name, desc, city, spot_facts(s)) if x),
                 "source": "预置景点库",
             })
     for city, foods in FOOD_SEEDS.items():
@@ -216,22 +279,65 @@ def ask(q: str, city: str | None = None, k: int = 5,
     from cities import normalize_city
     q_toks = tokenize(q)
     index = _index_cached()
+    # 调用方没传城市就从问题里认：用户说话是带城市的，以前白扔了
+    if city:
+        city_n = normalize_city(city)
+        auto_city = False
+    else:
+        got = detect_city(q)
+        city_n = normalize_city(got) if got else ""
+        auto_city = bool(got)
     picked = list(range(index.n))
-    city_n = normalize_city(city) if city else ""
     if city_n:
         picked = [i for i in picked if index.docs[i]["city"] == city_n]
+    kind = detect_kind(q)
     scores = index.score(q_toks)
+    if kind:                            # 只加权不过滤：过滤会连正确的专名命中一起丢掉
+        scores = [s * _KIND_BOOST if index.docs[i]["type"] == kind else s
+                  for i, s in enumerate(scores)]
     scored = [(index.docs[i], scores[i]) for i in picked if scores[i] > 0]
     scored.sort(key=lambda x: -x[1])
+    # 城市锚定：用户没说城市时，以 top1 所在城市为准，其它城市一律丢弃。
+    # 一个回答里混着好几个城市的条目对用户就是噪音——实测「兵马俑门票多少钱」会捎上
+    # 拉萨·色拉寺 / 敦煌·敦煌古城，只因为它们语料里也写了「门票」两个字。
+    # 宁可少给几条，不给一锅跨城市的大杂烩。
+    anchor = ""
+    if not city_n and scored:
+        top_city = scored[0][0]["city"]
+        best_other = next((s for d, s in scored if d["city"] != top_city), 0.0)
+        # ×1.5 领先才敢替用户定城市：同名实体跨城重复（「土笋冻」厦门/泉州语料里都有，
+        # 分数几乎持平）时锚下去就是把正确答案删掉——那种时候宁可两个城市都给。
+        if scored[0][1] >= _ANCHOR_MARGIN * best_other:
+            anchor = top_city
+            scored = [x for x in scored if x[0]["city"] == anchor]
     kk = max(1, min(k, _K_LIMIT))
+    # 兜底：听得懂意图（美食/景点）且命中不足时，按「同城 + 同类型」补齐并打
+    # fallback 标记——宁可给一份标了「非精确匹配」的同城清单，也不跨城市塞噪音。
+    # 认不出意图时不补：那说明我们也不知道用户想要什么，补什么都可能是噪音。
+    filled: list[tuple[dict[str, str], float, bool]] = [(d, s, False)
+                                                        for d, s in scored[:kk]]
+    if kind and city_n and len(filled) < kk:
+        have = {d["name"] for d, _, _ in filled}
+        for d in index.docs:
+            if len(filled) >= kk:
+                break
+            if d["city"] != city_n or d["type"] != kind or d["name"] in have:
+                continue
+            filled.append((d, 0.0, True))
     results = [{
         "type": d["type"], "city": d["city"], "name": d["name"],
         "text": d["text"], "source": d["source"], "score": round(s, 3),
-    } for d, s in scored[:kk]]
+        **({"fallback": True} if fb else {}),
+    } for d, s, fb in filled]
     for r in results:                       # R2：引用核查（verified + 坐标落地）
         r.update(verify_citation(r))
     out: dict[str, object] = {
         "q": q, "city": city_n or None, "k": kk, "results": results,
+        # 城市从哪来的，接口自己交代清楚——「跨城市污染」这类问题全靠这个字段定位
+        "city_source": ("参数" if city else "问题识别" if auto_city
+                        else "top1 锚定" if anchor else None),
+        "kind": kind,                    # 识别出的意图（None = 没听懂，前端可据此不强凑）
+        "fallback_count": sum(1 for d, _s, fb in filled if fb),
         "verified_count": sum(1 for r in results if r["verified"]),
         "index": {"docs": index.n, "cities": len(DEMO_SPOTS)},
     }

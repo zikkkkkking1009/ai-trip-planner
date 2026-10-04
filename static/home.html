@@ -680,6 +680,10 @@
           padding:2px 7px; border-radius:4px; }
   .askv.y { color:var(--ok-ink);   background:var(--ok-soft);   border:1px solid var(--ok-line); }
   .askv.n { color:var(--warn-ink); background:var(--warn-soft); border:1px solid var(--border); }
+  /* 兜底条目标记：同城同类型补齐的，不是检索命中——不标就等于把猜测说成答案 */
+  .askfb { margin-left:7px; font-size:11px; font-weight:700; letter-spacing:.04em;
+           padding:2px 7px; border-radius:4px;
+           color:var(--muted-2); background:var(--fill); border:1px solid var(--border); }
   @media (max-width:900px){
     .statgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   }
@@ -1987,6 +1991,16 @@ function loadMeta() {
     return ['na', '未核查'];
   }
 
+  // 范围交代：后端现在会自己认城市（参数 / 问题识别 / top1 锚定）。不写出来，
+  // 用户看到「结果怎么全是西安的」只能猜——猜错城市是最难自查的一类错。
+  function scopeNote(d) {
+    var c = d.city || '不限';
+    if (d.city_source === '参数') return '范围：' + c + '（按你选的城市）';
+    if (d.city_source === '问题识别') return '范围：' + c + '（从你的问题里认出来的）';
+    if (d.city_source === 'top1 锚定') return '范围：' + c + '（问题里没写城市，按最相关的那条锚定）';
+    return '范围：全库（问题里没有城市，也没有明显领先的主结果）';
+  }
+
   function render(d) {
     var html = '';
     var a = d.answer;
@@ -2007,13 +2021,15 @@ function loadMeta() {
     if (!rs.length) {
       html += '<div class="askhint">库里没有命中「' + esc(d.q) + '」的条目。换个问法试试。</div>';
     } else {
+      html += '<div class="askhint" style="margin-bottom:8px">' + esc(scopeNote(d)) + '</div>';
       html += '<div class="asklist">' + rs.map(function (r) {
         return '<div class="askitem"><div><span class="nm">' + esc(r.name) + '</span>'
           + '<span class="askv ' + (r.verified ? 'y' : 'n') + '">'
           + (r.verified ? '已对齐' : '未对齐') + '</span>'
+          + (r.fallback ? '<span class="askfb">同城补充·非精确匹配</span>' : '')
           + '<div class="tx">' + esc(r.text) + '</div></div>'
           + '<div class="sc">' + esc(r.city) + ' · ' + esc(r.type) + ' · '
-          + esc(r.score) + '</div></div>';
+          + (r.fallback ? '非精确匹配' : esc(r.score)) + '</div></div>';
       }).join('') + '</div>';
       html += '<div class="askhint" style="margin-top:12px">命中 ' + rs.length + ' 条、已对齐 '
         + esc(d.verified_count || 0) + ' 条 · 语料共 ' + esc((d.index || {}).docs || 0) + ' 条</div>';

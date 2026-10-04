@@ -297,6 +297,46 @@ async function main() {
     ok('城市列表取不到时检索照常可用', /\/ask\?q=/.test(state.url || ''), state.url);
   }
 
+  /* 10e. 后端现在会自己认城市（参数 / 问题识别 / top1 锚定），命中不足时还会补
+     「同城同类型」条目。这两件事都必须在页面上写出来：
+     不标出来，用户就会把「我们猜的城市」「我们补的条目」当成检索命中——
+     这正是之前「西安有什么好吃的 → 青岛流亭猪蹄」那类翻车最难自查的地方。 */
+  {
+    const fb = clone(FIXTURE);
+    fb.city = '西安'; fb.city_source = '问题识别'; fb.kind = '美食'; fb.fallback_count = 1;
+    fb.results = clone(FIXTURE.results).concat([{
+      type: '美食', city: '西安', name: '甑糕',
+      text: '甑糕 糯米红枣层层蒸，晨间推车现切 西安',
+      source: '美食种子库', score: 0, verified: true, lat: null, lon: null,
+      fallback: true,
+    }]);
+    const { w } = boot(withAnswer(fb));
+    chips(w)[0].click();
+    await wait(60);
+    const t = outText(w);
+    ok('结果区交代了检索范围（城市 + 来源）',
+       /范围：西安/.test(t) && /认出来/.test(t), t.slice(0, 90));
+    ok('兜底条目带「同城补充·非精确匹配」标记',
+       w.document.querySelectorAll('.askfb').length === 1,
+       '实际 ' + w.document.querySelectorAll('.askfb').length);
+    const items = w.document.querySelectorAll('.askitem');
+    ok('兜底条目分数位写「非精确匹配」而不是 0（0 会被当成命中）',
+       /非精确匹配/.test(items[items.length - 1].textContent),
+       items[items.length - 1].textContent.slice(-40));
+    ok('精确命中条目不带兜底标记', !items[0].querySelector('.askfb'));
+  }
+
+  // 10f. 【反向】认不出城市时，不能硬把范围说成某个城市
+  {
+    const nb = clone(FIXTURE);
+    nb.city = null; nb.city_source = null; nb.kind = null;
+    const { w } = boot(withAnswer(nb));
+    chips(w)[0].click();
+    await wait(60);
+    ok('未限定城市时范围提示为「全库」', /范围：全库/.test(outText(w)), outText(w).slice(0, 60));
+    ok('未限定城市时不出现兜底标记', !w.document.querySelector('.askfb'));
+  }
+
   console.log('\n' + pass + '/' + (pass + fail) + ' 项通过\n');
   process.exit(fail ? 1 : 0);
 }
