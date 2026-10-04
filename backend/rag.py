@@ -42,6 +42,37 @@ _SPOT_HINT = ("景点", "景区", "好玩", "值得去", "必去", "游览", "�
 _KIND_BOOST = 1.6
 _ANCHOR_MARGIN = 1.5          # top1 领先其它城市多少倍才敢把城市定死（见 ask 里的说明）
 
+# ---- 能力边界：说破「库里没有」，比硬塞噪音诚实（2026-10-04 真机复核加）----
+# 实测：「哈尔滨冬天穿什么」返回哈尔滨·冰雪大世界、「故宫需要预约吗」返回故宫简介——
+# 前者我们在拿景点冒充气象答案，后者等于没回答。跨城市污染是「答案错了」，
+# 这个是「装作能答」，更坏。R2 引用核查只管「引用的东西在不在库里」，
+# 管不了「库里压根没有这类信息」，所以这里补一层能力边界。
+# 硬拒答：这几类数据我们一个都没有，给条目=给噪音。
+_UNSUPPORTED = (
+    ("气象穿搭", ("天气", "气温", "下雨", "冷不冷", "冷吗", "热吗", "会下雪",
+                   "穿什么", "穿多", "带伞", "紫外线")),
+    ("季节花期", ("几月去", "什么时候去", "花期", "淡季", "旺季", "几月份")),
+    ("人流排队", ("人多不多", "人挤", "排队", "要等多久")),
+    ("预约规则", ("要预约", "需不需要预约", "预约吗")),
+)
+# 软提示：交通类**不**拒答——景点身份给得了，给不了的只是路线，别因噎废食。
+_SOFT_UNSUPPORTED = (("交通路线", ("怎么去", "怎么走", "怎么坐", "地铁", "公交",
+                                     "打车", "有多远", "怎么过去")),)
+_MONTH_RE = re.compile(r"([一二三四五六七八九十]|\d{1,2})\s*月")
+# 属性类：问了就该有答案，没有必须说没有（覆盖率在 _fact_coverage 里动态算）
+_ATTR_HINT = (
+    ("门票", ("门票", "票价", "多少钱")),
+    ("开放时间", ("几点开门", "几点关门", "开放时间", "开门时间", "关门时间", "营业时间")),
+    ("游玩时长", ("玩多久", "要多久", "多久", "多长时间", "逛多久")),
+)
+# 语料里字段的形态，与 spot_facts() 的拼法一一对应。
+# tools/rag_realbench.py 直接 import 这张表——**单一事实源**，两边各写一份必然漂移。
+FACT_PATTERNS: dict[str, re.Pattern[str]] = {
+    "门票": re.compile(r"门票\s*\d+(?:\.\d+)?\s*元"),
+    "开放时间": re.compile(r"开放时间\s*\d{1,2}[:：]\d{2}"),
+    "游玩时长": re.compile(r"建议游玩\s*\d+\s*分钟"),
+}
+
 log = logging.getLogger(__name__)
 
 
@@ -71,6 +102,42 @@ def detect_kind(q: str) -> str | None:
     if spot and not food:
         return "景点"
     return None
+
+
+def detect_unsupported(q: str) -> str | None:
+    """认库里压根没有的数据类型（气象/季节/人流/预约）→ 该硬拒答。"""
+    for topic, words in _UNSUPPORTED:
+        if any(w in q for w in words):
+            return topic
+    # 「九月去」「11 月份」这类说法词表盖不住（月份是数字/汉字，不是固定词），用正则兜
+    if _MONTH_RE.search(q):
+        return "季节花期"
+    return None
+
+
+def detect_soft_unsupported(q: str) -> str | None:
+    """认「能给部分答案」的缺口（交通）：给条目，但必须说清哪部分没有。"""
+    for topic, words in _SOFT_UNSUPPORTED:
+        if any(w in q for w in words):
+            return topic
+    return None
+
+
+def detect_attr(q: str) -> str | None:
+    """认用户问的是哪个属性（门票/开放时间/游玩时长）。"""
+    for attr, words in _ATTR_HINT:
+        if any(w in q for w in words):
+            return attr
+    return None
+
+
+@lru_cache(maxsize=1)
+def _fact_coverage() -> dict[str, str]:
+    """字段覆盖率（如 门票 62/375）——拒答文案要报实数，不能拍脑袋写个「大部分」。"""
+    docs = [d for d in _index_cached().docs if d["type"] == "景点"]
+    n = len(docs)
+    return {a: f"{sum(1 for d in docs if p.search(d['text']))}/{n}"
+            for a, p in FACT_PATTERNS.items()}
 
 
 def _hhmm(h: float) -> str:
@@ -291,7 +358,10 @@ def ask(q: str, city: str | None = None, k: int = 5,
     if city_n:
         picked = [i for i in picked if index.docs[i]["city"] == city_n]
     kind = detect_kind(q)
-    scores = index.score(q_toks)
+    # 问的是美食就不查门票（「西安有什么好吃的多少钱」问的是菜价不是门票）
+    attr = detect_attr(q) if kind != "美食" else None
+    unsupported = detect_unsupported(q)      # 库里没有的：硬拒答
+    scores = index.score(q_toks) if not unsupported else [0.0] * index.n
     if kind:                            # 只加权不过滤：过滤会连正确的专名命中一起丢掉
         scores = [s * _KIND_BOOST if index.docs[i]["type"] == kind else s
                   for i, s in enumerate(scores)]
@@ -316,7 +386,7 @@ def ask(q: str, city: str | None = None, k: int = 5,
     # 认不出意图时不补：那说明我们也不知道用户想要什么，补什么都可能是噪音。
     filled: list[tuple[dict[str, str], float, bool]] = [(d, s, False)
                                                         for d, s in scored[:kk]]
-    if kind and city_n and len(filled) < kk:
+    if kind and city_n and len(filled) < kk and not unsupported:
         have = {d["name"] for d, _, _ in filled}
         for d in index.docs:
             if len(filled) >= kk:
@@ -337,10 +407,40 @@ def ask(q: str, city: str | None = None, k: int = 5,
         "city_source": ("参数" if city else "问题识别" if auto_city
                         else "top1 锚定" if anchor else None),
         "kind": kind,                    # 识别出的意图（None = 没听懂，前端可据此不强凑）
+        "attr": attr,                    # 识别出的属性诉求（None = 没在问字段）
         "fallback_count": sum(1 for d, _s, fb in filled if fb),
         "verified_count": sum(1 for r in results if r["verified"]),
+        "coverage": _fact_coverage(),   # 字段覆盖率，拒答时用来告诉用户「那能问什么」
         "index": {"docs": index.n, "cities": len(DEMO_SPOTS)},
     }
+    gap = _capability_gap(q, results, attr, unsupported)
+    out["gap"] = gap
+    out["abstain"] = bool(gap and gap["kind"] == "unsupported")
     if with_answer:                         # R4：默认关——公开接口不自动烧 LLM 配额
         out["answer"] = generate_answer(q, results)
     return out
+
+
+def _capability_gap(q: str, results: list[dict], attr: str | None,
+                    unsupported: str | None) -> dict[str, object] | None:
+    """这条问题我们答不全 / 答不了，差在哪——说清楚，比装作答了强。
+
+    三档（刻意区分，别合并）：
+      unsupported  库里没有这类数据 → 一条都不给（「哈尔滨冬天穿什么」）
+      attr         条目在，但缺被问的那个字段（「大理古城门票」——库里 62/375 有票价）
+      soft         能给一部分（「鼓浪屿怎么去」能给景点身份，给不了路线）
+    """
+    if unsupported:
+        return {"kind": "unsupported", "topic": unsupported,
+                "note": f"库里只有景点和美食的名称与简介，没有{unsupported}数据——"
+                        f"这条答不了，不拿景点凑。"}
+    if attr and results and not FACT_PATTERNS[attr].search(str(results[0]["text"])):
+        cov = _fact_coverage().get(attr, "0/0")
+        return {"kind": "attr", "attr": attr,
+                "note": f"库里只有 {cov} 个景点有「{attr}」数据（其余为空值，不是 0），"
+                        f"排在第一的「{results[0]['name']}」也没有——不猜。"}
+    soft = detect_soft_unsupported(q)
+    if soft:
+        return {"kind": "soft", "topic": soft,
+                "note": f"库里没有{soft}数据；能告诉你这是哪个景点，怎么去得自己看地图。"}
+    return None

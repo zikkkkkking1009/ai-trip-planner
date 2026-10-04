@@ -337,6 +337,55 @@ async function main() {
     ok('未限定城市时不出现兜底标记', !w.document.querySelector('.askfb'));
   }
 
+  /* 10g. 能力边界三档：答不了（硬拒答）/ 答不全（缺字段）/ 部分能答（软）。
+     为什么单独立一组：R2 引用核查只管「引用的东西在不在库里」，管不了
+     「库里压根没有这类信息」——不给用户看见，用户只会以为我们答了。 */
+  {
+    const ab = clone(FIXTURE);
+    ab.results = []; ab.verified_count = 0; ab.abstain = true;
+    ab.gap = { kind: 'unsupported', topic: '气象穿搭',
+               note: '库里只有景点和美食的名称与简介，没有气象穿搭数据——这条答不了，不拿景点凑。' };
+    ab.coverage = { '门票': '62/375', '开放时间': '18/375', '游玩时长': '375/375' };
+    const { w } = boot(withAnswer(ab));
+    chips(w)[0].click();
+    await wait(60);
+    const t = outText(w);
+    ok('硬拒答渲染出「答不了 + 缺什么数据」', /答不了/.test(t) && /气象穿搭/.test(t), t.slice(0, 80));
+    ok('硬拒答时一条结果都不渲染', w.document.querySelectorAll('.askitem').length === 0,
+       '实际 ' + w.document.querySelectorAll('.askitem').length);
+    ok('硬拒答用警示样式（.askgap.hard）', !!w.document.querySelector('.askgap.hard'));
+    ok('硬拒答不补「换个问法试试」的通用废话', !/换个问法试试/.test(t));
+    ok('硬拒答时告诉用户能问什么（字段覆盖率）',
+       /能问的/.test(t) && /62\/375/.test(t) && /18\/375/.test(t), t.slice(-120));
+  }
+
+  {
+    const ag = clone(FIXTURE);
+    ag.gap = { kind: 'attr', attr: '门票',
+               note: '库里只有 62/375 个景点有「门票」数据（其余为空值，不是 0），排在第一的「大理古城」也没有——不猜。' };
+    const { w } = boot(withAnswer(ag));
+    chips(w)[0].click();
+    await wait(60);
+    const t = outText(w);
+    ok('属性缺口渲染为「答不全 + 缺哪个字段」', /答不全/.test(t) && /门票/.test(t), t.slice(0, 80));
+    ok('属性缺口用中性样式（不是警示红）', !!w.document.querySelector('.askgap.soft')
+       && !w.document.querySelector('.askgap.hard'));
+    ok('属性缺口时条目照常展示（能给一部分）',
+       w.document.querySelectorAll('.askitem').length === FIXTURE.results.length);
+    ok('属性缺口不显示「能问的」引导（那只在拒答时出现）', !/能问的/.test(t));
+  }
+
+  // 10h.【反向】没有 gap 字段时绝不能出现能力边界文案——防这块恒绿
+  {
+    const { w } = boot(withAnswer(FIXTURE));
+    chips(w)[0].click();
+    await wait(60);
+    ok('响应无 gap 字段时不渲染任何边界提示', !w.document.querySelector('.askgap'),
+       outText(w).slice(0, 80));
+    ok('响应无 gap 字段时措辞里没有「答不了/答不全」',
+       !/答不了|答不全|部分能答/.test(outText(w)));
+  }
+
   console.log('\n' + pass + '/' + (pass + fail) + ' 项通过\n');
   process.exit(fail ? 1 : 0);
 }

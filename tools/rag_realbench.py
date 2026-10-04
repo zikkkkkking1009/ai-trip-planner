@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -43,22 +42,22 @@ BACKEND = HERE.parent / "backend"
 sys.path.insert(0, str(BACKEND))          # backend 下是平铺模块（from demo_data import ...）
 
 import rag                                 # noqa: E402
+from rag import FACT_PATTERNS              # noqa: E402  字段形态的**单一事实源**在 rag.py
 
 BASELINE_FILE = HERE / "rag_realbench_baseline.json"
 
-# attr → 语料文本里必须出现的形态（只认「字段+数字」，不认空话）
-ATTR_PATTERNS: dict[str, re.Pattern[str]] = {
-    "门票": re.compile(r"门票\s*\d+(\.\d+)?\s*元"),
-    "时长": re.compile(r"建议游玩\s*\d+\s*分钟"),
-    "开放": re.compile(r"开放时间\s*\d{1,2}[:：]\d{2}"),
-}
+# attr → 语料文本里必须出现的形态。直接复用后端的正则，两边各写一份必然漂移——
+# 后端改了拼法而这边没跟上，基准就会拿「格式变了」当成「能力退化了」，或者反过来。
+ATTR_PATTERNS = FACT_PATTERNS
 
 # ---------------------------------------------------------------------------
 # 用例：全部是真实问法，断言只写客观属性
 # city  = 期望城市（None = 不约束城市，但结果仍须同属一个城市才不叫污染）
 # kind  = top1 期望类型
 # attr  = top1 语料文本必须含有该字段
-# gap   = 非空则该用例不计分（源数据缺失），但仍打印
+# gap   = 期望 /ask 返回的能力缺口类型（unsupported / attr / soft）
+# abstain = 期望硬拒答（必须 0 条 + 说清为什么）
+# gap_note = 非空则该用例不计分（源数据缺失），但仍打印
 # ---------------------------------------------------------------------------
 CASES: list[dict] = [
     {"q": "西安有什么好吃的", "city": "西安", "kind": "美食"},
@@ -71,15 +70,18 @@ CASES: list[dict] = [
     {"q": "兵马俑门票多少钱", "city": "西安", "kind": "景点", "attr": "门票"},
     {"q": "兵马俑要玩多久", "city": "西安", "kind": "景点", "attr": "时长"},
     {"q": "西安城墙几点关门", "city": "西安", "kind": "景点", "attr": "开放"},
-    {"q": "鼓浪屿怎么去", "city": "厦门", "kind": "景点"},
-    {"q": "哈尔滨冬天穿什么", "city": "哈尔滨"},
-    # ↓ 源数据缺失，不计分（判据见文件头）
-    {"q": "故宫几点开门", "city": "北京", "kind": "景点", "attr": "开放",
-     "gap": "故宫 open_h/close_h = 8.0/18.0，是模型默认值不是真实开放时间"},
-    {"q": "大理古城门票多少钱", "city": "大理", "kind": "景点", "attr": "门票",
-     "gap": "大理古城 ticket=0（375 个景点里 313 个无票价源数据），写「免费」是编的"},
-    {"q": "丽江古城几点关门", "city": "丽江", "kind": "景点", "attr": "开放",
-     "gap": "丽江古城 open/close 同样是默认值 8:00–18:00"},
+    # 交通类：能给出景点身份，但必须说清没有路线数据
+    {"q": "鼓浪屿怎么去", "city": "厦门", "kind": "景点", "gap": "soft"},
+    # 库里压根没有的数据类型：必须硬拒答，不能拿景点凑
+    {"q": "哈尔滨冬天穿什么", "abstain": "unsupported"},
+    {"q": "故宫需要预约吗", "abstain": "unsupported"},
+    {"q": "九月去拉萨合适吗", "abstain": "unsupported"},
+    # 条目在、但缺被问的字段：报缺口（附实数覆盖率），不静默不答、也不编
+    {"q": "大理古城门票多少钱", "city": "大理", "kind": "景点", "gap": "attr"},
+    {"q": "丽江古城几点关门", "city": "丽江", "kind": "景点", "gap": "attr"},
+    # ↓ 正向形态仍要单独验：缺口机制不能把「有数据」也一起拒了
+    #   （黄山风景区 ticket=190，属于 62 个有票价数据的景点之一）
+    {"q": "黄山门票多少钱", "city": "黄山", "kind": "景点", "attr": "门票"},
 ]
 
 
@@ -88,10 +90,17 @@ def check_case(case: dict) -> tuple[list[bool], list[str]]:
     q = case["q"]
     out = rag.ask(q=q, k=5)
     results = out.get("results", [])
+    gap = out.get("gap") or {}
     ok: list[bool] = []
     why: list[str] = []
 
-    # 通用：不许返回空（拒答是另一条能力，这里的问题库里都该有东西）
+    # 拒答类：必须真的 0 条 + 说清缺什么。两项合成一条断言，避免「说了不做」
+    if case.get("abstain"):
+        good = (bool(out.get("abstain")) and not results
+                and gap.get("kind") == case["abstain"])
+        return [good], [] if good else [
+            f"应硬拒答（{case['abstain']}），实际返回 {len(results)} 条 / gap={gap.get('kind')}"]
+
     if not results:
         return [False], ["返回 0 条（库里应该有东西）"]
     ok.append(True)
@@ -114,10 +123,19 @@ def check_case(case: dict) -> tuple[list[bool], list[str]]:
     # attr：top1 文本里真的有那个字段
     want_attr = case.get("attr")
     if want_attr is not None:
+        key = {"门票": "门票", "时长": "游玩时长", "开放": "开放时间"}[want_attr]
         text = str(results[0].get("text", ""))
-        hit = bool(ATTR_PATTERNS[want_attr].search(text))
+        hit = bool(ATTR_PATTERNS[key].search(text))
         ok.append(hit)
         why.append(f"top1={results[0]['name']} 的语料里没有「{want_attr}」字段" if not hit else "")
+
+    # gap：必须如实报出缺口类型
+    want_gap = case.get("gap")
+    if want_gap is not None:
+        good = gap.get("kind") == want_gap
+        ok.append(good)
+        why.append("" if good else
+                   f"期望报缺口 {want_gap}，实际 {gap.get('kind') or '没报'}")
 
     return ok, why
 
@@ -138,9 +156,9 @@ def main() -> int:
     for case in CASES:
         ok, why = check_case(case)
         fails = [w for w in why if w]
-        rows.append({"q": case["q"], "ok": not fails, "fails": fails, "gap": case.get("gap")})
-        if case.get("gap"):
-            gaps.append({"q": case["q"], "gap": case["gap"], "fails": fails})
+        rows.append({"q": case["q"], "ok": not fails, "fails": fails, "gap_note": case.get("gap_note")})
+        if case.get("gap_note"):
+            gaps.append({"q": case["q"], "gap_note": case["gap_note"], "fails": fails})
             continue
         case_total += 1
         total += len(ok)
@@ -160,8 +178,8 @@ def main() -> int:
         print("RAG 真实问题基准（realbench）——断言只写客观属性，不自造期望答案")
         print("=" * 72)
         for r in rows:
-            if r["gap"]:
-                print(f"  -  {r['q']}   〔不计分：{r['gap']}〕")
+            if r["gap_note"]:
+                print(f"  -  {r['q']}   〔不计分：{r['gap_note']}〕")
             elif r["ok"]:
                 print(f"  ✓  {r['q']}")
             else:

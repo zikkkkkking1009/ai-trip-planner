@@ -676,6 +676,14 @@
   .askitem .tx { margin-top:4px; font-size:13px; color:var(--muted); line-height:1.55; }
   .askitem .sc { font-size:12px; color:var(--muted-3); white-space:nowrap;
                  font-variant-numeric:tabular-nums; }
+  /* 能力边界提示：答不了 / 答不全 / 部分能答，三档视觉上必须分得开。
+     「答不了」用警示色（真没有数据），「部分能答」用中性（数据在，只是缺一块）。 */
+  .askgap { margin-bottom:12px; padding:11px 14px; border-radius:8px;
+            border:1px solid var(--border); background:var(--fill); }
+  .askgap.hard { border-color:var(--warn); background:var(--warn-soft); }
+  .askgap .wh { font-size:13px; font-weight:700; color:var(--fg); margin-bottom:5px; }
+  .askgap .tx { font-size:13px; line-height:1.6; color:var(--muted); }
+  .askgap .cv { margin-top:7px; font-size:12px; color:var(--muted-3); }
   .askv { margin-left:7px; font-size:11px; font-weight:700; letter-spacing:.04em;
           padding:2px 7px; border-radius:4px; }
   .askv.y { color:var(--ok-ink);   background:var(--ok-soft);   border:1px solid var(--ok-line); }
@@ -2001,6 +2009,20 @@ function loadMeta() {
     return '范围：全库（问题里没有城市，也没有明显领先的主结果）';
   }
 
+  // 能力边界：三档措辞刻意不同——「答不了」是承认不会，「答不全」是承认缺数据，
+  // 「部分能答」是给出还能给的部分。混成一句话就变成敷衍了。
+  function gapTitle(g) {
+    if (g.kind === 'unsupported') return '答不了：库里没有' + (g.topic || '') + '数据';
+    if (g.kind === 'attr') return '答不全：缺「' + (g.attr || '') + '」';
+    return '部分能答：没有' + (g.topic || '') + '数据';
+  }
+
+  // 拒答时顺手告诉用户「那能问什么」——只说不能答是耍脾气，给出边界才是 helpful
+  function coverageText(c) {
+    if (!c) return '';
+    return Object.keys(c).map(function (k) { return k + ' ' + c[k]; }).join(' · ');
+  }
+
   function render(d) {
     var html = '';
     var a = d.answer;
@@ -2018,8 +2040,23 @@ function loadMeta() {
       }
     }
     var rs = d.results || [];
+    var gap = d.gap;
+    if (gap) {
+      html += '<div class="askgap ' + (gap.kind === 'unsupported' ? 'hard' : 'soft') + '">'
+        + '<div class="wh">' + esc(gapTitle(gap)) + '</div>'
+        + '<div class="tx">' + esc(gap.note || '') + '</div>';
+      if (d.abstain && d.coverage) {
+        html += '<div class="cv">能问的：景点/美食名称与简介 · 建议游玩时长 '
+          + esc(d.coverage['游玩时长'] || '') + ' · 门票 ' + esc(d.coverage['门票'] || '')
+          + ' · 开放时间 ' + esc(d.coverage['开放时间'] || '') + '</div>';
+      }
+      html += '</div>';
+    }
     if (!rs.length) {
-      html += '<div class="askhint">库里没有命中「' + esc(d.q) + '」的条目。换个问法试试。</div>';
+      // 拒答已经有专属说明了，别再补一句「换个问法试试」凑数
+      if (!gap) {
+        html += '<div class="askhint">库里没有命中「' + esc(d.q) + '」的条目。换个问法试试。</div>';
+      }
     } else {
       html += '<div class="askhint" style="margin-bottom:8px">' + esc(scopeNote(d)) + '</div>';
       html += '<div class="asklist">' + rs.map(function (r) {
