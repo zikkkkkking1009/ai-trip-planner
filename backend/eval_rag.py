@@ -184,19 +184,28 @@ def eval_intent() -> dict:
     """
     from rag_intent import parse_intent
     rows = json.loads(GOLDEN_INTENT_FILE.read_text(encoding="utf-8"))["queries"]
-    recovered = 0
-    prec_f: list[float] = []
-    prec_n: list[float] = []
+    stats: dict[str, dict[str, float]] = {}
+    for layer in ("all", "基础", "难度"):
+        stats[layer] = {"n": 0, "recovered": 0, "pf": 0.0, "pn": 0.0}
     for row in rows:
         q, tag = row["q"], row["tag"]
-        recovered += tag in parse_intent(q)
-        prec_f.append(_tag_frac(ask(q, k=5, tag=tag)["results"], tag))
-        prec_n.append(_tag_frac(ask(q, k=5)["results"], tag))
-    n = len(rows)
-    return {"n": n,
-            "intent_recovery": round(recovered / n, 3),
-            "tag_precision5_with_filter": round(sum(prec_f) / n, 3),
-            "tag_precision5_without": round(sum(prec_n) / n, 3)}
+        layer = "难度" if row.get("hard") else "基础"
+        for ly in (layer, "all"):
+            st = stats[ly]
+            st["n"] += 1
+            st["recovered"] += tag in parse_intent(q)
+            st["pf"] += _tag_frac(ask(q, k=5, tag=tag)["results"], tag)
+            st["pn"] += _tag_frac(ask(q, k=5)["results"], tag)
+
+    def _pack(st: dict[str, float]) -> dict[str, object]:
+        n = st["n"] or 1
+        return {"n": st["n"], "intent_recovery": round(st["recovered"] / n, 3),
+                "tag_precision5_with_filter": round(st["pf"] / n, 3),
+                "tag_precision5_without": round(st["pn"] / n, 3)}
+
+    return {"all": _pack(stats["all"]),
+            "basic": _pack(stats["基础"]),
+            "hard": _pack(stats["难度"])}
 
 
 def main() -> None:
@@ -217,9 +226,12 @@ def main() -> None:
             print(f"{label} : 不可用（{e}）—— BM25 结果照常落盘")
     try:                                    # R6 意图臂：全程离线，失败也不拖累其他臂
         intent = eval_intent()
-        print(f"意图 : recovery={intent['intent_recovery']} "
-              f"precision5(过滤)={intent['tag_precision5_with_filter']} "
-              f"(裸)={intent['tag_precision5_without']}")
+        a = intent["all"]
+        print(f"意图 : recovery={a['intent_recovery']} "
+              f"precision5(过滤)={a['tag_precision5_with_filter']} "
+              f"(裸)={a['tag_precision5_without']} ｜ "
+              f"难度层 recovery={intent['hard']['intent_recovery']} "
+              f"过滤={intent['hard']['tag_precision5_with_filter']}")
     except Exception as e:
         log.warning("意图臂不可用，降级为 error 记录：%s", e)
         intent = {"error": f"不可用：{e}"}

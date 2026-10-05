@@ -40,10 +40,24 @@
     "mrr": 0.944
   },
   "intent": {
-    "n": 15,
-    "intent_recovery": 0.933,
-    "tag_precision5_with_filter": 0.933,
-    "tag_precision5_without": 0.742
+    "all": {
+      "n": 30,
+      "intent_recovery": 1.0,
+      "tag_precision5_with_filter": 0.9,
+      "tag_precision5_without": 0.694
+    },
+    "basic": {
+      "n": 15,
+      "intent_recovery": 1.0,
+      "tag_precision5_with_filter": 0.933,
+      "tag_precision5_without": 0.756
+    },
+    "hard": {
+      "n": 15,
+      "intent_recovery": 1.0,
+      "tag_precision5_with_filter": 0.867,
+      "tag_precision5_without": 0.633
+    }
   },
   "rerank": {
     "method": "BM25 top-20 → 向量重排（BAAI/bge-m3）",
@@ -109,7 +123,7 @@
       1,
       1,
       1,
-      4,
+      5,
       1,
       1,
       1,
@@ -121,6 +135,6 @@
     "n": 30,
     "hit1_pct": 86.7,
     "hit5_pct": 100.0,
-    "mrr": 0.925
+    "mrr": 0.923
   }
 }
