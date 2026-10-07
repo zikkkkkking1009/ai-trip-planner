@@ -1952,3 +1952,53 @@ blob 保持可见亮度、整体被压暗。aurora 标题的循环动画也降�
 
 门禁：check_frontend ✅ ｜ check_contrast ✅ ｜ support_smoke 78/78 ｜
 真机三档 20/20 ｜ 真机 ops 18/18 ｜ 七档 7/7 ｜ 几何实测两态全对齐。
+
+---
+
+## v5 第 0/3 步｜DSH：四处效果改回上游现成实现 + 出处登记
+
+**口径（用户 m00963 定）**：素材库里每个组件都有现成实现，**应该直接套用而不是自己发明**。
+support.html 是无构建单文件页、装不了 `pnpm dlx shadcn add`，所以走合法路径 ② **逐值移植**：
+每个值都必须查得到上游出处。对照表落在新建的 `docs/upstream-provenance.md`。
+
+**动手前**：`static/support.html` mtime 01:40:30 / 76587B / sha256 `9D3A372D43AD8445` 稳定 6s 以上、
+仓库只有 `backend/spot_media.json` 脏 ⇒ 判定无并发写手，开始改。
+
+**四处改动（全部落在 `static/support.html`）**：
+
+1. **Border Beam（握手徽章走光）** —— 前两版都是「读了源码只换了注释」：第三版才按
+   `vendor/magicui/components/border-beam.tsx:68-105` 换成 `offset-path:rect(0 auto auto 0 round 50px)`
+   + `offset-distance 0→100%`（整圈 rotate 的 conic 已删），并按上游要求把光点做成带 mask 的 ring 的
+   **子元素**（兄弟节点时 mask 裁不到，会看到一整块方形光斑在动）。
+2. **Shimmer（发送键扫光）** —— 自创的 `::after` 白条 + `@keyframes shimmer` 全部删掉，换成上游四层
+   （spark 容器 `blur(2px)` + `container-type:size`、spark `h:100cqh` + `shimmer-slide`、
+   `::before` conic + `spin-around` 6s、Highlight 内阴影、backdrop `inset:--cut`），
+   `--speed:3s` / `--spread:90deg` / `--cut:.05em` 取上游默认。按钮几何 44px 未动。
+3. **Marquee** —— 份数 2 → **4**（上游默认；单份 737px ⇒ 2 份 1474px < 1920 宽屏会露空档），
+   位移量改成上游的 `translateX(calc(-100% - var(--gap)))`、时长 40s、gap 1rem、hover 暂停。
+4. **Spotlight（运营行聚光）** —— 按 `magic-card.tsx` 三层结构：`::before` 第三停必须是
+   **常态描边色**而不是 transparent（这是原版「跟着鼠标走的渐变边框」的关键），
+   `::after` 改 `inset:1px` + 纯色停 + `opacity:.8`，hover 显形。
+
+**顺手修掉文件里两处数据损坏**：`support.html:462` 原有两个 U+FFFD
+（`edit` 工具发不出这个字符，只能用 pwsh 的 `[System.IO.File]::ReadAllText/WriteAllText` 重写）。
+
+**踩坑记录（已写进技能纪律）**：`tools/check_frontend.py::check_undefined_css_vars` 对整个
+`<style>` 跑正则，**注释里的 `var(--x)` 也算引用** ⇒ 我在注释里写上游令牌 `var(--color-border)`
+被误报 3 处「引用了未定义的变量」；改成裸令牌名即通过。
+
+**实测**：
+- 运行时画像（技能自带的 `audit-page.mjs`）：`theme=light`、`glassCount=26`、`loopCount=5`、
+  `minRatio=6.55`、`bareHex=(空)`、`pageErrors=(空)`；`--reduce` 下 `loopCount=1`（
+  beam/shimmer/marquee 全关，只剩背景 blob）。
+  ⚠️ `glassCount` 14→26 的构成：`nav` 1 + `.mchip` **24**（6 个按钮 × marquee 4 份）+ 1；
+  12→24 是「4 份才铺满」的直接代价，若帧率吃紧先降 `.mchip` 的 backdrop-filter，别减份数。
+- Border Beam 的 mask 用像素哈希验证（不是看截图）：冻结动画把光点停在 0/25/50/75%，
+  **内部真空区 4 帧哈希完全一致**（说明 mask 真裁到了 1px 边框环），顶边带 4 帧各不相同（说明光点真在走）。
+- 结构实测：beam `mask-composite:intersect` / dot 50×50 / `beam-run 6s infinite`；
+  shimmer 四层齐、`shimmer-slide 3s alternate` + `spin-around 6s`、按钮 `transform:none`；
+  marquee `groupCount=4`、`40s`、`gap 16px`、`scrollWidth 2979`、位移 753px（无缝）。
+
+门禁：`check_frontend` ✅ ｜ `check_contrast --all` ✅ ｜ `support_smoke` **78 ✓ 0 ✗**
+（脚本随后 `TypeError: fetch failed` 属既有环境问题：第 475 行 `.catch()` 只挂在 `.text()` 上）。
+新增文件：`docs/upstream-provenance.md`（含偏离登记 8 条 + 不移植清单）。

@@ -448,46 +448,51 @@
   .badge.partial  { background:var(--note-soft);    border-color:var(--note-line);    color:var(--note-ink); }
   .badge.handoff  { background:var(--accent-soft);  border-color:var(--accent-line);  color:var(--accent-deep); }
 
-  /* ---- Border Beam 扫边（magicui，v4 配方表第 2 行）----
-     只给 handoff 徽章用，且**每屏至多 1 个**（v4 纪律：循环动画同屏 ≤2）——
-     转人工本身是低频事件，扫边是「这条挂起等人」的提示，不该满屏闪。
-     实现照抄 magicui 的手法（实测它用 @property + conic-gradient）：
-     `@property` 让--beam-angle 可插值 → conic-gradient 绕着转 → 用 mask 把中间挖空。
-     ⚠️ syntax 用 "*" 而非 "<angle>"：这是 magicui 实测的做法（它 20+ 条声明全是 "*"），
-     "<angle>" 在旧浏览器可能不认。 */
-  /* ---- Border Beam 扫边（magicui @/registry/magicui/border-beam）----
+  /* ---- Border Beam 扫边 — 上游 magicui `@/registry/magicui/border-beam` 逐值移植 ----
+     只给 handoff 徽章用，且**每屏至多 1 个**（纪律：循环动画同屏 ≤2）——
      转人工本身是低频事件，扫边是「这条挂起等人」的提示，不该满屏闪。
 
-     ⚠️ **2026-10-08 按原版源码重写**。之前我凭理解写成「两段 conic + mask 挖边」，
-     抓��原版源码后发现差三处：
-       ① 渐变是**三段** `from-transparent via-x to-transparent`，不是两段 conic；
-       ② `borderWidth` 是**独立参数**（原版默认 1），扫边粗细可调；
-       ③ 原版用 `offset-path`/`offset-distance` 让光沿边框**走**，
-          不是一个整圈旋转的 conic —— 视觉上更像「一道光扫过」而非「彩虹圈」。
-     用 CSS 变量表达（原版就是把这几个值暴露成 props），
-     参数与原版默认对齐：size50 / duration 6s / delay 0 / borderWidth 1。 */
-  @keyframes beam-spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-  .badge.handoff.beam { position:relative; isolation:isolate; --beam-size:50%; --beam-w:1px; }
-  .badge.handoff.beam::before {
-    content:''; position:absolute; inset:calc(-1 * var(--beam-w)); z-index:-1;
-    border-radius:inherit; padding:var(--beam-w);
-    /* 三段渐变（照抄原版 from-transparent via-… to-transparent） */
-    background:conic-gradient(from var(--beam-angle),
-      transparent 0%, transparent 62%,
-      var(--accent-solid) 78%,
-      var(--accent-deep) 84%,
-      transparent 90%, transparent 100%);
-    /* 只留边缘：中间用 mask 挖空 */
-    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-            mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite:xor; mask-composite:exclude;
-    animation:beam-spin 6s linear infinite;
+     ⚠️ **本块是第三版**。前两版都是「凭理解写」的教训：
+       第一版 = 两段 conic + mask 挖边；
+       第二版 = 三段 conic + 整圈 `rotate()` 动画（读了源码却只换了注释，没换实现）。
+     对着 `vendor/magicui/components/border-beam.tsx:68-105` 逐行核对，才算对上：
+       ① 光点是**沿边框走**：`offset-path: rect(0 auto auto 0 round <size>)`
+          + `offset-distance` 0%→100%，**不是**整圈旋转的 conic-gradient；
+       ② DOM 必须**嵌套**：带 mask 的 ring 是父元素，光点是它的**子元素**——
+          写成兄弟节点时光点不被 mask 裁，会看到一整块方形光斑在动；
+       ③ `borderWidth` 是独立参数（原版默认 1）⇒ `--beam-width`；
+          光点 `size` 原版默认 **50（px，不是 %）** ⇒ `--beam-size:50px`；
+          `duration` 默认 6s、`initialOffset` 0。
+     mask 手法 = 原版 Tailwind 的 `mask-intersect [mask-clip:padding-box,border-box]`：
+     `border:1px solid transparent` + 两条 mask 求交 ⇒ 只留那 1px 边框环。
+     ⚠️ 偏离登记（1 处）：颜色不取原版默认 `#ffaa40 → #9c40ff`，改走本页 accent 令牌
+     （调色板一致性）；见 `docs/upstream-provenance.md`。 */
+  .badge.handoff.beam { position:relative; isolation:isolate; --beam-size:50px; --beam-width:1px;
+                        --beam-from:var(--accent-solid); --beam-to:var(--accent-deep); }
+  /* ring：带 mask 的父元素，只留 1px 边框环（原版 `mask-intersect [mask-clip:padding-box,border-box]`） */
+  .badge.handoff.beam .beam-ring {
+    position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    border:var(--beam-width) solid transparent;
+    -webkit-mask:linear-gradient(transparent,transparent), linear-gradient(#000,#000);
+    -webkit-mask-composite:source-in;
+    -webkit-mask-clip:padding-box,border-box;
+            mask:linear-gradient(transparent,transparent), linear-gradient(#000,#000);
+            mask-composite:intersect;
+            mask-clip:padding-box,border-box;
   }
-  @property --beam-angle { syntax:"*"; inherits:false; initial-value:0deg; }
-  /* 循环动画必须响应 prefers-reduced-motion，且**冻结要 duration + iteration-count 成对**
-     （只压 duration 会幻影抖动—— hero_motion_check 的教训，直接适用）。 */
+  /* dot：走光点，必须是 ring 的子元素才被裁进边框环（原版 border-beam.tsx:76-104） */
+  .badge.handoff.beam .beam-dot {
+    position:absolute; aspect-ratio:1; width:var(--beam-size);
+    offset-path:rect(0 auto auto 0 round var(--beam-size));
+    background:linear-gradient(to left, var(--beam-from) 0%, var(--beam-to) 50%, transparent 100%);
+    animation:beam-run 6s linear infinite;
+  }
+  @keyframes beam-run { from { offset-distance:0%; } to { offset-distance:100%; } }
+  /* reduce 下关掉走光点（它是装饰，语义在徽章文字里）。
+     ⚠️ 用 `display:none` 而不是只把 duration 压到 0：只压 duration 会让光点
+     永久停在边框起点上，看起来像一块脏点（hero_motion_check 的教训：冻结要成对处理）。 */
   @media (prefers-reduced-motion: reduce) {
-    .badge.handoff.beam::before { animation:none; --beam-angle:0deg; }
+    .badge.handoff.beam .beam-dot { animation:none; display:none; }
   }
 
   /* caveat 的 gap.note（v3 毛病 3：禁自造黄色，改用全站警示卡形态）——
@@ -511,30 +516,73 @@
                        backdrop-filter:blur(14px) saturate(140%);
                        -webkit-backdrop-filter:blur(14px) saturate(140%); }
   .composer textarea:focus { border-color:var(--accent-line); outline:none; }
-  /* ---- Shimmer 发送钮（magicui）：45° 白色高光条扫过，2.6s linear infinite ---- */
+  /* ---- Shimmer 发送钮 — 上游 magicui `shimmer-button` 逐值移植（四层结构照抄）----
+     上游默认：--spread:90deg / --shimmer-color:#ffffff / --radius:100px（本页按钮走 --radius-pill）
+     / --speed:3s / --cut:.05em / --bg:rgba(0,0,0,1)（本页走 accent 底色）。
+     ⚠️ 旧版是自创的「一块 45% 宽的白色渐变条 translateX(-150%→350%)，2.6s」——
+     上游根本不是一条横条，而是「容器模糊 + 锥形光沿边扫 + 内阴影高光 + 底盖」四层：
+       ① spark 容器：absolute inset-0、blur(2px)、container-type:size、z-index:-3
+       ② spark：animate-shimmer-slide（aspect-ratio:1、height:100cqh、ease-in-out alternate、3s）
+       ③ spark::before：`conic-gradient(from calc(270deg - spread/2), transparent 0,
+          var(--shimmer-color) var(--spread), transparent var(--spread))` + animate-spin-around
+          （`--speed * 2` = 6s linear，四段角度：0 → 90°(15%,35%) → 270°(65%,85%) → 360°）
+       ④ Highlight：inset:0 + `box-shadow: inset 0 -8px 10px #ffffff1f`（hover -6px / active -10px）
+       ⑤ backdrop：inset:var(--cut)、z-index:-2、填按钮底色 ⇒ 中间盖住光、只留 --cut 的边缝发光
+     ⚠️ 偏离登记（2 处）：① `--bg`/backdrop 用本页 accent 令牌而非 rgba(0,0,0,1)；
+       ② 按钮几何（height:44px / padding:0 20px / pill 圆角 / 1px 透明边框）保持不变——
+          那是对齐输入框的既有修复，不能被上游的 px-6 py-3 覆盖。 */
   /* 输入框有 1px 边框、按钮没有 ⇒ 内容自然高度差 2px（实测输入框 46 / 按钮 44），
      两者并排时基线差 2px、肉眼只觉得「有点歪」。
      按钮补1px 同色边框，配合全局 `box-sizing:border-box` + `height:44px`
      ⇒ **外部尺寸不变**（仍是 44），内部对齐。border-color 用 transparent
      以免在可用态看到多余描边（可用态是靠背景色表明「可点」的）。 */
-  .composer button { position:relative; overflow:hidden; flex:none; height:44px; padding:0 20px;
+  .composer button { position:relative; z-index:0; overflow:hidden; flex:none; height:44px; padding:0 20px;
                      border-radius:var(--radius-pill); cursor:pointer;
                      font-family:inherit; font-size:14.5px; font-weight:600;
                      background:var(--accent-solid); color:var(--on-accent);
-                     border:1px solid transparent; }
-  .composer button::after { content:''; position:absolute; top:0; left:0; width:45%; height:100%;
-    background:linear-gradient(100deg, transparent, color-mix(in oklab, var(--on-accent) 45%, transparent), transparent);
-    transform:translateX(-150%); pointer-events:none; }
-  /* ⚠️ 动画必须挂在 ::after（高光条）上，**不能挂按钮本体**。
-     第一版我写成 `.composer button:not(:disabled){animation:shimmer …}`，
-     而 keyframes 里是 `transform:translateX(-150%→350%)`
-     ⇒ **整个按钮在左右平移**，真机一眼看出「按钮一直在乱晃」。
-     按钮本体是**位置敏感的交互元素**（用户要瞄准点它），不能有 transform。
-     高光条用绝对定位覆盖在按钮上，扫的是它自己，不是按钮。 */
-  .composer button:not(:disabled)::after { animation:shimmer 2.6s linear infinite; }
-  @keyframes shimmer { from { transform:translateX(-150%); }
-                       12% { transform:translateX(-150%); }
-                       to { transform:translateX(350%); } }
+                     border:1px solid transparent;
+                     --spread:90deg; --shimmer-color:#ffffff; --speed:3s; --cut:.05em; }
+  /* ① spark 容器（上游 `-z-30 blur-[2px] @container-[size] absolute inset-0 overflow-visible`） */
+  .composer button .btn-sparkwrap {
+    position:absolute; inset:0; overflow:visible; z-index:-3;
+    filter:blur(2px); container-type:size; pointer-events:none;
+  }
+  /* ② spark（上游 `animate-shimmer-slide absolute inset-0 aspect-[1] h-[100cqh]`） */
+  .composer button .btn-spark {
+    position:absolute; inset:0; aspect-ratio:1; height:100cqh;
+    animation:shimmer-slide var(--speed) ease-in-out infinite alternate;
+  }
+  /* ③ spark::before（上游 `conic-gradient(from_calc(270deg-(var(--spread)*0.5)), …)`） */
+  .composer button .btn-spark::before {
+    content:''; position:absolute; inset:-100%; width:auto;
+    background:conic-gradient(from calc(270deg - (var(--spread) * .5)), transparent 0,
+                var(--shimmer-color) var(--spread), transparent var(--spread));
+    animation:spin-around calc(var(--speed) * 2) infinite linear;
+  }
+  /* ④ Highlight：内阴影高光（上游 `shadow-[inset_0_-8px_10px_#ffffff1f]`） */
+  .composer button .btn-hi {
+    position:absolute; inset:0; width:100%; height:100%; border-radius:inherit;
+    box-shadow:inset 0 -8px 10px #ffffff1f;
+    transition:box-shadow 300ms ease-in-out; pointer-events:none;
+  }
+  .composer button:not(:disabled):hover .btn-hi { box-shadow:inset 0 -6px 10px #ffffff3f; }
+  .composer button:not(:disabled):active .btn-hi { box-shadow:inset 0 -10px 10px #ffffff3f; }
+  /* ⑤ backdrop：盖住中间的光、只留 --cut 的边缝（上游 `inset-(--cut) -z-20 [background:var(--bg)]`） */
+  .composer button .btn-backdrop {
+    position:absolute; inset:var(--cut); z-index:-2; border-radius:inherit;
+    background:var(--accent-solid); pointer-events:none;
+  }
+  /* ⚠️ 关键：**按钮本体不能有 transform**（上游本体只有 `transform-gpu active:translate-y-px`）。
+     旧版把 keyframes 写成 translateX(-150%→350%) 并挂在按钮本体的伪元素上，
+     真机上看到的是「整个按钮左右平移」——按钮是位置敏感的交互元素（用户要瞄准点它）。
+     上游的平移只发生在 spark 层内部，按钮位置永远不动。 */
+  @keyframes shimmer-slide { to { transform:translate(calc(100cqw - 100%), 0); } }
+  @keyframes spin-around {
+    0% { transform:translateZ(0) rotate(0); }
+    15%, 35% { transform:translateZ(0) rotate(90deg); }
+    65%, 85% { transform:translateZ(0) rotate(270deg); }
+    100% { transform:translateZ(0) rotate(360deg); }
+  }
   /* 禁用态：**描边式**而不是灰白填充。
      原来用 `background:var(--fill-2)` 填出一块灰白，跟玻璃输入区贴在一起
      糊成一片、看不出那是个按钮（真机截图发现的）。
@@ -548,28 +596,40 @@
   .composer button:disabled { background:transparent; color:var(--muted-3);
     cursor:not-allowed; outline:1px solid var(--glass-brd); outline-offset:-1px;
     padding:0 24px; }                       /* 内边距加大：描边框里「发送」不局促 */
-  .composer button:disabled::after { display:none; }
+  .composer button:disabled .btn-sparkwrap,
+  .composer button:disabled .btn-backdrop,
+  .composer button:disabled .btn-hi { display:none; }
   @media (prefers-reduced-motion: reduce) {
-    .composer button:not(:disabled)::after { animation:none; }
-    .composer button:not(:disabled)::after { display:none; }
+    .composer button .btn-sparkwrap { display:none; }   /* 装饰层，reduce 下整层拿掉 */
+    .composer button .btn-spark { animation:none; }
+    .composer button .btn-spark::before { animation:none; }
   }
 
-  /* ---- Marquee 示例条（magicui）：「你可以问」的滚动 chip，点一下填进输入框 ----
-     两份内容 translateX(0→-50%) 线性循环；宽度 200% 是关键（不然第二份接不上）。 */
-  .marquee { position:relative; overflow:hidden; margin:0 0 14px;
+  /* ---- Marquee 示例条 — 上游 magicui `marquee.tsx` 逐值移植 ----
+     上游结构：**外层容器** `flex gap-(--gap) overflow-hidden p-2 [--duration:40s] [--gap:1rem]`；
+     内容按 `repeat=4`（上游默认值）复制成 **4 条各自带动画的轨道**，每条
+     `flex shrink-0 justify-around gap-(--gap) animate-marquee`；keyframes 原文：
+       `@keyframes marquee { from{translateX(0)} to{translateX(calc(-100% - var(--gap)))} }`
+     ⚠️ 旧版是自创的「一条 width:200% 轨道 + 复制 2 份 + translateX(0→-50%) + 26s」——
+     上游不是「两份首尾相接」，而是**每条轨道各自左移「自身宽度 + gap」**（4 份保证视口始终被填满）；
+     时长是 **40s**（不是 26s），间隙是 **1rem**（不是 8px）。
+     保留本页自加的两处（偏离登记）：60/94% 的边缘渐隐 mask、悬停暂停（上游要显式开 pauseOnHover）。 */
+  .marquee { position:relative; overflow:hidden; margin:0 0 14px; --duration:40s; --gap:1rem;
              -webkit-mask:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
              mask:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
-  .marquee-track { display:flex; width:200%; animation:marquee 26s linear infinite; }
-  .marquee:hover .marquee-track { animation-play-state:paused; }   /* 悬停停：给用户反应时间 */
-  .marquee-group { display:flex; gap:8px; padding-right:8px; }     /* 每组自带右隙，两组才接得上 */
-  @keyframes marquee { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  .marquee-track { display:flex; gap:var(--gap); }                 /* 上游：容器 flex + gap-(--gap) */
+  .marquee-group { flex:none; display:flex; justify-content:space-around; gap:var(--gap);
+                   animation:marquee var(--duration) linear infinite; }
+  .marquee:hover .marquee-group { animation-play-state:paused; }   /* 悬停停：给用户反应时间 */
+  @keyframes marquee { from { transform:translateX(0); } to { transform:translateX(calc(-100% - var(--gap))); } }
   .mchip { flex:none; font-size:12.5px; padding:5px 11px; border-radius:var(--radius-pill);
            background:var(--glass-bg); border:1px solid var(--glass-brd);
            color:var(--muted-2); cursor:pointer; user-select:none; white-space:nowrap;
            backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
   .mchip:hover { color:var(--fg); border-color:var(--accent-line); }
   @media (prefers-reduced-motion: reduce) {
-    .marquee-track { animation:none; width:auto; flex-wrap:wrap; }  /* 静止 = 换行全展示 */
+    .marquee-track { flex-wrap:wrap; }           /* 静止 = 换行全展示 */
+    .marquee-group { animation:none; flex-wrap:wrap; }
     .marquee { -webkit-mask:none; mask:none; }
   }
 
@@ -602,29 +662,40 @@
              padding:7px 10px; border-bottom:1px solid var(--border);
              font-size:12.5px; min-height:40px; position:relative; }
   .ops-row:last-child { border-bottom:none; }
-  /* Spotlight（magicui **MagicCard** 原版思路，2026-10-08 按源码重写）：
-     ⚠️ 之前我只写了一个跟随光晕的 radial-gradient，
-     **漏掉了原版的核心 —— 跟着鼠标走的渐变边框**（gradientFrom→gradientTo）。
-     原版参数：gradientSize200 / gradientOpacity0.8 / gradientFrom #9E7AFF / gradientTo #FE8BBB。
-     这里用 CSS 变量对应：--spot-size / --spot-op / 两个色停走令牌。
-     两层：① ::before 渐变边框（鼠标位置处显形）② ::after 内部柔光。 */
-  .ops-row { --spot-size:200px; --spot-op:.8; --spot-from:var(--accent); --spot-to:var(--note-line); }
+  /* Spotlight — 上游 magicui `magic-card.tsx`（MagicCard）逐值移植
+     原版参数（magic-card.tsx:57-67）：gradientSize **200** / gradientOpacity **0.8** /
+     gradientFrom `#9E7AFF` / gradientTo `#FE8BBB` / gradientColor `#262626`；hover 显形过渡 300ms。
+     原版三层（magic-card.tsx:159-195）：
+       ① 卡片底色 `linear-gradient(--color-background 0 0) padding-box`
+       ② `radial-gradient(200px circle at X Y, gradientFrom, gradientTo, --color-border 100%) border-box`
+          = **跟着鼠标走的渐变边框**；⚠️ 第三停是「常态描边色」，**不是 transparent**
+          （上面两条里的 `--color-*` 是**上游的令牌名**，本页对应 `--bg` / `--border`）
+       ③ 内层 `radial-gradient(200px circle at X Y, gradientColor, transparent 100%)` + `opacity:.8`
+     本页用 mask 手法只留 1px 边框环来表达 ②（等价于原版 border-box 渐变 + 内部底色盖住），
+     用 ::after 表达 ③。
+     ⚠️ 偏离登记（3 处）：① 色停改走本页令牌（--accent / --note-line / --border，gradientColor 用 --fg）
+     而非上游紫粉彩；② 过渡 .18s 而非 .3s（与全站 hover 节奏一致）；③ reset 用「鼠标离开即 opacity:0」
+     代替原版的全局 pointerout/blur/visibilitychange 监听（纯 CSS 更省，视觉等价）。 */
+  .ops-row { --spot-size:200px; --spot-op:.8; --spot-from:var(--accent); --spot-to:var(--note-line);
+             --spot-glow:var(--fg); }
   .ops-row::before {
     content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
     padding:1px; opacity:0; transition:opacity .18s var(--e);
+    /* 第三停 = 常态描边色（原版上游令牌 `--color-border` 100%），不是 transparent */
     background:radial-gradient(var(--spot-size) circle at var(--x,50%) var(--y,50%),
-      var(--spot-from), var(--spot-to), transparent calc(var(--spot-size) * .9));
+      var(--spot-from), var(--spot-to), var(--border) 100%);
     -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
             mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite:xor; mask-composite:exclude;
   }
   .ops-row::after {
-    content:''; position:absolute; inset:0; pointer-events:none;
+    content:''; position:absolute; inset:1px; pointer-events:none; border-radius:inherit;
     opacity:0; transition:opacity .18s var(--e);
-    background:radial-gradient(calc(var(--spot-size) * .7) circle at var(--x,50%) var(--y,50%),
-      color-mix(in oklab, var(--spot-from) calc(var(--spot-op) * 22%), transparent), transparent 72%);
+    background:radial-gradient(var(--spot-size) circle at var(--x,50%) var(--y,50%),
+      var(--spot-glow), transparent 100%);
   }
-  .ops-row:hover::before, .ops-row:hover::after { opacity:1; }
+  .ops-row:hover::before { opacity:1; }
+  .ops-row:hover::after { opacity:var(--spot-op); }   /* 原版 gradientOpacity = 0.8 */
   .ops-row > * { position:relative; }
   .ops-t { color:var(--muted-3); font-variant-numeric:tabular-nums; font-size:11.5px;
            white-space:nowrap; }
@@ -707,8 +778,8 @@
   </header>
 
   <section id="support-chat">
-    <!-- Marquee 示例条（magicui）：内容由 JS 按同一数组渲染**两份**，
-         translateX(0→-50%) 循环时第二份正好接上第一份的尾。点击 chip 填入输入框。
+    <!-- Marquee 示例条（magicui）：内容由 JS 按同一数组渲染 **4 份**（上游 repeat 默认值），
+         每条轨道自己左移「自身宽度 + gap」循环（keyframes 见 CSS）。点击 chip 填入输入框。
 
          ⚠️ 位置纪律：必须在 #support-log **之前**。第一版放在之后，
          scrollIntoView({block:'end'}) 把它带进两轮对话中间 ——
@@ -724,7 +795,10 @@
            占位文案再列一串 + 省略号是重复且拖沓。 -->
       <textarea id="support-input" rows="1" maxlength="500"
                 placeholder="问景点、美食、门票、开放时间"></textarea>
-      <button id="support-send" disabled>发送</button>
+      <!-- Shimmer 按钮的图层 = 上游 shimmer-button.tsx 的 DOM 同构（纯装饰，静态写在这里）。
+           ⚠️ 顺序有意：文字在内联内容层，天然高于 z-index:-3 的 spark 容器与 -2 的 backdrop，
+           不需要给文字再加 z-index。 -->
+      <button id="support-send" disabled><span class="btn-sparkwrap" aria-hidden="true"><span class="btn-spark"></span></span><span class="btn-hi" aria-hidden="true"></span><span class="btn-backdrop" aria-hidden="true"></span>发送</button>
     </div>
   </section>
 
@@ -896,9 +970,9 @@ function emptyState() {
    **整条恢复链断掉**（真机刷新一次就复现）。
    调用点已挪到 BADGES 之后，见文件下方 `restoreIfAny()`。 */
 
-/* ---- Marquee 示例条（magicui）----
-   渲染**两份**同样内容：translateX(0→-50%) 循环时第二份正好接上第一份尾，
-   这是 marquee 的标准做法（一份内容会在 50% 处露白）。
+/* ---- Marquee 示例条 — 上游 magicui `marquee.tsx`：`repeat` 默认 **4 份** ----
+   每条轨道自己带动画（`translateX(0 → -100% - var(--gap))`），4 份保证视口始终
+   被后续副本填满（只复制 2 份时短视口会露空档）。
    示例文案是固定数组（不含外部值），点一下填进输入框——沿用现有交互，不引入新机制。 */
 var ASK_EXAMPLES = ['西安有什么好吃的', '兵马俑门票多少钱', '鼓浪屿怎么去',
                     '黄山要爬多久', '西湖门票多少', '故宫需要预约吗'];
@@ -906,7 +980,7 @@ function renderMarquee() {
   var track = document.getElementById('askMarqueeTrack');
   if (!track) return;
   track.textContent = '';
-  for (var g = 0; g < 2; g++) {                    // 两份
+  for (var g = 0; g < 4; g++) {                    // 上游 repeat 默认 4 份
     var group = document.createElement('div');
     group.className = 'marquee-group';
     ASK_EXAMPLES.forEach(function (q) {
@@ -1029,6 +1103,18 @@ function addBadge(bubble, action) {
   el.className = 'badge ' + b.cls + (action === 'handoff' ? ' beam' : '');
   el.innerHTML = '<span class="licon" aria-hidden="true">' + b.icon + '</span>';
   el.appendChild(document.createTextNode(b.text));
+  if (action === 'handoff') {
+    /* Border Beam 的 ring + dot 必须是**嵌套的真实元素**（上游 border-beam.tsx:68-105 同构）：
+       伪元素做不到「父元素 mask 裁掉子元素」这一层，而平级两兄弟又不会被裁
+       ⇒ 光点会以一整块方形光斑出现。见本文件 Border Beam 注释块。 */
+    var ring = document.createElement('span');
+    ring.className = 'beam-ring';
+    ring.setAttribute('aria-hidden', 'true');
+    var dot = document.createElement('span');
+    dot.className = 'beam-dot';
+    ring.appendChild(dot);
+    el.appendChild(ring);
+  }
   bubble.insertBefore(el, bubble.firstChild);   // 徽章在气泡顶部
 }
 
@@ -1230,8 +1316,9 @@ function renderOps(d) {
   bindSpotlight(wrap);
 }
 
-/* Spotlight 鼠标跟随光晕（magicui Glow Card，v4 配方表第 4 行）：
-   mousemove 写 --x/--y，CSS 用 radial-gradient(240px at var(--x) var(--y), …) 渲染。
+/* Spotlight 鼠标跟随（上游 magicui `magic-card.tsx` MagicCard）：
+   JS 只负责写 --x/--y 两个 CSS 变量（原版用 Motion 的 useMotionValue + useMotionTemplate，
+   等价于「每次移动写一次变量」）；200px radial 与三层结构见上方 `.ops-row::before/::after` 注释。
    一段 ~10 行 JS + 事件委托，一次绑全列表。 */
 function bindSpotlight(scope) {
   if (!scope) return;
