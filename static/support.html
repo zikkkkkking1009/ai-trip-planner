@@ -101,9 +101,87 @@
     --stay: #8a82e9;    --note-ink: #cc7200; --note-soft: #2d1a0a; --note-line: #5a3f14;
   }
 
+  /* ==================================================================
+     玻璃令牌层（v4「液态玻璃 × 工程感」，2026-10-07）
+     ------------------------------------------------------------------
+     纪律（来自 tweakcn / 五站实测）：
+     ① **全部用 color-mix 从上面那套基础令牌派生**，不写裸 hex、不写裸 rgba。
+        好处：亮暗切换时自动跟随基础令牌，**不可能漂移**；基础令牌一改，玻璃层跟着变。
+     ② `:root` 与 `[data-theme="dark"]` **成对定义**（tweakcn 的核心纪律）。
+        玻璃最吃「压什么底色」，暗色不能靠一套值糊弄过去——高光强度必须单独收。
+     ③ tweakcn 的「每个语义色拆成底 + 字两枚」：玻璃同理，
+        `--glass-bg`（底）与 `--glass-brd`（描边）分开，
+        因为 backdrop 后面是任意内容，描边不能跟着底色一起被冲淡。
+     实测依据（五站探针）：liquid-glass demo 真值是 `blur(20px) saturate(1.4)`，
+     **saturate 是「真玻璃」与「磨砂」的分水岭**——只 blur 是磨砂塑料感。
+     ================================================================== */
+  :root {
+    /* 玻璃底：底色 + 一点透明，让后面的内容透出来。
+       blur/saturate 写在 .glass 类里（这里只管色，因为要跟主题走）。 */
+    --glass-bg:   color-mix(in oklab, var(--surface) 72%, transparent);
+    /* 玻璃描边：比玻璃底更不透明一点，勾出边缘。
+       不用 rgba 硬编码——从 --border 派生，亮暗自动成对。 */
+    --glass-brd:  color-mix(in oklab, var(--muted-3) 38%, transparent);
+    /* 内高光：Apple 玻璃的顶部一道亮边。亮色主题要更明显，暗色要更弱（见下方 dark 块）。 */
+    --glass-hi:   color-mix(in oklab, var(--fg) 12%, transparent);
+    /* 玻璃上的文字色：不是简单用 --fg，因为玻璃底是半透的，
+       压在浅内容上会掉对比度 ⇒ 混一点 --muted-2 稳住（第五部分验收第 2 点按最坏底色算）。 */
+    --glass-ink:  var(--fg);
+    --glass-ink-dim: var(--muted-2);
+    /* 圆角：v4「卡片 16px / 控件胶囊 999」。tweakcn 实测卡片与控件圆角**要分开**，
+       这里显式分两枚，不让各处随手写死。 */
+    --radius-lg:  16px;
+    --radius-md:  10px;
+    --radius-pill: 999px;
+    /* 点阵：会话区背景层（极低透明度，别抢内容）。 */
+    --dot:       color-mix(in oklab, var(--muted-3) 30%, transparent);
+  }
+  :root[data-theme="dark"] {
+    /* 暗色玻璃 = 亮色的降级版：高光收、底更透、描边更亮一点。
+       依据：liquid-glass README 有专门的 `overLight` 开关（压在浅底 vs 深底高光不同），
+       而**用两套变量表达比手写两个值更不容易忘**。 */
+    --glass-bg:   color-mix(in oklab, var(--surface) 62%, transparent);
+    --glass-brd:  color-mix(in oklab, var(--muted-3) 30%, transparent);
+    --glass-hi:   color-mix(in oklab, var(--fg) 7%, transparent);
+    --glass-ink:  var(--fg);
+    --glass-ink-dim: var(--muted-2);
+    /* 暗色底上点阵要更弱，否则噪点感明显 */
+    --dot:       color-mix(in oklab, var(--muted-3) 18%, transparent);
+  }
+
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body);
          font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+
+  /* ---- 玻璃基类（liquid-glass 退化版，Tier 1 纯 CSS）----
+     实测 liquid-glass demo 的真值是 blur(20px) saturate(1.4)；
+     这里取 14px/140% 是为了让**小元素**（气泡、chip）也稳——
+     大卡片上 20px 会把里面的文字糊掉（blur 作用在 backdrop 上，元素越小越要克制）。
+     saturate 不能省：省了就是磨砂塑料感（实测 cult-ui 的 blur(8px) 无 saturate 就是那个味）。 */
+  .glass { background:var(--glass-bg);
+           backdrop-filter:blur(14px) saturate(140%);
+           -webkit-backdrop-filter:blur(14px) saturate(140%);
+           border:1px solid var(--glass-brd);
+           border-radius:var(--radius-lg);
+           box-shadow:inset 0 1px 0 var(--glass-hi); }
+  /* backdrop-filter 不支持时（老 Firefox / 部分环境）不能塌成透明块——
+     浏览器会把带 backdrop-filter 但不支持的元素当普通元素，
+     于是只剩半透明底 + 无背景 ⇒ 文字压在后面的内容上，读不了。
+     @supports 兜一个不透明底。 */
+  @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+    .glass { background:var(--surface); }
+  }
+
+  /* ---- 版心：v3 毛病 1「整页没有版心」----
+     元素各自漂浮在空白画布上是这页最不像「网站的一部分」的原因。
+     一个 720px 容器居中，页头→说明→会话→运营→页脚成纵向文档流。
+
+     ⚠️ 踩过的坑：`max-width` **含** padding。第一版写
+     `max-width:720px; padding:28px max(16px, calc((100vw - 720px)/2))`，
+     在 1280 视口下 padding 被算成 280px×2，内容区只剩 720-560 = **160px**
+     —— 输入框被压到 83px、标题挤在中间。真机截图才看得出来。
+     正确写法：**外层 .wrap-shell 负责居中，内层 .wrap 只管内容宽与纵向留白**。 */
+  .wrap { max-width:720px; margin:0 auto; padding:28px 20px 40px; }
 
   /* ---- 顶部导航：照抄 index.html .site-nav 配方（毛玻璃 + 发丝线）---- */
   .site-nav { position:sticky; top:0; z-index:500; display:flex; align-items:center; gap:10px;
@@ -151,8 +229,20 @@
                 font-size:13px; line-height:1.5; color:var(--fg); }
   .auth-toast[hidden] { display:none; }
 
-  /* ---- 主体：单栏纵向（会话流是主角）---- */
-  .wrap { max-width:760px; margin:0 auto; padding:22px max(16px, calc((100vw - 760px) / 2)) 40px; }
+  /* ---- 主体：单栏纵向（会话流是主角）；.wrap 已在上方定义（720px 版心）---- */
+  /* 页头标题区（v3 毛病 13：原来说明是浮块，现在是标题的一部分） */
+  .page-head { margin-bottom:18px; }
+  .page-title { font-family:var(--font-display); font-size:26px; font-weight:700;
+                letter-spacing:-.01em; line-height:1.25; margin:0 0 6px; }
+  .page-sub { font-size:13.5px; color:var(--muted-2); margin:0; }
+
+  /* 页脚（v3 毛病 13：原来没有页脚）。极简一行：左版权右链接。 */
+  .page-foot { margin-top:30px; padding-top:14px; border-top:1px solid var(--border);
+               display:flex; align-items:center; justify-content:space-between;
+               gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted-3); }
+  .foot-links { display:flex; gap:14px; }
+  .foot-links a { color:var(--muted-2); text-decoration:none; }
+  .foot-links a:hover { color:var(--fg); }
   .lead-note { font-size:13px; color:var(--muted-2); background:var(--fill);
                border:1px solid var(--border); border-radius:9px; padding:10px 13px; margin-bottom:16px; }
 
@@ -292,7 +382,11 @@
 </div>
 
 <div class="wrap">
-  <div class="lead-note">知识库答不了的问题会登记转人工跟进。</div>
+  <!-- 页头说明融进标题区（v3 毛病 13：原来是浮块）。副题不是卡片，是标题的一部分。 -->
+  <header class="page-head">
+    <h1 class="page-title">咨询助手</h1>
+    <p class="page-sub">基于行程知识库；答不了的会转人工跟进</p>
+  </header>
 
   <section id="support-chat">
     <div id="support-log" aria-live="polite"></div>
@@ -307,6 +401,17 @@
     <summary>运营视图（内部）</summary>
     <div id="ops-body">需要访问令牌</div>
   </details>
+
+  <!-- 页脚（v3 毛病 13：原来无页脚）。
+       「完整记录以服务端留痕为准」这句有实际意义：页面的会话流只是当前浏览器的，
+       服务端 `data/conversations/{sid}.json` 才是权威——不写清楚会让人以为刷新就没了。 -->
+  <footer class="page-foot">
+    <span>© 路书 · 咨询助手 · 完整记录以服务端留痕为准</span>
+    <span class="foot-links">
+      <a href="/">首页</a>
+      <a href="/app">规划</a>
+    </span>
+  </footer>
 </div>
 
 <script>

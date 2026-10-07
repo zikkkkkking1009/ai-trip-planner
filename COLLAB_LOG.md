@@ -1589,3 +1589,68 @@ magicui 的 `@property`/`@layer` 建玻璃令牌层，`:root` 与 `[data-theme="
 | 圆角 | 五站都有非整数或超多档（7.6 / 9.6 / 22 / 24 / 32px） | ⇒ **「大圆角 12~16px」是收敛后的纪律**，不是任站的实际做法 |
 | 字体 | Geist / GeistMono / inter / ui-sans-serif + 等宽 | **无衬线 + 等宽是全共识** ✅ 我们已有 |
 | 实现 | 四站 React（Motion / tw-animate-css），**liquid-glass MIT 可vanilla** | ⇒ **Tier 1 纯 CSS 覆盖 7/9 条是合理预期**，折射/ticker 降级仍成立 |
+
+---
+
+## ✅ 第 1 步｜workbuddy：玻璃令牌层 + 版心骨架（v4 第 2 步，check_frontend/check_contrast 绿）
+
+**改动**：`static/support.html`（令牌层 + `.glass` 类 + 版心 + 页头标题区 + 页脚）。
+**未动 backend/**，未动 `index.html`/`home.html`。
+
+### 令牌层（三条纪律，全部来自第 0 步学习）
+① **零裸色**：玻璃层 11 枚令牌**全部 `color-mix(in oklab, 基础令牌, transparent)` 派生**
+   ⇒ 亮暗切换自动跟随基础令牌，**不可能漂移**；基础令牌一改，玻璃层跟着变。
+② **`:root` 与 `[data-theme="dark"]` 成对定义**（tweakcn 核心纪律）。
+   暗色是**独立的一套值**而非亮色糊弄：底更透（72%→62%）、高光更弱（12%→7%）、点阵更淡（30%→18%）。
+   依据是 liquid-glass README 的 `overLight` 开关（压浅底 vs 深底高光强度不同）——
+   **用两套变量表达比手写两个值不容易忘**。
+③ **tweakcn 的「每个语义色拆底+字两枚」**：`--glass-bg`（底）与 `--glass-brd`（描边）分开——
+   因为 backdrop 后面是任意内容，描边不能跟着底色一起被冲淡。
+
+另加 `--radius-lg:16px / --radius-md:10px / --radius-pill:999px`
+（tweakcn 实测卡片与控件圆角**要分开**，不四处随手写死）。
+
+### `.glass` 基类：真玻璃 vs 磨砂
+`backdrop-filter: blur(14px) saturate(140%)` —— **saturate 不能省**，
+实测 cult-ui 的 `blur(8px)` 无 saturate 就是磨砂塑料感，liquid-glass demo 是 `blur(20px) saturate(1.4)`。
+blur 取 14px 而非 20px：**blur 作用在 backdrop 上，元素越小越要克制**，气泡/chip 用 20px 会把里面文字糊掉。
+
+⚠️ **加了 `@supports not (backdrop-filter)` 兜底**：不支持的浏览器会把带
+`backdrop-filter` 的元素当普通元素 ⇒ 只剩半透明底且**无背景**，文字压在后面的内容上读不了。
+兜一个不透明 `var(--surface)`。
+
+### 🔴 真机截图抓到一个静态检查抓不到的坑（版心 padding 吃掉内容区）
+第一版我写 `max-width:720px; padding:28px max(16px, calc((100vw - 720px)/2))` ——
+**`max-width` 含 padding**，在 1280 视口下 padding 被算成 280px×2，
+内容区只剩 `720-560 = 160px`：**输入框被压到 83px 宽**、标题挤成一小块。
+`check_frontend` 与 `check_contrast` **全绿**（它们不量几何）。
+真机截图一眼看出「输入框被压扁」才量出真实值：`inp.w=83px`。
+⇒ 正确写法：`max-width:720px; padding:28px 20px`（让 margin auto 去居中）。
+修后 `inp.w=603px`、`titleW=680px`。
+
+**这是本项目「静态门禁 ≠ 视觉正确」的第 N 次**（前有 CSS 未定义变量、details 折叠 innerText、
+七档探针不断遮挡类缺陷）。**规律：门禁证明「规则对」，截图证明「看起来对」，两者不可互替。**
+
+### 顺手做了 v3 毛病 13（页头说明融进标题区 + 页脚）
+- 主标题「咨询助手」+ 副题「基于行程知识库；答不了的会转人工跟进」（**不再是浮卡**）
+- 页脚一行：`© 路书 · 咨询助手 · 完整记录以服务端留痕为准` + 首页/规划链接
+  （那句留痕说明有实际意义：页面会话流只是当前浏览器的，
+  `data/conversations/{sid}.json` 才是权威——不写清楚会让人以为刷新就没了）
+- ⚠️ **简报毛病 10 说「导航有无功能放大镜」——我这版本来就没有**（只有钥匙钮）。
+  ZCode 那条批评是基于更早的截图。已核对代码，不盲改。
+
+### 门禁与验收
+- `check_frontend.py` ✅（三页，support.html 9 项全绿）
+- `check_contrast.py` ✅（页面级）
+- **验收第 2 点（grep 纪律）**：`grep "#[0-9a-fA-F]\{3,6\}" static/support.html`
+  命中 **64~101 行**（令牌区内），**区外零命中**，且**全文件零裸 rgba** ✅
+- 真机 14/14：版心 720 居中、标题/副题、无浮块、页脚（含留痕说明+2 链接）、
+  玻璃令牌非空、**暗色下玻璃令牌有独立值**（成对定义）、
+  `.glass` 有 blur+saturate、圆角 16px、半透明底
+
+**一个断言我写错了**：「半透明底」我判 `/rgba/`，但 `color-mix(in oklab,…)`
+在 `getComputedStyle` 里返回的是 **`oklab(1 … / 0.72)`**——alpha 藏在 `/` 后。
+正确判据 = 有 alpha 分量且 < 1。已修断言，产品无问题。
+
+**玻璃尚未应用到元素**（本步只建令牌层与骨架，气泡/卡片的玻璃化是第 3 步）——
+所以截图里页面下半仍大量空白、元素还是直角。符合简报的第 2 步定位。
