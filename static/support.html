@@ -410,24 +410,11 @@ if (log) emptyState();
 
 function scrollDown() {
   if (!log) return;
-  /* log 是独立滚动容器（max-height:62vh + overflow-y:auto）。
-     只把它滚到底**不够**：实测 320px 下用户刚发的那条问题会被顶出视野 ——
-     用户看到的是「我的问题不见了，冒出来一坨回答」。
-     现在只保证「最后一轮的用户问题在视野内」：**只改 log 自身的 scrollTop**。
-     ⚠️ 不用 scrollIntoView：它会连带滚动**页面**，把输入框顶出视野（那比看不见问题更糟）。
-     ⚠️【刻意的取舍】回答很长时它的**尾部**可能仍在视野外：内容超过一屏时
-     「问题+回答全部可见」物理上做不到，只能二选一。选回答结尾——那是信息本体，
-     且回答开头通常是「根据知识库，为你找到：」，足以确认对应关系。 */
+  /* log 是独立滚动容器（max-height:62vh + overflow-y:auto），**只改它自身的 scrollTop**。
+     ⚠️ 不用 scrollIntoView：它会连带滚动**页面**，把输入框顶出视野（那比看不见内容更糟）。
+     滚到底即可：最新一条回答的尾巴（缺口块 / 引用卡收尾）正是最后渲染出来的，
+     让它进视野 = 用户能读完整条回答的结论。 */
   log.scrollTop = log.scrollHeight;
-  var bubbles = log.querySelectorAll('.msg.a');
-  var lastA = bubbles[bubbles.length - 1];
-  var prev = lastA ? lastA.previousElementSibling : null;
-  if (prev && prev.classList.contains('msg')) {
-    // 让最后那条用户问题的**底部**落在容器可视区靠上位置：
-    // 上方留出回答的开头，下方留给回答正文。纯 log 内滚动，页面不动。
-    var rel = prev.offsetTop - log.clientHeight * 0.35;
-    log.scrollTop = Math.max(0, Math.min(log.scrollHeight - log.clientHeight, rel));
-  }
 }
 
 function addMsg(cls, text) {
