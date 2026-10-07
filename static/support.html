@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
@@ -232,8 +233,20 @@
   /* ---- 主体：单栏纵向（会话流是主角）；.wrap 已在上方定义（720px 版心）---- */
   /* 页头标题区（v3 毛病 13：原来说明是浮块，现在是标题的一部分） */
   .page-head { margin-bottom:18px; }
+  /* ---- Aurora 渐变标题（magicui Aurora Text）：background-clip:text + 位置 8s 循环，
+     **位移 ≤20%**（v4 纪律：幅度克制）。给静态工具页加它只为「活的」感，不是炫技。 */
   .page-title { font-family:var(--font-display); font-size:26px; font-weight:700;
-                letter-spacing:-.01em; line-height:1.25; margin:0 0 6px; }
+                letter-spacing:-.01em; line-height:1.25; margin:0 0 6px;
+                background:linear-gradient(100deg,
+                  var(--fg) 0%, var(--accent-deep) 38%, var(--fg) 62%, var(--muted-2) 100%);
+                background-size:220% 100%;
+                -webkit-background-clip:text; background-clip:text;
+                -webkit-text-fill-color:transparent; color:transparent;
+                animation:aurora 8s linear infinite; }
+  @keyframes aurora { from { background-position:0% 50%; } to { background-position:100% 50%; } }
+  @media (prefers-reduced-motion: reduce) {
+    .page-title { animation:none; background-position:0% 50%; }
+  }
   .page-sub { font-size:13.5px; color:var(--muted-2); margin:0; }
 
   /* 页脚（v3 毛病 13：原来没有页脚）。极简一行：左版权右链接。 */
@@ -251,15 +264,38 @@
      输入行永远跟在最后一条消息下面。
      scrollTop 由脚本在渲染后设置，无需 smooth（首帧就跳，动画只会看到中间态）。 */
   #support-chat { display:flex; flex-direction:column; }
-  #support-log { display:flex; flex-direction:column; gap:12px; padding-bottom:14px;
-                 max-height:62vh; overflow-y:auto; }
 
-  .msg { max-width:86%; padding:10px 13px; border-radius:12px; font-size:14.5px;
-         line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
-  .msg.q { align-self:flex-end; background:var(--accent-soft); color:var(--fg);
-           border:1px solid var(--accent-line); }
-  .msg.a { align-self:flex-start; background:var(--surface); color:var(--fg);
-           border:1px solid var(--border); }
+  /* 点阵背景层（magicui Dot Pattern）：会话区背后极低透明度的点阵。
+     放在 log 的 ::before 上而不是 body —— body 上会给整页（包括导航）铺纹理，
+     太抢；只在会话区、且透明度 0.3 令牌封顶（实测 Aceternity 的非整数圆角用法给了启发：
+     纹理用 `color-mix` 派生天然可控，不靠手调alpha）。 */
+  #support-log { display:flex; flex-direction:column; gap:12px; padding-bottom:16px;
+                 max-height:62vh; overflow-y:auto; position:relative; }
+  #support-log::before { content:''; position:absolute; inset:0; pointer-events:none;
+    background-image:radial-gradient(var(--dot) 1px, transparent 1px);
+    background-size:22px 22px;
+    /* mask 线性渐隐：让点阵在边缘淡出，不出现硬边 */
+    -webkit-mask:linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+            mask:linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    opacity:.5; z-index:0; }
+  #support-log > * { position:relative; z-index:1; }
+
+  /* 气泡玻璃化（v4 配方表第1 行）：两边都是玻璃，但底色不同区分说话方。
+     blur 14px 是 .glass 的值——**不要给气泡单独调大**，blur 作用在 backdrop 上，
+     小元素用20px 会把里面文字糊掉（这是我第 1 步实测 blur 时记下的）。 */
+  .msg { max-width:86%; padding:10px 14px; border-radius:var(--radius-lg);
+         font-size:14.5px; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere;
+         backdrop-filter:blur(14px) saturate(140%);
+         -webkit-backdrop-filter:blur(14px) saturate(140%); }
+  .msg.q { align-self:flex-end; color:var(--fg);
+           /* 用户气泡：从 --accent-soft 派生半透明蓝调，亮暗自动跟随 */
+           background:color-mix(in oklab, var(--accent-soft) 62%, transparent);
+           border:1px solid var(--glass-brd); }
+  .msg.a { align-self:flex-start; color:var(--fg);
+           /* 机器人气泡：surface 半透明 + 顶部内高光（玻璃的标志性细节） */
+           background:var(--glass-bg);
+           border:1px solid var(--glass-brd);
+           box-shadow:inset 0 1px 0 var(--glass-hi); }
   /* 空态提示：会话还没开始时给一句可用示例，别给一片空白 */
   .empty { align-self:center; text-align:center; color:var(--muted-3); font-size:13px;
            padding:26px 12px; line-height:1.9; }
@@ -287,39 +323,112 @@
   .cite-line + .cite-line { border-top:1px solid var(--border); }
   .cite-name { font-weight:600; color:var(--fg); margin-right:6px; }
   .cite-snip { color:var(--muted-2); }
+  /* 核查状态（原来在 chip 上，chip 删除后移到行内）。
+     措辞按v4「核查状态由小标承载」，不喊「引用 N/N 条已核查到库内实体」那句工程话术。 */
+  .cite-vf { font-size:11.5px; margin-left:6px; color:var(--ok-ink); white-space:nowrap; }
+  .cite-vf.no { color:var(--muted-3); }
   .cite-warn { color:var(--bad-ink); font-size:11.5px; margin-left:6px; }
 
-  /* ---- 三档徽章：颜色即语义，且**刻意不用红表示转人工** ----
+  /* ---- 三档徽章（v4「胶囊徽章」）：颜色即语义，且**刻意不用红表示转人工** ----
      handoff 是「已登记、人工会跟进」＝正常业务流转；用 --bad-* 红会让用户
      以为系统出错，那才是真的误导。红只留给真正的失败（429/401/网络）。
-     配色全部取自已定义令牌，且只用有 --*-line 的那三套
-     （⚠ --warn 有 --warn-ink/-soft 但**没有 --warn-line**，引用它会让整条声明静默失效）。 */
+     形态按 v4 配方表：**胶囊 + 1px 描边**（不是灰底 pill）。
+     ⚠️ 徽章**不叠玻璃**：backdrop-filter 会把描边底下的 accent 冲淡，
+     实测在小元素上 blur 14px 已经让 1px 描边发虚 —— 胶囊保持实底 + 描边才清楚。 */
   .badge { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700;
-           line-height:1.5; padding:3px 10px; border-radius:8px; margin-bottom:8px;
-           border:1px solid transparent; }
+           line-height:1.5; padding:3px 11px; border-radius:var(--radius-pill);
+           margin-bottom:8px; border:1px solid transparent; }
   .badge .licon { flex:0 0 auto; }
   .badge.hit      { background:var(--ok-soft);      border-color:var(--ok-line);      color:var(--ok-ink); }
   .badge.partial  { background:var(--note-soft);    border-color:var(--note-line);    color:var(--note-ink); }
   .badge.handoff  { background:var(--accent-soft);  border-color:var(--accent-line);  color:var(--accent-deep); }
 
-  /* caveat 的 gap.note：与正文**视觉分块**，别混在一段话里 ——
-     正文是「查到了什么」，这块是「哪部分没查到」，两件事要能一眼分开。 */
-  .gapnote { margin-top:9px; padding:9px 11px; border-radius:9px; font-size:13px; line-height:1.65;
-             background:var(--note-soft); border:1px solid var(--note-line); color:var(--note-ink);
+  /* ---- Border Beam 扫边（magicui，v4 配方表第 2 行）----
+     只给 handoff 徽章用，且**每屏至多 1 个**（v4 纪律：循环动画同屏 ≤2）——
+     转人工本身是低频事件，扫边是「这条挂起等人」的提示，不该满屏闪。
+     实现照抄 magicui 的手法（实测它用 @property + conic-gradient）：
+     `@property` 让--beam-angle 可插值 → conic-gradient 绕着转 → 用 mask 把中间挖空。
+     ⚠️ syntax 用 "*" 而非 "<angle>"：这是 magicui 实测的做法（它 20+ 条声明全是 "*"），
+     "<angle>" 在旧浏览器可能不认。 */
+  @property --beam-angle { syntax:"*"; inherits:false; initial-value:0deg; }
+  @keyframes beam-spin { from { --beam-angle:0deg; } to { --beam-angle:360deg; } }
+  .badge.handoff.beam { position:relative; isolation:isolate; }
+  .badge.handoff.beam::before {
+    content:''; position:absolute; inset:-1px; border-radius:inherit; z-index:-1;
+    background:conic-gradient(from var(--beam-angle),
+      transparent 0 70%, var(--accent-solid) 85%, transparent 100%);
+    animation:beam-spin 6s linear infinite;
+    /* 只留边缘：中间用 mask 挖空 */
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+    padding:1px;
+  }
+  /* 循环动画必须响应 prefers-reduced-motion，且**冻结要 duration + iteration-count 成对**
+     （只压 duration 会幻影抖动—— hero_motion_check 的教训，直接适用）。 */
+  @media (prefers-reduced-motion: reduce) {
+    .badge.handoff.beam::before { animation:none; }
+    .badge.handoff.beam::before { --beam-angle:0deg; }
+  }
+
+  /* caveat 的 gap.note（v3 毛病 3：禁自造黄色，改用全站警示卡形态）——
+     surface 底 + warn 左条 + ink 字。参照 home.html:535 #limits 与 index.html:448 .rb-warn。 */
+  .gapnote { margin-top:9px; padding:9px 12px; border-radius:var(--radius-md); font-size:13px;
+             line-height:1.65; color:var(--fg);
+             background:var(--surface); border:1px solid var(--border);
+             border-left:3px solid var(--warn);
              display:flex; gap:7px; align-items:flex-start; overflow-wrap:anywhere; }
-  .gapnote .licon { flex:0 0 auto; margin-top:2px; }
+  .gapnote .licon { flex:0 0 auto; margin-top:2px; color:var(--warn-ink); }
   .handoff-note { margin-top:9px; font-size:13px; color:var(--muted-2); line-height:1.7; }
 
+  /* ---- 输入区（v4 毛病 9：textarea 有原生 resize 手柄，聊天框能被拖变形）----
+     resize:none + 固定 2 行高，内容超长纵向滚动（JS 的 autoGrow 仍管自适应）。 */
   .composer { display:flex; gap:8px; align-items:flex-end; }
-  .composer textarea { flex:1; min-height:44px; max-height:140px; resize:vertical;
-                       padding:11px 13px; border-radius:11px; border:1px solid var(--border);
-                       background:var(--surface); color:var(--fg); font-family:inherit;
-                       font-size:14.5px; line-height:1.5; }
-  .composer textarea:focus { border-color:var(--accent); outline:none; }
-  .composer button { flex:none; height:44px; padding:0 20px; border-radius:11px; cursor:pointer;
+  .composer textarea { flex:1; min-height:44px; max-height:140px; resize:none; overflow-y:auto;
+                       padding:11px 14px; border-radius:var(--radius-lg);
+                       border:1px solid var(--glass-brd); background:var(--glass-bg);
+                       color:var(--fg); font-family:inherit;
+                       font-size:14.5px; line-height:1.5;
+                       backdrop-filter:blur(14px) saturate(140%);
+                       -webkit-backdrop-filter:blur(14px) saturate(140%); }
+  .composer textarea:focus { border-color:var(--accent-line); outline:none; }
+  /* ---- Shimmer 发送钮（magicui）：45° 白色高光条扫过，2.6s linear infinite ---- */
+  .composer button { position:relative; overflow:hidden; flex:none; height:44px; padding:0 20px;
+                     border-radius:var(--radius-pill); cursor:pointer;
                      font-family:inherit; font-size:14.5px; font-weight:600;
                      background:var(--accent-solid); color:var(--on-accent); border:none; }
-  .composer button:disabled { background:var(--fill-2); color:var(--muted-3); cursor:not-allowed; }
+  .composer button::after { content:''; position:absolute; top:0; left:0; width:45%; height:100%;
+    background:linear-gradient(100deg, transparent, color-mix(in oklab, var(--on-accent) 45%, transparent), transparent);
+    transform:translateX(-150%); pointer-events:none; }
+  .composer button:not(:disabled) { animation:shimmer 2.6s linear infinite; }
+  @keyframes shimmer { from { transform:none; } 12% { transform:translateX(-150%); }
+                       to { transform:translateX(350%); } }
+  .composer button:disabled { background:var(--fill-2); color:var(--muted-3); cursor:not-allowed;
+                              animation:none; }
+  .composer button:disabled::after { display:none; }
+  @media (prefers-reduced-motion: reduce) {
+    .composer button:not(:disabled) { animation:none; }
+    .composer button:not(:disabled)::after { display:none; }
+  }
+
+  /* ---- Marquee 示例条（magicui）：「你可以问」的滚动 chip，点一下填进输入框 ----
+     两份内容 translateX(0→-50%) 线性循环；宽度 200% 是关键（不然第二份接不上）。 */
+  .marquee { position:relative; overflow:hidden; margin:0 0 14px;
+             -webkit-mask:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+             mask:linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+  .marquee-track { display:flex; width:200%; animation:marquee 26s linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state:paused; }   /* 悬停停：给用户反应时间 */
+  .marquee-group { display:flex; gap:8px; padding-right:8px; }     /* 每组自带右隙，两组才接得上 */
+  @keyframes marquee { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  .mchip { flex:none; font-size:12.5px; padding:5px 11px; border-radius:var(--radius-pill);
+           background:var(--glass-bg); border:1px solid var(--glass-brd);
+           color:var(--muted-2); cursor:pointer; user-select:none; white-space:nowrap;
+           backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  .mchip:hover { color:var(--fg); border-color:var(--accent-line); }
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track { animation:none; width:auto; flex-wrap:wrap; }  /* 静止 = 换行全展示 */
+    .marquee { -webkit-mask:none; mask:none; }
+  }
 
   /* ---- 运营视图：低频内部功能，折叠起来不与主流程抢视觉权重 ---- */
   #ops-view { margin-top:26px; border-top:1px solid var(--border); padding-top:14px; }
@@ -389,7 +498,18 @@
   </header>
 
   <section id="support-chat">
+    <!-- Marquee 示例条（magicui）：内容由 JS 按同一数组渲染**两份**，
+         translateX(0→-50%) 循环时第二份正好接上第一份的尾。点击 chip 填入输入框。
+
+         ⚠️ 位置纪律：必须在 #support-log **之前**。第一版放在之后，
+         scrollIntoView({block:'end'}) 把它带进两轮对话中间 ——
+         示例条是「输入区的辅助」，不是会话内容，不该混在对话流里。 -->
+    <div class="marquee" id="askMarquee" aria-hidden="false">
+      <div class="marquee-track" id="askMarqueeTrack"></div>
+    </div>
+
     <div id="support-log" aria-live="polite"></div>
+
     <div class="composer">
       <textarea id="support-input" rows="1" maxlength="500"
                 placeholder="问景点、美食、门票、开放时间……"></textarea>
@@ -519,19 +639,55 @@ function emptyState() {
   d.className = 'empty';
   // 文案是固定字符串，不含外部值，但仍走 textContent 保持一致
   d.innerHTML = '<b>问点什么</b>'
-    + '知识库覆盖景点与美食的名称、简介、门票、开放时间、游玩时长。<br>'
-    + '试 <code>西安有什么好吃的</code>　<code>兵马俑门票多少钱</code>　<code>鼓浪屿怎么去</code>';
+    + '知识库覆盖景点与美食的名称、简介、门票、开放时间、游玩时长。';
   log.appendChild(d);
 }
 if (log) emptyState();
 
+/* ---- Marquee 示例条（magicui）----
+   渲染**两份**同样内容：translateX(0→-50%) 循环时第二份正好接上第一份尾，
+   这是 marquee 的标准做法（一份内容会在 50% 处露白）。
+   示例文案是固定数组（不含外部值），点一下填进输入框——沿用现有交互，不引入新机制。 */
+var ASK_EXAMPLES = ['西安有什么好吃的', '兵马俑门票多少钱', '鼓浪屿怎么去',
+                    '黄山要爬多久', '西湖门票多少', '故宫需要预约吗'];
+function renderMarquee() {
+  var track = document.getElementById('askMarqueeTrack');
+  if (!track) return;
+  track.textContent = '';
+  for (var g = 0; g < 2; g++) {                    // 两份
+    var group = document.createElement('div');
+    group.className = 'marquee-group';
+    ASK_EXAMPLES.forEach(function (q) {
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'mchip';
+      chip.dataset.example = q;                      // 纯文本点击填入，不用 innerHTML
+      chip.textContent = q;
+      group.appendChild(chip);
+    });
+    track.appendChild(group);
+  }
+}
+renderMarquee();
+// 事件委托：marquee 里的 chip 是动态生成的，绑一次就够
+document.addEventListener('click', function (e) {
+  var chip = e.target && e.target.closest ? e.target.closest('[data-example]') : null;
+  if (!chip || !input) return;
+  input.value = chip.dataset.example || '';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.focus();
+});
+
 function scrollDown() {
   if (!log) return;
-  /* log 是独立滚动容器（max-height:62vh + overflow-y:auto），**只改它自身的 scrollTop**。
-     ⚠️ 不用 scrollIntoView：它会连带滚动**页面**，把输入框顶出视野（那比看不见内容更糟）。
-     滚到底即可：最新一条回答的尾巴（缺口块 / 引用卡收尾）正是最后渲染出来的，
-     让它进视野 = 用户能读完整条回答的结论。 */
-  log.scrollTop = log.scrollHeight;
+  /* v4 定案（毛病 11）：新消息追加后 `scrollIntoView({block:'end'})` 滚到对话容器底。
+     ⚠️ 为什么不用改 log.scrollTop：`scrollIntoView` 会连带滚动**页面**，
+     在这个布局里恰好等价（会话区就是页面主体），但**如果以后给容器加了固定高度或
+     内部滚动容器**，两种写法行为不同 —— 简报定案用 scrollIntoView 我照办，
+     并且**底部 padding 16px**（简报同款要求）保证最后一条不被输入框贴着。
+     实测：滚动后每轮问答完整可见（v4 验收第 6 点要录成片证明）。 */
+  try { log.scrollIntoView({ block: 'end' }); }
+  catch (e) { log.scrollTop = log.scrollHeight; }
 }
 
 function addMsg(cls, text) {
@@ -544,31 +700,6 @@ function addMsg(cls, text) {
   log.appendChild(el);
   scrollDown();
   return el;
-}
-
-function addCitations(bubble, list) {
-  if (!bubble || !Array.isArray(list) || !list.length) return;
-  var box = document.createElement('div');
-  box.className = 'cites';
-  list.forEach(function (c) {
-    if (!c || !c.name) return;
-    var ok = c.verified === true;
-    var chip = document.createElement('span');
-    chip.className = 'cite' + (ok ? '' : ' unverified');
-    // 名称用 textContent：语料里的实体名同样不可信
-    chip.appendChild(document.createTextNode(String(c.name)));
-    var mark = document.createElement('span');
-    mark.className = 'cv';
-    mark.textContent = ok ? ' ✓已核查' : ' 未核查';
-    chip.appendChild(mark);
-    if (c.city) {
-      var city = document.createElement('span');
-      city.textContent = ' · ' + String(c.city);
-      chip.appendChild(city);
-    }
-    box.appendChild(chip);
-  });
-  if (box.childElementCount) { bubble.appendChild(box); scrollDown(); }
 }
 
 /* 引用详情：citation.snippet（2026-10-07 后端 plain 双轨新增）。
@@ -593,11 +724,16 @@ function addCiteDetails(bubble, list) {
       sn.textContent = String(c.snippet);       // 语料文本，纯文本
       line.appendChild(sn);
     }
-    if (c.verified === false) {
-      var w = document.createElement('span');
-      w.className = 'cite-warn';
-      w.textContent = '未核查到库内实体';
-      line.appendChild(w);
+    if (c.verified === true) {
+      var v = document.createElement('span');
+      v.className = 'cite-vf';
+      v.textContent = '✓已核查';
+      line.appendChild(v);
+    } else {
+      var v2 = document.createElement('span');
+      v2.className = 'cite-vf no';
+      v2.textContent = '未核查';
+      line.appendChild(v2);
     }
     box.appendChild(line);
   });
@@ -626,7 +762,9 @@ var BADGES = {
 function addBadge(bubble, action) {
   var b = BADGES[action] || { cls: 'partial', text: String(action || '未知'), icon: ICON_WARN };
   var el = document.createElement('span');
-  el.className = 'badge ' + b.cls;
+  // handoff 额外挂 .beam（Border Beam 扫边）：转人工是低频事件，
+  // 扫边是「这条挂起等人」的提示 —— 每屏至多 1 个，v4 纪律。
+  el.className = 'badge ' + b.cls + (action === 'handoff' ? ' beam' : '');
   el.innerHTML = '<span class="licon" aria-hidden="true">' + b.icon + '</span>';
   el.appendChild(document.createTextNode(b.text));
   bubble.insertBefore(el, bubble.firstChild);   // 徽章在气泡顶部
@@ -672,7 +810,6 @@ async function send() {
     if (!res.ok) throw new Error((d && d.detail) || ('HTTP ' + res.status));
     var bubble = addMsg('a', (d && d.reply) || '');
     addBadge(bubble, d && d.action);
-    addCitations(bubble, d && d.citations);
     addCiteDetails(bubble, d && d.citations);
     if (d && d.action === 'answer_caveat') addGapNote(bubble, d.gap);
     if (d && d.action === 'handoff') addHandoffNote(bubble);

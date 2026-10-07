@@ -231,10 +231,13 @@ async function main() {
     ok('渲染出用户气泡', (q(w).textContent || '').includes('西安有什么好吃的'));
     ok('渲染出机器人气泡', bubbles(w).length === 2, '气泡数 ' + bubbles(w).length);
     ok('answer：气泡里有 reply 正文', txt(w, '#support-log .msg.a').includes('根据知识库'));
-    const cites = w.document.querySelectorAll('#support-log .cite');
-    ok('answer：渲染出 ≥1 张引用卡', cites.length >= 1, '引用卡 ' + cites.length);
-    ok('answer：引用卡显示城市', cites[0].textContent.includes('西安'), cites[0].textContent);
-    ok('answer：引用卡标「已核查」', cites[0].textContent.includes('已核查'));
+    /* chip 层已删（它与 .citedetails 的详情行内容完全重复，一屏出现两遍同一批实体）。
+       引用呈现统一走 .cite-line（实体名 + snippet + 核查小标）。 */
+    const cites = w.document.querySelectorAll('#support-log .cite-line');
+    ok('answer：渲染出 ≥1 行引用详情', cites.length >= 1, '行数 ' + cites.length);
+    ok('answer：引用行含 snippet 摘要', cites[0].textContent.includes('甑糕'), cites[0].textContent.slice(0, 40));
+    ok('answer：引用行标「已核查」', cites[0].textContent.includes('已核查'), cites[0].textContent.slice(-12));
+    ok('answer：不再有重复的 chip 层', w.document.querySelectorAll('#support-log .cite').length === 0);
     const badge = w.document.querySelector('#support-log .msg.a .badge');
     ok('answer：出现「命中」徽章', !!badge);
     ok('answer：徽章文案=命中知识库', badge && badge.textContent.includes('命中知识库'),
@@ -292,10 +295,18 @@ async function main() {
     ok('handoff：徽章用 handoff 语义类', badge && badge.className.includes('handoff'));
     /* 语义类的精确判据：容器类名 .badge 本身含子串 "bad"，
        直接对整个 class 串匹配 /bad/ 会假红（第一版就栽在这）。 */
-    const sem = badge ? badge.className.split(/\s+/).filter(c => c !== 'badge') : [];
+    /* 语义类判定：'badge' 是容器类、'beam' 是扫边修饰类（v4 新增），
+       两者都要剥掉，只看真正的语义类，且必须恰好一个 = handoff。
+       ⚠️ 顺带记一个坑：'beam' 里含子串 'bad' 之外的 'ea'…但更要紧的是
+       `/bad/.test('badge …')` 恒真 —— 判语义类只能靠剥壳后精确比对。 */
+    const sem = badge ? badge.className.split(/\s+/)
+        .filter(c => c !== 'badge' && c !== 'beam') : [];
     ok('handoff：刻意不用 bad 红（转人工是正常流转不是错误）',
        sem.length === 1 && sem[0] === 'handoff', badge && badge.className);
-    ok('handoff：无引用卡（0 citations）', w.document.querySelectorAll('#support-log .cite').length === 0);
+    ok('handoff：挂上 beam 类（Border Beam 扫边，每屏至多 1 个）',
+       !!badge && badge.className.includes('beam'), badge && badge.className);
+    ok('handoff：无引用（0 citations）',
+       w.document.querySelectorAll('#support-log .cite-line').length === 0);
     ok('handoff：有固定话术「人工会跟进」',
        txt(w, '#support-log .handoff-note').includes('人工会跟进'));
     ok('handoff：正文说明「超出了知识库范围」',
@@ -321,12 +332,12 @@ async function main() {
        w.document.querySelectorAll('#support-log .msg.q img').length === 0);
     ok('转义：载荷作为纯文本保留',
        txt(w, '#support-log .msg.q').includes('<img'));
-    const c0 = w.document.querySelector('#support-log .cite');
+    const c0 = w.document.querySelector('#support-log .cite-line');
     ok('转义：citations[].name 里的标签未成为元素', c0 && c0.querySelectorAll('script').length === 0);
-    ok('转义：citations[].city 里的标签未成为元素',
-       w.document.querySelectorAll('#support-log .cite b').length === 0);
-    ok('转义：未核查的引用卡标出来', c0 && c0.className.includes('unverified'));
-    ok('转义：未核查的标注文案正确', c0 && c0.textContent.includes('未核查'), c0 && c0.textContent);
+    ok('转义：citations[].name 里的标签未成为元素（容器级）',
+       w.document.querySelectorAll('#support-log .citedetails script, #support-log .citedetails b').length === 0);
+    ok('转义：未核查的引用标出来', c0 && !!c0.querySelector('.cite-vf.no'), c0 && c0.textContent.slice(-10));
+    ok('转义：未核查的标注文案正确', c0 && c0.textContent.includes('未核查'), c0 && c0.textContent.slice(-10));
     ok('④ 组无 JS 运行时错误', errs.length === 0, errs.join(' | '));
   }
 
