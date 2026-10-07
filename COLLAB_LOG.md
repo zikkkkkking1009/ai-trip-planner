@@ -1547,3 +1547,45 @@ Scroll Progress / Noise Texture / Progressive Blur / Bento Grid`。
 
 **下一步（第 1 步令牌层）**：按 tweakcn 的「每个语义色拆成底+字两枚」+
 magicui 的 `@property`/`@layer` 建玻璃令牌层，`:root` 与 `[data-theme="dark"]` **成对定义**。
+
+---
+
+### 站 5｜Aceternity UI（用户追加：`https://ui.aceternity.com/`）
+
+**素材已落盘**：`study/aceternity.png` / `-dark` / `-full`（组件网格整页）/ `aceternity.css` /
+`probe-aceternity.json` / `aceternity.md`。探针脚本已加该站，**可复跑**。
+
+**抓取修正**：首页是**产品页**（大量 testimonials + 付费墙），**组件效果在 `/components`**。
+和 magicui 一样必须抓组件页—— 首轮抓首页只拿到 4 个 infinite 动画（全是页面 spinner），
+改抓 `/components` 后是 **1 个**，这才是真实的风格信号。
+
+**实测**（组件页）：圆角 `4 / 5 / **7.6** / **9.6** / 16 / 20px` + `999px`；
+**backdrop-filter = 0**；同屏 infinite **1 个**；字体 `inter` + `ui-monospace`。
+
+1. **它不用玻璃**（backdrop 元素数 0）⇒ 五站里唯一一个**纯靠光效**（glow / spotlight / shine
+   border / 粒子）的库。⇒ **对液态玻璃方向的补充是「怎么让玻璃更好看」而不是「要不要玻璃」**：
+   Aceternity 的 `Spotlight` / `Container Glow` / `Card Border Glow` 是**可以叠在玻璃卡上**的。
+2. **非整数圆角是它的签名** —— 实测出`7.6px / 5.6px / 9.6px`。
+   不是脏数据：卡片随鼠标**位移/缩放**，圆角跟着算出来就是小数。
+   ⇒ **可复刻的小惊喜**：做 spotlight 跟随时让圆角随距离变
+   （`border-radius: calc(16px - var(--d))`），质感比固定 16px「活」。
+3. **技术栈 = React + Tailwind + Motion（原 framer-motion）**，用户评价称它
+   「**shadcn/ui for magic effects**」⇒ 定位是**效果层**而非完整组件库。
+   ⇒ **它对「零构建单文件」的参考价值低于前三站**，但**效果创意库价值最高**。
+4. **`Text Reveal`（段落逐词显现）**可用于「待跟进 N」出现时的数字动画
+   ⇒ 纯 CSS 可复刻（分段 span + opacity/translate + delay），**不需要 Motion**。
+   这是 Magic UI「Number Ticker 需要 rAF」的替代方案—— 更轻。
+5. **`Wobble Card`**（随鼠标位移+缩放）比 Magic UI 的 Glow Card 更物理（用 spring）。
+   纯 CSS 复刻需 ~8 行 JS 写 transform ⇒ **计入「需 JS」档**，但代价很小。
+6. **`Background Beams` 明确说明「follow a path of SVG」**
+   ⇒ 与 liquid-glass 一样，**SVG 是这个方向的隐性基础设施**（折射与路径光束都靠它）。
+
+**五站横向结论（改动我 v4 配方表的判断）**：
+
+| 维度 | 五站实测 | 对我的影响 |
+|---|---|---|
+| 玻璃（backdrop） | **只有 liquid-glass 真用**（3 元素，带 saturate）；cult-ui 只 blur(8px)；其余 3 站 0 | **玻璃是「少数派审美」**，不是这批站的主流。v4 配方表把它当核心方向，**依据只有 1 站**——我要么找到更多依据，要么承认这是用户个人偏好而非业界共识 |
+| 动效密度 | 同屏 infinite：cultui 2 / magicui 1 / tweakcn 6（工具页）/ aceternity 1 / liquidglass 0 | **「同屏 ≤2」实测站站成立** ✅ 这条纪律有五站背书 |
+| 圆角 | 五站都有非整数或超多档（7.6 / 9.6 / 22 / 24 / 32px） | ⇒ **「大圆角 12~16px」是收敛后的纪律**，不是任站的实际做法 |
+| 字体 | Geist / GeistMono / inter / ui-sans-serif + 等宽 | **无衬线 + 等宽是全共识** ✅ 我们已有 |
+| 实现 | 四站 React（Motion / tw-animate-css），**liquid-glass MIT 可vanilla** | ⇒ **Tier 1 纯 CSS 覆盖 7/9 条是合理预期**，折射/ticker 降级仍成立 |
