@@ -136,6 +136,13 @@
     --radius-pill: 999px;
     /* 点阵：会话区背景层（极低透明度，别抢内容）。 */
     --dot:       color-mix(in oklab, var(--muted-3) 30%, transparent);
+    /* Spotlight 光晕的鼠标坐标（magicui Glow Card）：**必须在 :root 声明**——
+       未定义的自定义属性会让整条 `background:radial-gradient(…var(--x)…)` 声明
+       **静默失效并回退**，页面只是「没有光晕」，浏览器不报任何错。
+       这条是 check_frontend.py 第5 项（未定义 CSS 变量引用）抓出来的，
+       我在计划条目里写过这个坑，这次自己踩了一次——**登记了不等于不会犯**。 */
+    --x: 50%;
+    --y: 50%;
   }
   :root[data-theme="dark"] {
     /* 暗色玻璃 = 亮色的降级版：高光收、底更透、描边更亮一点。
@@ -443,32 +450,71 @@
   #ops-view > summary::before { content:'▸ '; color:var(--muted-3); }
   #ops-view[open] > summary::before { content:'▾ '; }
   #ops-body { margin-top:12px; font-size:13px; color:var(--muted-2); }
-  /* 运营视图：低频内部功能，密度优先于呼吸感——但仍守住对比度门槛 */
-  .ops-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-  .ops-chip { font:inherit; font-size:12.5px; padding:4px 11px; border-radius:999px; cursor:pointer;
-              background:var(--fill); border:1px solid var(--border); color:var(--muted-2); }
-  .ops-chip.on { background:var(--accent-soft); border-color:var(--accent-line);
-                 color:var(--accent-deep); font-weight:600; }
-  .ops-count { font-size:13px; color:var(--muted-2); margin-bottom:8px; }
-  .ops-count b { color:var(--fg); font-weight:700; }
-  .ops-row { display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:start;
-             padding:10px 12px; border:1px solid var(--border); border-radius:9px;
-             background:var(--surface); margin-bottom:7px; }
-  .ops-q { font-size:13.5px; color:var(--fg); line-height:1.55; overflow-wrap:anywhere; }
-  .ops-meta { grid-column:1; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-              font-size:11.5px; color:var(--muted-3); }
-  .ops-act { grid-column:2; grid-row:1 / span 2; align-self:center; }
-  .ops-act button { font:inherit; font-size:12px; padding:5px 11px; border-radius:7px; cursor:pointer;
-                    background:transparent; color:var(--accent-deep); border:1px solid var(--accent-line); }
-  .ops-act button:hover { background:var(--accent-soft); }
+  /* 运营视图（v3 毛病 7：紧凑行，一屏 ≥12 条）+ Spotlight 跟随光晕（v4 配方表第 4 行）
+   ---- 密度优先于呼吸感，但仍守住对比度门槛 ---- */
+  .ops-title { font-size:14px; font-weight:700; color:var(--fg); margin-bottom:8px;
+               font-variant-numeric:tabular-nums; }/* 等宽数字：计数跳变时宽度不抖 */
+  .ops-chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  .ops-chip { font:inherit; font-size:12.5px; padding:3px 10px; border-radius:var(--radius-pill);
+              cursor:pointer; white-space:nowrap;
+              background:var(--glass-bg); border:1px solid var(--glass-brd); color:var(--muted-2); }
+  .ops-chip.on { background:var(--accent-solid); border-color:var(--accent-solid);
+                 color:var(--on-accent); font-weight:600; }/* 当前项 accent 反白 */
+  .ops-chip:hover:not(.on) { color:var(--fg); border-color:var(--accent-line); }
+  /* 筛选条尾的小字（裁定 6：把「筛选出 M 条」从标题挪到这里） */
+  .ops-chips-tail { font-size:11.5px; color:var(--muted-3); margin-left:2px; }
+
+  /* 紧凑行：表格化五列（时间 · 渠道 · 问题 · 状态 · 操作），行高 ≤44px。
+     grid-template-columns 的 minmax(0,1fr) 是关键——
+     **缺了它，长问题会撑破整行把右侧按钮挤出视口**（v3 教训：minmax(0,1fr) 经验）。 */
+  .ops-row { display:grid; grid-template-columns:96px 58px minmax(0,1fr) 62px auto;
+             gap:0 10px; align-items:center;
+             padding:7px 10px; border-bottom:1px solid var(--border);
+             font-size:12.5px; min-height:40px; position:relative; }
+  .ops-row:last-child { border-bottom:none; }
+  /* Spotlight：JS 写 --x/--y，这里渲染跟随光晕。色值全令牌派生。 */
+  .ops-row::before { content:''; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(220px at var(--x,50%) var(--y,50%),
+      color-mix(in oklab, var(--accent-solid) 11%, transparent), transparent 70%);
+    opacity:0; transition:opacity .16s var(--e); }
+  .ops-row:hover::before { opacity:1; }
+  .ops-row > * { position:relative; }
+  .ops-t { color:var(--muted-3); font-variant-numeric:tabular-nums; font-size:11.5px;
+           white-space:nowrap; }
+  .ops-q { color:var(--fg); line-height:1.45; overflow-wrap:anywhere;   /* 长问题不撑破行 */
+           display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
+           overflow:hidden; }
+  /* 「重开」小标（裁定 7）：客户在 closed 之后又来了 ⇒ 运营看不出这单跟进过。 */
+  .ops-reopen { display:inline-block; font-size:10.5px; line-height:1.4; padding:0 5px;
+                margin-right:5px; border-radius:4px; font-weight:700;
+                background:var(--note-soft); border:1px solid var(--note-line);
+                color:var(--note-ink); vertical-align:1px; }
+  .ops-st { font-size:11.5px; color:var(--muted-3); white-space:nowrap; }
+  .ops-st.st-handoff { color:var(--accent-deep); font-weight:600; }
+  .ops-act { white-space:nowrap; text-align:right; }
+  .ops-btn { font:inherit; font-size:11.5px; padding:3px 9px; border-radius:var(--radius-pill);
+             cursor:pointer; background:transparent; color:var(--accent-deep);
+             border:1px solid var(--accent-line); }
+  .ops-btn:hover { background:var(--accent-soft); }
   /* 渠道标记：来源不同排查方式不同，值得单独标出来 */
-  .ops-ch { font-size:11px; padding:1px 7px; border-radius:5px; background:var(--fill);
-            border:1px solid var(--border); color:var(--muted-2); }
+  .ops-ch { font-size:11px; padding:1px 7px; border-radius:5px; text-align:center;
+            background:var(--fill); border:1px solid var(--border); color:var(--muted-2);
+            white-space:nowrap; }
   .ops-ch.mp { background:var(--ok-soft); border-color:var(--ok-line); color:var(--ok-ink); }
   .ops-empty { padding:16px 4px; color:var(--muted-3); font-size:13px; }
   .ops-msg { margin-top:9px; padding:9px 11px; border-radius:9px; font-size:12.5px;
              border:1px solid var(--border); background:var(--fill); color:var(--muted-2); }
   .ops-msg.bad { background:var(--bad-soft); border-color:var(--bad-line); color:var(--bad-ink); }
+  /* 窄屏：五列会挤扁 → 折成两行（时间+渠道 / 问题 / 状态+操作）。
+     不用 min-width 硬扛宽度，那会导致横向溢出（v3 教训）。 */
+  @media (max-width:560px) {
+    .ops-row { grid-template-columns:1fr auto; gap:2px 8px; padding:9px 10px; }
+    .ops-t { grid-column:1; }
+    .ops-ch { grid-column:2; grid-row:1; }
+    .ops-q { grid-column:1 / -1; -webkit-line-clamp:2; }
+    .ops-st { grid-column:1; grid-row:3; }
+    .ops-act { grid-column:2; grid-row:3; }
+  }
 </style>
 </head>
 <body>
@@ -634,10 +680,46 @@ function sessionId() {
   return v;
 }
 
+/* ---- 会话暂存（zcode 裁定 8）：刷新不丢对话 ----
+   用 sessionStorage（不是 localStorage）：关掉标签页就该清掉，
+   游客不需要「永久历史」，那属于服务端留痕的职责。
+   ⚠️ 这是**缓存不是权威**：`/support/conversation/{sid}` 才是权威
+   （页脚已写明「完整记录以服务端留痕为准」），这里只解决「刷新一下就没了」的体验断点。 */
+var HIST_MAX = 20;                       // 裁定：最近 20 轮
+function histKey() { return 'support_hist_' + sessionId(); }
+function histLoad() {
+  try {
+    var raw = sessionStorage.getItem(histKey());
+    var arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.slice(-HIST_MAX) : [];
+  } catch (e) { return []; }
+}
+function histSave(entry) {
+  try {
+    var arr = histLoad();
+    arr.push(entry);                                  // {cls,text,cites,gap,action}
+    if (arr.length > HIST_MAX) arr = arr.slice(-HIST_MAX);
+    sessionStorage.setItem(histKey(), JSON.stringify(arr));
+  } catch (e) { /* 隐私模式/超额 → 静默降级，不影响主流程 */ }
+}
+function histRestore() {
+  var arr = histLoad();
+  if (!arr.length) return 0;
+  arr.forEach(function (h) {
+    if (!h || !h.text) return;
+    var b = addMsg(h.cls || 'a', h.text);
+    if (b && h.action) addBadge(b, h.action);
+    if (b && h.cites) addCiteDetails(b, h.cites);
+    if (b && h.gap && h.gap.note) addGapNote(b, h.gap);
+    if (b && h.action === 'handoff') addHandoffNote(b);
+  });
+  return arr.length;
+}
+
 var log = document.getElementById('support-log');
 var input = document.getElementById('support-input');
 var sendBtn = document.getElementById('support-send');
-var seq = 0, busy = false;
+var seq = 0, busy = false, histRestored = false;
 
 function emptyState() {
   if (!log || log.childElementCount) return;
@@ -648,7 +730,12 @@ function emptyState() {
     + '知识库覆盖景点与美食的名称、简介、门票、开放时间、游玩时长。';
   log.appendChild(d);
 }
-if (log) emptyState();
+/* 注意：**启动时的历史恢复不在这里做**。
+   它必须等到 BADGES（徽章表）与 addCiteDetails/addGapNote 都定义好之后 ——
+   我第一版把它放在这里，而 BADGES 声明在文件更下方 ⇒ `var` 提升只给 undefined，
+   于是 `BADGES[action]` 抛 "Cannot read properties of undefined"，
+   **整条恢复链断掉**（真机刷新一次就复现）。
+   调用点已挪到 BADGES 之后，见文件下方 `restoreIfAny()`。 */
 
 /* ---- Marquee 示例条（magicui）----
    渲染**两份**同样内容：translateX(0→-50%) 循环时第二份正好接上第一份尾，
@@ -800,6 +887,7 @@ async function send() {
   busy = true;
   if (sendBtn) sendBtn.disabled = true;
   addMsg('q', text);
+  histSave({ cls: 'q', text: text });          // 问句先存：即使回答失败也不丢用户的话
   input.value = '';
   autoGrow();
   var mySeq = ++seq;
@@ -819,6 +907,11 @@ async function send() {
     addCiteDetails(bubble, d && d.citations);
     if (d && d.action === 'answer_caveat') addGapNote(bubble, d.gap);
     if (d && d.action === 'handoff') addHandoffNote(bubble);
+    /* 存回答：**只存后端给的字段**（reply/action/citations/gap）。
+       不存 DOM 快照、不存 computedStyle —— 恢复时按当前样式重新渲染，
+       这样改版后旧缓存也会跟着新样式走，不会复活一份「 fossil 快照」。 */
+    histSave({ cls: 'a', text: (d && d.reply) || '', action: d && d.action,
+               cites: d && d.citations, gap: d && d.gap });
     scrollDown();
   } catch (e) {
     if (mySeq !== seq) return;
@@ -847,22 +940,32 @@ if (sendBtn) sendBtn.addEventListener('click', send);
    运营视图（国内化一期）：读 /support/leads、改 /support/leads/status
    =================================================================== */
 var OPS_FILTERS = [
-  { key: 'handoff', label: '待跟进' },
-  { key: 'open',    label: '新留言' },
-  { key: 'closed',  label: '已跟进' },
-  { key: '',        label: '全部' }
+  { key: 'handoff', label: '待跟进', state: 'handoff' },
+  { key: 'open',    label: '咨询中', state: 'open' },
+  { key: 'closed',  label: '已跟进', state: 'closed' },
+  { key: '',        label: '全部',   state: '全部' }
 ];
-var opsFilter = 'handoff';          // 简报要求：默认筛 handoff
+var opsFilter = 'handoff';    // 简报要求：默认筛 handoff
 var opsSeq = 0;
 
 function fmtTime(v) {
-  // 后端 updated_at 是 **int 时间戳**（leads.py:104），且排序时见过 None
+  /* 后端 updated_at 是 **int 时间戳**（leads.py:104），且排序时见过 None。
+     ⚠️ **固定 Asia/Shanghai，不用浏览器本地时区**（zcode 裁定5）：
+     运营看的是异地客户的跟进时间——若客服与客户分处不同时区，
+     「17:31」是当地时间还是国内时间会直接导致「谁先谁后」的判断出错。
+     `Intl.DateTimeFormat` 带 timeZone 是唯一可靠做法
+     （`Date#getHours()` 用的是运行机器的时区，不能用）。 */
   var n = Number(v);
   if (!v || !isFinite(n) || n <= 0) return '—';
-  var d = new Date(n * 1000);
-  function p(x) { return x < 10 ? '0' + x : String(x); }
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-       + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai', hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    }).format(new Date(n * 1000)).replace(/\//g, '-');
+  } catch (e) {
+    return '—';              // 极端环境不支持 Intl 时不显示错误值
+  }
 }
 
 function opsMsg(text, isBad) {
@@ -912,7 +1015,19 @@ function renderOps(d) {
   var wrap = document.createElement('div');
   wrap.className = 'ops-live';
 
-  // 筛选 chip
+  var leads = Array.isArray(d && d.leads) ? d.leads : [];
+  var total = (d && typeof d.handoff_count === 'number') ? d.handoff_count : null;
+
+  /* 计数合并（zcode 裁定 6）：区块标题只留「待跟进 N」；
+     「当前筛选 M 条」挪到 chip 行尾小字。
+     老版把两个数并排显示，但 `handoff_count` 是**全量**待跟进数、不随筛选变，
+     在 handoff 筛选下两者天然相等 ⇒ 并排看是冗余且像 bug。 */
+  var title = document.createElement('div');
+  title.className = 'ops-title';
+  title.textContent = '待跟进 ' + (total === null ? '—' : String(total)) + ' 条';
+  wrap.appendChild(title);
+
+  // 筛选 chip（直角小标，当前项 accent 反白）
   var chips = document.createElement('div');
   chips.className = 'ops-chips';
   OPS_FILTERS.forEach(function (f) {
@@ -923,16 +1038,11 @@ function renderOps(d) {
     b.textContent = f.label;                 // 纯文本
     chips.appendChild(b);
   });
+  var tail = document.createElement('span');
+  tail.className = 'ops-chips-tail';
+  tail.textContent = '筛选出 ' + leads.length + ' 条';
+  chips.appendChild(tail);
   wrap.appendChild(chips);
-
-  var leads = Array.isArray(d && d.leads) ? d.leads : [];
-  var cnt = document.createElement('div');
-  cnt.className = 'ops-count';
-  // 后端给的 handoff_count 是全量待跟进数，不随筛选变——分开表述，别混成一个数
-  var total = (d && typeof d.handoff_count === 'number') ? d.handoff_count : null;
-  cnt.innerHTML = '当前筛选 <b>' + esc(String(leads.length)) + '</b> 条'
-    + (total !== null ? '　全站待跟进 <b>' + esc(String(total)) + '</b> 条' : '');
-  wrap.appendChild(cnt);
 
   if (!leads.length) {
     var e = document.createElement('div');
@@ -944,54 +1054,97 @@ function renderOps(d) {
     wrap.appendChild(opsRow(L));
   });
   box.appendChild(wrap);
+  bindSpotlight(wrap);
+}
+
+/* Spotlight 鼠标跟随光晕（magicui Glow Card，v4 配方表第 4 行）：
+   mousemove 写 --x/--y，CSS 用 radial-gradient(240px at var(--x) var(--y), …) 渲染。
+   一段 ~10 行 JS + 事件委托，一次绑全列表。 */
+function bindSpotlight(scope) {
+  if (!scope) return;
+  var rows = scope.querySelectorAll('.ops-row');
+  Array.prototype.forEach.call(rows, function (r) {
+    r.addEventListener('mousemove', function (e) {
+      var b = r.getBoundingClientRect();
+      r.style.setProperty('--x', (e.clientX - b.left) + 'px');
+      r.style.setProperty('--y', (e.clientY - b.top) + 'px');
+    });
+  });
 }
 
 function opsRow(L) {
+  /* 紧凑行（v3 毛病 7：老版一张大卡一条，一屏只有 4.5 条，13 条要滚三屏）。
+     现在是**表格化的一行**：时间 ·渠道 · 问题 · 状态 · 操作，行高 ≤44px，
+     目标一屏 ≥12 条。 */
   var row = document.createElement('div');
   row.className = 'ops-row';
 
-  var q = document.createElement('div');
+  function cell(txt, cls, title) {
+    var c = document.createElement('span');
+    c.className = cls;
+    c.textContent = txt;                       // 纯文本：问题原文来自用户/微信
+    if (title) c.title = title;
+    return c;
+  }
+
+  row.appendChild(cell(fmtTime(L.updated_at), 'ops-t', 'Asia/Shanghai'));
+
+  var isMp = L.channel === 'wechat_mp';
+  row.appendChild(cell(isMp ? '微信' : (L.channel || 'web'),
+                      'ops-ch' + (isMp ? ' mp' : ''),
+                      '渠道：' + String(L.channel || 'web')));
+
+  /* 「重开」小标（zcode 裁定 7）：后端 closed 后再来消息会自动重开 open，
+     运营标记完若客户又来，那条会出现在「咨询中」里——
+     **看不出它曾经被跟进过**，会困惑「我明明标过了」。用 handoff_count>=1 判定。 */
+  var q = document.createElement('span');
   q.className = 'ops-q';
-  q.textContent = String(L.last_question || '（无内容）');   // 语料/用户原文，纯文本
+  q.textContent = String(L.last_question || '（无内容）');
+  if (L.status === 'open' && Number(L.handoff_count) >= 1) {
+    var tag = document.createElement('span');
+    tag.className = 'ops-reopen';
+    tag.textContent = '重开';
+    tag.title = '已闭环后客户又来了新消息';
+    q.insertBefore(tag, q.firstChild);
+  }
   row.appendChild(q);
 
-  var meta = document.createElement('div');
-  meta.className = 'ops-meta';
-  var ch = document.createElement('span');
-  var isMp = L.channel === 'wechat_mp';
-  ch.className = 'ops-ch' + (isMp ? ' mp' : '');
-  ch.textContent = String(L.channel || 'web');                // 渠道原样呈现
-  meta.appendChild(ch);
-  var st = document.createElement('span');
-  st.textContent = String(L.status || '');
-  meta.appendChild(st);
-  var tm = document.createElement('span');
-  tm.textContent = fmtTime(L.updated_at);
-  meta.appendChild(tm);
-  if (Number(L.handoff_count) > 1) {
-    var hc = document.createElement('span');
-    hc.textContent = '转人工 ' + Number(L.handoff_count) + ' 次';
-    meta.appendChild(hc);
-  }
-  row.appendChild(meta);
+  var stTxt = L.status === 'handoff' ? '待跟进'
+            : (L.status === 'closed' ? '已闭环' : '咨询中');
+  row.appendChild(cell(stTxt, 'ops-st st-' + String(L.status || '')));
 
-  var act = document.createElement('div');
+  var act = document.createElement('span');
   act.className = 'ops-act';
   if (L.status !== 'closed') {
     var btn = document.createElement('button');
     btn.type = 'button';
+    btn.className = 'ops-btn';
     btn.dataset.opsClose = String(L.id || '');
     btn.textContent = '标记已跟进';
     act.appendChild(btn);
   } else {
-    var done = document.createElement('span');
-    done.className = 'ops-meta';
-    done.textContent = '已闭环';
-    act.appendChild(done);
+    act.appendChild(cell('—', 'ops-st'));
   }
   row.appendChild(act);
   return row;
 }
+
+/* ---- 启动时恢复历史会话（裁定 8）----
+   ⚠️ 位置很重要：必须在 BADGES / addCiteDetails / addGapNote / addHandoffNote **之后**。
+   第一版放在 emptyState() 旁边，而 BADGES 声明在文件更下方 ——
+   `var` 提升只给 undefined，于是 `BADGES[action]` 抛
+   "Cannot read properties of undefined (reading 'answer')"，**整条恢复链断掉**。
+   真机刷新一次就复现，属于「静态门禁全绿、jsdom 全绿，只有真刷新才炸」的那类。
+   顺序也不能反：先恢复再补空态 —— addMsg 会清掉 .empty，
+   反过来的话空态会被清掉、或历史被空态挤掉。 */
+function restoreIfAny() {
+  if (!log) return;
+  var n = histRestore();
+  histRestored = n > 0;
+  emptyState();
+  if (histRestored) scrollDown();
+}
+restoreIfAny();
 
 async function closeLead(id) {
   if (!id) return;

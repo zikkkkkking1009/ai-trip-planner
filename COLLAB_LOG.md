@@ -1762,3 +1762,63 @@ v4 配方表那一行写的是「伪元素 45° 白色高光条 translateX(-150%
 
 ⇒已加回归断言（真机探针内）：按钮本体 `transform` 须为 none、本体 `animation` 须为 none、
 `::after` 须承担 shimmer。**这三条会钉死它**，将来再写错会立刻红。
+
+---
+
+## ✅ 第 3 步｜workbuddy：运营视图紧凑行 + spotlight + 上海时区 + 重开标 + sessionStorage（v4 第 4 步）
+
+**改动**：`static/support.html`（ops 行表格化、时区固定、重开标、计数合并、spotlight、sessionStorage）
++ `tools/support_smoke.js`（74 → **78**，断言同步并按 dataset 定位）。
+
+### 裁定 5~8 全部落实
+- **⑤ 时区固定 Asia/Shanghai**：`Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',…})`。
+  ⚠️ **不能用 `Date#getHours()`** —— 它用运行机器时区，正是裁定要避免的。
+  实测：输入 `2026-01-01T00:00:00Z` → 渲染出 `08:00` ✅（+08:00）。
+- **⑥ 计数合并**：标题只留「待跟进 N 条」（`tabular-nums` 等宽数字，计数跳变时宽度不抖），
+  「筛选出 M 条」挪到 chip 行尾小字。老版并排显示两个数，但`handoff_count` 是**全量**、
+  在 handoff 筛选下与筛选数天然相等 ⇒ 并排看是冗余且像 bug。
+- **⑦ 重开小标**：`status==='open' && handoff_count>=1` ⇒ 行内「重开」标 +
+  `title="已闭环后客户又来了新消息"`。理由：后端 closed 后再来消息会自动重开 open，
+  运营标记完若客户又来，那条出现在「咨询中」里但**看不出它曾被跟进过**，会困惑。
+- **⑧ sessionStorage 存最近 20 轮**：按 sid 分键，刷新恢复。
+  **存数据不存 DOM 快照**（存 `reply/action/citations/gap`，恢复时按当前样式重新渲染）
+  ⇒ 改版后旧缓存跟着新样式走，不会复活一份 fossil 快照。
+  用 sessionStorage 而非 localStorage：关标签页即清，游客不需要「永久历史」。
+
+### v3 毛病 7：紧凑行（一屏 ≥12 条）
+表格化五列 `96px 58px minmax(0,1fr) 62px auto`，行高实测 **≤40px**，
+一屏可放 **15 条**（老版一屏 4.5 条、13 条滚三屏）。
+`minmax(0,1fr)` 是关键——**缺了它长问题会撑破整行把右侧按钮挤出视口**。
+窄屏(≤560px)折成两行，不靠 min-width 硬扛（那会导致横向溢出）。
+
+### v4 配方表第 4 行：Spotlight 跟随光晕
+`mousemove` 写 `--x/--y`，CSS `radial-gradient(220px at var(--x) var(--y), accent 11%, transparent 70%)`，
+hover 时 opacity 0→1 过渡。~10 行 JS，一次绑全列表。
+
+### 🔴 门禁抓到我的一个真 bug（而且是我自己写过的那条教训）
+`check_frontend.py` 报：**CSS 引用了未定义的变量 `--x` / `--y`**。
+⇒ **未定义的自定义属性会让整条 `background:radial-gradient(…var(--x)…)` 静默失效**，
+页面只是「没有光晕」，浏览器不报任何错。
+我在第一轮计划条目里就写过这个坑（`--warn-line` 那次），**登记了不等于不会犯**。
+已在 `:root` 补 `--x: 50%; --y: 50%;`。
+
+### 🔴 真机抓到第二个真 bug：TDZ（暂时性死区），刷新恢复整条链断掉
+`histRestore()` 原本在 `emptyState()` 旁边调用（736 行），而 `BADGES` 声明在 **851 行**。
+`var` 提升只给 `undefined` ⇒ 恢复时 `BADGES[action]` 抛
+**"Cannot read properties of undefined (reading 'answer')"** ⇒ 整条恢复链断掉。
+**静态门禁、jsdom 全绿**，只有真机刷新一次才炸。
+修法：把恢复调用挪到 `BADGES` 与所有渲染函数**之后**（新增 `restoreIfAny()` 放在 `closeLead` 前）。
+顺序也不能反：先恢复再补空态（`addMsg` 会清 `.empty`）。
+
+### 顺手把断言的定位方式改稳
+三处筛选 chip 原来按**文案**找（`textContent.indexOf('新留言')`），
+裁定 8 改名「咨询中」后 `chipOpen.click()` 直接 undefined 崩脚本。
+⇒ 改按 `dataset.opsFilter` 找。**文案是给人看的，钩子才是给代码看的。**
+
+### 门禁与实测
+- `check_frontend.py` ✅（三页，`--x/--y` 未定义已修）｜ `check_contrast.py` ✅
+- `support_smoke` **78/78**（74 → 78：chip 命名对齐 +计数合并两条 + 重开标反向 + open chip 存在）
+- 真机 **18/18**：行高 ≤40px、一屏 ≥12 条、表格化五列、时间列标 Asia/Shanghai、
+  时区行为（00:00Z→08:00）、chip 反白（底≠字）、计数合并、spotlight 写--x/--y、
+  窄屏 390 不溢出、**刷新恢复（内容+徽章都在，无运行时错误）**
+- 真机三档回归 **20/20** ✅（会话区未被本步改动影响）

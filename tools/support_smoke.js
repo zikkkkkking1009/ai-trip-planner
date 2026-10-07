@@ -381,17 +381,27 @@ async function main() {
     await wait(150);
     const rows = b.w.document.querySelectorAll('#ops-body .ops-row');
     ok('运营视图：带令牌渲染出线索行', rows.length === 2, '行数 ' + rows.length);
-    ok('运营视图：默认筛为 handoff（待跟进）',
-       txt(b.w, '#ops-body .ops-count').includes('待跟进'), txt(b.w, '#ops-body .ops-count'));
+    /* 紧凑行改造后：标题只留「待跟进 N」（裁定 6），筛选条尾另带「筛选出 M 条」 */
+    ok('运营视图：标题显示待跟进数',
+       /待跟进\s*\d+\s*条/.test(txt(b.w, '#ops-body .ops-title')), txt(b.w, '#ops-body .ops-title'));
+    ok('运营视图：筛选条尾显示筛选条数',
+       /筛选出\s*\d+\s*条/.test(txt(b.w, '#ops-body .ops-chips-tail')), txt(b.w, '#ops-body .ops-chips-tail'));
     const chTxts = Array.from(b.w.document.querySelectorAll('#ops-body .ops-ch')).map(e => e.textContent);
-    ok('运营视图：可见 channel=wechat_mp', chTxts.indexOf('wechat_mp') >= 0, chTxts.join(','));
-    /* 时间戳是 meta 里按位置定的第 3 个 span（渠道/状态/时间/转人工次数），
-       **不能用 :last-child** —— 转人工次数那个 span 在最后，会取错。 */
-    const tm = b.w.document.querySelector('#ops-body .ops-row .ops-meta span:nth-child(3)');
+    /* 渠道列改中文短名（微信/web）—— 紧凑行列宽有限，原样 channel 太长会挤破列宽。
+       mp 类是识别微信渠道的可靠标志（样式钩子，不依赖文案）。 */
+    ok('运营视图：可见微信渠道（mp 样式钩子）',
+       b.w.document.querySelectorAll('#ops-body .ops-ch.mp').length >= 1, chTxts.join(','));
+    /* 时间现在是紧凑行的独立一列 .ops-t（不再是 .ops-meta 里的第 N 个 span） */
+    const tm = b.w.document.querySelector('#ops-body .ops-row .ops-t');
     ok('运营视图：updated_at 格式化为 YYYY-MM-DD HH:mm',
        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test((tm ? tm.textContent : '').trim()), tm && tm.textContent);
     ok('运营视图：四个筛选 chip 齐备',
        b.w.document.querySelectorAll('#ops-body .ops-chip').length === 4);
+    /* 筛选命名对齐后端状态（裁定 8）：待跟进 / 咨询中 / 已跟进 / 全部 */
+    const chipLabels = Array.from(b.w.document.querySelectorAll('#ops-body .ops-chip'))
+      .map(e => e.textContent);
+    ok('运营视图：筛选 chip 命名对齐后端状态',
+       chipLabels.join(',') === '待跟进,咨询中,已跟进,全部', chipLabels.join(','));
     /* 断言必须精确到「承载外部值的节点」：.ops-count 的模板里本来就有 <b>（用于加粗数字），
        对整个 #ops-body 查 b 会把自己写的标签当成注入产物（第一版就假红了）。 */
     const qs = b.w.document.querySelectorAll('#ops-body .ops-q, #ops-body .ops-ch');
@@ -406,11 +416,13 @@ async function main() {
        qTexts.some(t => t.includes('<img')), qTexts.map(t => t.slice(0, 24)).join(' / '));
 
     // 切筛选
-    const chipOpen = Array.from(b.w.document.querySelectorAll('#ops-body .ops-chip'))
-      .find(c => c.textContent.indexOf('新留言') >= 0);
-    chipOpen.click();
+    /* 按 dataset.opsFilter 找 chip，**不按文案**——第一版按「新留言」找，
+       裁定 8 改名「咨询中」后就 undefined 崩了。文案是给人看的，钩子才是给代码看的。 */
+    const chipOpen = b.w.document.querySelector('#ops-body [data-ops-filter="open"]');
+    ok('运营视图：open 筛选 chip 存在', !!chipOpen);
+    if (chipOpen) chipOpen.click();
     await wait(150);
-    ok('运营视图：切「新留言」后走的是 open 筛选', b.state.leadsStatus === 'handoff' && b.calls.leads >= 2,
+    ok('运营视图：切「咨询中」后走的是 open 筛选', b.state.leadsStatus === 'handoff' && b.calls.leads >= 2,
        'leads 请求 ' + b.calls.leads + ' 次');
     ok('运营视图：open 筛选下为空态',
        !!b.w.document.querySelector('#ops-body .ops-empty'), txt(b.w, '#ops-body .ops-empty'));
@@ -420,8 +432,7 @@ async function main() {
     // 走真实用户路径：点「待跟进」chip 切回有行的档（别直接调内部函数——
     // 既不确定它是否挂在 window 上，也不是用户会做的事）。
     b.state.leadsStatus = 'handoff';
-    const chipBack = Array.from(b.w.document.querySelectorAll('#ops-body .ops-chip'))
-      .find(c => c.textContent.indexOf('待跟进') >= 0);
+    const chipBack = b.w.document.querySelector('#ops-body [data-ops-filter="handoff"]');
     if (chipBack) chipBack.click();
     await wait(180);
     const closeBtn = b.w.document.querySelector('#ops-body [data-ops-close]');
@@ -433,14 +444,21 @@ async function main() {
 
     // closed 筛选下无按钮
     b.state.leadsStatus = 'closed';
-    const chipClosed = Array.from(b.w.document.querySelectorAll('#ops-body .ops-chip'))
-      .find(c => c.textContent.indexOf('已跟进') >= 0);
+    const chipClosed = b.w.document.querySelector('#ops-body [data-ops-filter="closed"]');
     if (chipClosed) { chipClosed.click(); await wait(150); }
     ok('运营视图：closed 行不再有「标记已跟进」按钮',
        b.w.document.querySelectorAll('#ops-body [data-ops-close]').length === 0,
        '剩余 ' + b.w.document.querySelectorAll('#ops-body [data-ops-close]').length);
-    ok('运营视图：closed 行显示「已闭环」',
-       txt(b.w, '#ops-body .ops-act').includes('已闭环'), txt(b.w, '#ops-body .ops-act'));
+    /* 「已闭环」现在在**状态列**（.ops-st），操作列对closed 行是「—」。
+       第一版断言查 .ops-act，紧凑行改造后那里只有破折号。 */
+    ok('运营视图：closed 行状态列显示「已闭环」',
+       txt(b.w, '#ops-body .ops-row .ops-st').includes('已闭环'), txt(b.w, '#ops-body .ops-row .ops-st'));
+    /* 「重开」小标（裁定 7）：status=open 且 handoff_count>=1 时出现。
+       fixture 的 open 筛选下没有这条，closed 筛选有 L1（handoff_count=3）——
+       所以这里验「closed 行不该有重开标」，正向的那条留真机验。 */
+    ok('运营视图：closed 行无「重开」标',
+       b.w.document.querySelectorAll('#ops-body .ops-reopen').length === 0,
+       '重开标数 ' + b.w.document.querySelectorAll('#ops-body .ops-reopen').length);
     ok('⑥ 组无 JS 运行时错误',
        a.errs.length === 0 && b.errs.length === 0, a.errs.concat(b.errs).join(' | '));
   }
