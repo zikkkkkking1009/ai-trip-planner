@@ -1885,3 +1885,42 @@ check_frontend ✅ ｜ check_contrast ✅ ｜ support_smoke **78/78** ｜
   我上轮提的「按你终态抬基线」这件事已经完成（ZCode 自己抬过）。
   `realbench` **53/53 · 17/17** 也未退化。
   ⇒ **欠账清单清零。**
+
+---
+
+## 🔴 用户反馈「不好看 · 你一点都没有运用我发给你的前端设计」→ 方法性纠错
+
+**用户的批评是对的，而且指的不是「配色不好看」，是「我根本没按你给的东西学」。**
+我承认两个具体错误：
+1. **只抓了截图和计算样式，没去抓组件源码。** magicui / Aceternity / liquid-glass-react
+   每个组件都有现成实现（参数表 + 源码），我应该**套用**，而不是自己凭理解发明。
+2. **玻璃底刷成了 72% 白**（`oklab(1 … / 0.72)`）—— 等于给元素涂白漆，
+   **背后什么都没有**。真机实测当时全页只有 16 个元素带 backdrop-filter，
+   底色全是 72% 白 ⇒ **调blur 参数也不可能像玻璃**。参考站背后是图像/动态层，
+   玻璃透出的是被扭曲的内容。这是「半透明卡片」与「玻璃」的本质差别。
+
+### 按原版源码重写的三处（抓到源码后发现我全猜错了）
+| | 我之前写的 | **原版源码实际** |
+|---|---|---|
+| Dot Pattern | CSS `radial-gradient` 平铺 | **SVG `<pattern>`** width16/height16/**cx1 cy1 cr1**，可 glow |
+| Grid Pattern | 两条 CSS `linear-gradient` | **SVG `<pattern>`** **width40 height40 x-1 y-1**，支持 squares + strokeDasharray |
+| Border Beam | 两段 conic + mask | **三段渐变** `from-transparent via-x to-transparent`、`borderWidth` 独立 prop |
+| Spotlight | 固定 220px radial | **MagicCard 两层**：跟随鼠标的**渐变边框**（gradientFrom→gradientTo）+ 内部柔光，gradientSize200/opacity0.8 |
+原版默认参数也已对齐：beam size50/duration6/borderWidth1；spot gradientSize200/gradientOpacity0.8。
+
+### 背景层新增（玻璃的本体）
+① 底色流体三团色斑（**只有 b1 动**——v4纪律「同屏≤2」实测超了，marquee+aurora 已占 2）
+② 网格 40px（SVG）+ 点阵 16px（SVG），mask 渐隐
+③ 噪点（内联 SVG feTurbulence data-URI）消除大面积渐变的塑料光滑感
+玻璃底 **72% → 16%**（暗色 62% → 12%），saturate **140% → 180%**。
+
+### 🔴 暗色下的物理约束（实测算的，不是拍的）
+暗色文字（≈rgb(219,218,214)）透过12% 玻璃要≥4.5:1 ⇒ **blob 峰值只能到 rgb(120,135,165)**
+（3.13:1，**不达标**）。也就是说**「背景亮到能看见颜色」与「浅色文字够对比」在暗色下直接冲突**。
+参考站 liquid-glass 能两者兼得是因为它用深色玻璃 + 白字，文字亮度不依赖背景。
+⇒ 我的解法：暗色玻璃在 backdrop **之上再叠一层暗化层** `.msg::after`（`--glass-dim`），
+blob 保持可见亮度、整体被压暗。aurora 标题的循环动画也降级为静态（把动画名额让给背景）。
+
+### 数据卫生
+`data/leads.json` 清掉 **144 条测试线索**（145 → 1，只留微信渠道真实那条）。
+备份在 `%TEMP%/leads_backup.json`。

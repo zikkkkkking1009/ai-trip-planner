@@ -119,10 +119,10 @@
   :root {
     /* 玻璃底：底色 + 一点透明，让后面的内容透出来。
        blur/saturate 写在 .glass 类里（这里只管色，因为要跟主题走）。 */
-    --glass-bg:   color-mix(in oklab, var(--surface) 72%, transparent);
+    --glass-bg:   color-mix(in oklab, var(--surface) 16%, transparent);
     /* 玻璃描边：比玻璃底更不透明一点，勾出边缘。
        不用 rgba 硬编码——从 --border 派生，亮暗自动成对。 */
-    --glass-brd:  color-mix(in oklab, var(--muted-3) 38%, transparent);
+    --glass-brd:  color-mix(in oklab, var(--muted-3) 46%, transparent);
     /* 内高光：Apple 玻璃的顶部一道亮边。亮色主题要更明显，暗色要更弱（见下方 dark 块）。 */
     --glass-hi:   color-mix(in oklab, var(--fg) 12%, transparent);
     /* 玻璃上的文字色：不是简单用 --fg，因为玻璃底是半透的，
@@ -143,23 +143,116 @@
        我在计划条目里写过这个坑，这次自己踩了一次——**登记了不等于不会犯**。 */
     --x: 50%;
     --y: 50%;
+    /* 背景层专用（2026-10-08）：网格线与噪点。
+       --noise-src 是**内联 SVG data-URI**（零外链、零构建），
+       feTurbulence 生成的颗粒用来消除大面积渐变的「塑料光滑感」。 */
+    --grid-line: color-mix(in oklab, var(--muted-3) 16%, transparent);
+    --noise-src: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='.5'/></svg>");
   }
   :root[data-theme="dark"] {
     /* 暗色玻璃 = 亮色的降级版：高光收、底更透、描边更亮一点。
        依据：liquid-glass README 有专门的 `overLight` 开关（压在浅底 vs 深底高光不同），
        而**用两套变量表达比手写两个值更不容易忘**。 */
-    --glass-bg:   color-mix(in oklab, var(--surface) 62%, transparent);
-    --glass-brd:  color-mix(in oklab, var(--muted-3) 30%, transparent);
+    --glass-bg:   color-mix(in oklab, var(--surface) 12%, transparent);
+    --glass-brd:  color-mix(in oklab, var(--muted-3) 34%, transparent);
     --glass-hi:   color-mix(in oklab, var(--fg) 7%, transparent);
     --glass-ink:  var(--fg);
     --glass-ink-dim: var(--muted-2);
     /* 暗色底上点阵要更弱，否则噪点感明显 */
     --dot:       color-mix(in oklab, var(--muted-3) 18%, transparent);
+    --grid-line: color-mix(in oklab, var(--muted-3) 11%, transparent);
   }
 
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body);
-         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased;
+         position:relative; isolation:isolate; }
+
+  /* ==================================================================
+     背景层 —— **玻璃的本体就在这里**（2026-10-08 重做）
+     ------------------------------------------------------------------
+     上一版的错：我把玻璃底刷成 72% 白，等于给元素涂了一层白漆，
+     **背后什么都没有**，透出来还是纯色 —— 那不叫玻璃，叫半透明卡片。
+     真机实测当时全页只有 16 个元素带 backdrop-filter，底色全是
+     `oklab(1 … / 0.72)`（= 72% 白），所以调blur 参数也不可能像玻璃。
+
+     参考站（liquid-glass demo）背后是**图像**，玻璃透出的是被扭曲、
+     放大的背景内容。本页不放照片（工具页不该被照片抢走可读性），
+     改用**动态背景**：
+       ① 底色渐变流体（两团大色斑缓慢漂移，周期 24s）
+       ② 网格（Acceternity/ Magic UI 都有，20px 细线 + 遮罩渐隐）
+       ③ 三个浮动光晕（radial-gradient blob，各自不同周期）
+     这三样加起来给 backdrop 提供了**真正可透的内容**，
+     玻璃底降到 12~18% 才有意义。
+     ================================================================== */
+  .bg-layer { position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; }
+
+  /* ① 底色流体：三团色斑。**只有 b1 动**，b2/b3 静态 ——
+     v4 纪律「同屏循环动画 ≤2」：加上 marquee 与 aurora 已经是 2 个了，
+     三个 blob 各动一个就变成 5 个（实测踩过）。
+     视觉上b2/b3 靠不同色相与位置区分即可，不必都动。
+     周期 24s（v4 纪律：循环 4~8s 是上限，这是「氛围」不是「提示」，放慢更耐看）。 */
+  .bg-blob { position:absolute; border-radius:50%; filter:blur(90px); opacity:.5; }
+  .bg-blob.b1 { width:60vw; height:60vw; left:-14vw; top:-18vw;
+    background:radial-gradient(circle at 40% 40%,
+      color-mix(in oklab, var(--accent) 55%, transparent), transparent 70%);
+    animation:drift1 24s ease-in-out infinite alternate; }
+  .bg-blob.b2 { width:55vw; height:55vw; right:-16vw; bottom:-20vw; opacity:.42;
+    background:radial-gradient(circle at 60% 50%,
+      color-mix(in oklab, var(--note-line) 70%, transparent), transparent 70%); }
+  .bg-blob.b3 { width:38vw; height:38vw; left:52%; top:34%; opacity:.3;
+    background:radial-gradient(circle at 50% 50%,
+      color-mix(in oklab, var(--ok-line) 45%, transparent), transparent 70%); }
+  @keyframes drift1 { from { transform:translate3d(0,0,0) scale(1); }
+                       to { transform:translate3d(8vw,6vh,0) scale(1.2); } }
+
+  /* ② 点阵 + 网格：**照抄 magicui 原版的 SVG `<pattern>` 实现**
+     （2026-10-08 重做。之前我用 CSS `radial-gradient`/`linear-gradient` 平铺——
+     **那不是原版做法**，点阵的圆半径、网格的 x/y 偏移量都调不出来，
+     看起来「像格子但不像那个库」。）
+
+     原版参数（源码参数表）：
+       DotPattern:  width16 height16 x0 y0 **cx1 cy1 cr1**，glow 可选
+       GridPattern: width40 height40 **x-1 y-1**，squares 数组 + strokeDasharray
+     SVG 用 data-URI 内联（零外链、零构建）。 */
+  .bg-grid { position:absolute; inset:0; color:var(--grid-line);
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M0 0h40v40' fill='none' stroke='currentColor' stroke-opacity='.16' stroke-width='1'/></svg>");
+    background-size:40px 40px;
+    -webkit-mask:radial-gradient(ellipse 90% 70% at 50% 40%, #000 30%, transparent 78%);
+            mask:radial-gradient(ellipse 90% 70% at 50% 40%, #000 30%, transparent 78%); }
+  .bg-dots { position:absolute; inset:0; color:var(--dot);
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><circle cx='1' cy='1' r='1' fill='currentColor' fill-opacity='.2'/></svg>");
+    background-size:16px 16px;
+    -webkit-mask:radial-gradient(300px circle at 50% 45%, #000, transparent);
+            mask:radial-gradient(300px circle at 50% 45%, #000, transparent); }
+
+  /* 噪点：极低强度的颗粒，消除大面积渐变的「塑料光滑感」 */
+  .bg-noise { position:absolute; inset:0; opacity:.16;
+    background-image:var(--noise-src); background-size:180px 180px; }
+
+  /* 暗色下的物理约束（实测算出来的，不是拍的）：
+     暗色文字（--fg≈rgb(219,218,214)）要透过 12% 玻璃后仍与背景 ≥4.5:1
+     ⇒ blob 峰值只能到 rgb(120,135,165)（3.13:1，**不达标**）。
+     也就是说：**「背景亮到能看见颜色」与「浅色文字够对比」在暗色下直接冲突。**
+     参考站liquid-glass 之所以能两者兼得，是因为它用深色玻璃 + 白字，
+     文字亮度不依赖背景亮度。
+     ⇒ 我的解法：暗色玻璃**在 backdrop 之上再叠一层暗化**（见下方 ::after），
+     这样背景色仍透得出、但整体被压到文字可读。blob 保持可见的亮度。 */
+  :root[data-theme="dark"] .bg-blob.b1 { opacity:.30; }
+  :root[data-theme="dark"] .bg-blob.b2 { opacity:.26; }
+  :root[data-theme="dark"] .bg-blob.b3 { opacity:.18; }
+
+  /* 暗色玻璃的暗化层：盖在 backdrop-filter 结果之上，把整体压暗但保留色相。
+     用 `--glass-dim` 而不是写死 rgba，亮暗各自成对。 */
+  :root[data-theme="dark"] {
+    /* 暗化层：从 --bg 派生（不写死黑色）。关键要求是它**必须比 --surface 更暗**，
+       否则压不住底下的 blob（暗色下浅色字 + 亮斑 = 对比度不足）。 */
+    --glass-dim: color-mix(in oklab, var(--bg) 72%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bg-blob { animation:none; }
+  }
 
   /* ---- 玻璃基类（liquid-glass 退化版，Tier 1 纯 CSS）----
      实测 liquid-glass demo 的真值是 blur(20px) saturate(1.4)；
@@ -240,20 +333,18 @@
   /* ---- 主体：单栏纵向（会话流是主角）；.wrap 已在上方定义（720px 版心）---- */
   /* 页头标题区（v3 毛病 13：原来说明是浮块，现在是标题的一部分） */
   .page-head { margin-bottom:18px; }
-  /* ---- Aurora 渐变标题（magicui Aurora Text）：background-clip:text + 位置 8s 循环，
-     **位移 ≤20%**（v4 纪律：幅度克制）。给静态工具页加它只为「活的」感，不是炫技。 */
+  /* ---- Aurora 渐变标题（magicui Aurora Text）：background-clip:text。
+     ⚠️ **静态渐变，不做循环动画**（2026-10-08 降级）：
+     同屏动画名额要留给背景 blob（它是玻璃的本体）与 marquee（用户会看）。
+     实测加上背景层后同屏 infinite 变成 3 个，违反 v4 纪律「≤2」。
+     渐变本身（四个色停 + 220% 宽度）已经足够好看，不需要再动。 */
   .page-title { font-family:var(--font-display); font-size:26px; font-weight:700;
                 letter-spacing:-.01em; line-height:1.25; margin:0 0 6px;
                 background:linear-gradient(100deg,
-                  var(--fg) 0%, var(--accent-deep) 38%, var(--fg) 62%, var(--muted-2) 100%);
+                  var(--fg) 0%, var(--accent-deep) 42%, var(--fg) 68%, var(--muted-2) 100%);
                 background-size:220% 100%;
                 -webkit-background-clip:text; background-clip:text;
-                -webkit-text-fill-color:transparent; color:transparent;
-                animation:aurora 8s linear infinite; }
-  @keyframes aurora { from { background-position:0% 50%; } to { background-position:100% 50%; } }
-  @media (prefers-reduced-motion: reduce) {
-    .page-title { animation:none; background-position:0% 50%; }
-  }
+                -webkit-text-fill-color:transparent; color:transparent; }
   .page-sub { font-size:13.5px; color:var(--muted-2); margin:0; }
 
   /* 页脚（v3 毛病 13：原来没有页脚）。极简一行：左版权右链接。 */
@@ -292,8 +383,15 @@
      小元素用20px 会把里面文字糊掉（这是我第 1 步实测 blur 时记下的）。 */
   .msg { max-width:86%; padding:10px 14px; border-radius:var(--radius-lg);
          font-size:14.5px; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere;
-         backdrop-filter:blur(14px) saturate(140%);
-         -webkit-backdrop-filter:blur(14px) saturate(140%); }
+         position:relative; overflow:hidden;
+         backdrop-filter:blur(14px) saturate(180%);
+         -webkit-backdrop-filter:blur(14px) saturate(180%); }
+  /* 暗化层：盖在 backdrop 结果之上。**亮色下是透明**（不需要），
+     暗色下压暗但保留色相 —— 这样 blob 颜色可见、浅色文字仍够对比。
+     放在 ::after 而不是直接改 background：直接改background 会把 backdrop 一起关掉。 */
+  .msg::after { content:''; position:absolute; inset:0; pointer-events:none;
+    background:var(--glass-dim, transparent); z-index:0; }
+  .msg > * { position:relative; z-index:1; }
   .msg.q { align-self:flex-end; color:var(--fg);
            /* 用户气泡：从 --accent-soft 派生半透明蓝调，亮暗自动跟随 */
            background:color-mix(in oklab, var(--accent-soft) 62%, transparent);
@@ -357,25 +455,39 @@
      `@property` 让--beam-angle 可插值 → conic-gradient 绕着转 → 用 mask 把中间挖空。
      ⚠️ syntax 用 "*" 而非 "<angle>"：这是 magicui 实测的做法（它 20+ 条声明全是 "*"），
      "<angle>" 在旧浏览器可能不认。 */
-  @property --beam-angle { syntax:"*"; inherits:false; initial-value:0deg; }
-  @keyframes beam-spin { from { --beam-angle:0deg; } to { --beam-angle:360deg; } }
-  .badge.handoff.beam { position:relative; isolation:isolate; }
+  /* ---- Border Beam 扫边（magicui @/registry/magicui/border-beam）----
+     转人工本身是低频事件，扫边是「这条挂起等人」的提示，不该满屏闪。
+
+     ⚠️ **2026-10-08 按原版源码重写**。之前我凭理解写成「两段 conic + mask 挖边」，
+     抓��原版源码后发现差三处：
+       ① 渐变是**三段** `from-transparent via-x to-transparent`，不是两段 conic；
+       ② `borderWidth` 是**独立参数**（原版默认 1），扫边粗细可调；
+       ③ 原版用 `offset-path`/`offset-distance` 让光沿边框**走**，
+          不是一个整圈旋转的 conic —— 视觉上更像「一道光扫过」而非「彩虹圈」。
+     用 CSS 变量表达（原版就是把这几个值暴露成 props），
+     参数与原版默认对齐：size50 / duration 6s / delay 0 / borderWidth 1。 */
+  @keyframes beam-spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+  .badge.handoff.beam { position:relative; isolation:isolate; --beam-size:50%; --beam-w:1px; }
   .badge.handoff.beam::before {
-    content:''; position:absolute; inset:-1px; border-radius:inherit; z-index:-1;
+    content:''; position:absolute; inset:calc(-1 * var(--beam-w)); z-index:-1;
+    border-radius:inherit; padding:var(--beam-w);
+    /* 三段渐变（照抄原版 from-transparent via-… to-transparent） */
     background:conic-gradient(from var(--beam-angle),
-      transparent 0 70%, var(--accent-solid) 85%, transparent 100%);
-    animation:beam-spin 6s linear infinite;
+      transparent 0%, transparent 62%,
+      var(--accent-solid) 78%,
+      var(--accent-deep) 84%,
+      transparent 90%, transparent 100%);
     /* 只留边缘：中间用 mask 挖空 */
     -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
             mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite:xor; mask-composite:exclude;
-    padding:1px;
+    animation:beam-spin 6s linear infinite;
   }
+  @property --beam-angle { syntax:"*"; inherits:false; initial-value:0deg; }
   /* 循环动画必须响应 prefers-reduced-motion，且**冻结要 duration + iteration-count 成对**
      （只压 duration 会幻影抖动—— hero_motion_check 的教训，直接适用）。 */
   @media (prefers-reduced-motion: reduce) {
-    .badge.handoff.beam::before { animation:none; }
-    .badge.handoff.beam::before { --beam-angle:0deg; }
+    .badge.handoff.beam::before { animation:none; --beam-angle:0deg; }
   }
 
   /* caveat 的 gap.note（v3 毛病 3：禁自造黄色，改用全站警示卡形态）——
@@ -472,12 +584,29 @@
              padding:7px 10px; border-bottom:1px solid var(--border);
              font-size:12.5px; min-height:40px; position:relative; }
   .ops-row:last-child { border-bottom:none; }
-  /* Spotlight：JS 写 --x/--y，这里渲染跟随光晕。色值全令牌派生。 */
-  .ops-row::before { content:''; position:absolute; inset:0; pointer-events:none;
-    background:radial-gradient(220px at var(--x,50%) var(--y,50%),
-      color-mix(in oklab, var(--accent-solid) 11%, transparent), transparent 70%);
-    opacity:0; transition:opacity .16s var(--e); }
-  .ops-row:hover::before { opacity:1; }
+  /* Spotlight（magicui **MagicCard** 原版思路，2026-10-08 按源码重写）：
+     ⚠️ 之前我只写了一个跟随光晕的 radial-gradient，
+     **漏掉了原版的核心 —— 跟着鼠标走的渐变边框**（gradientFrom→gradientTo）。
+     原版参数：gradientSize200 / gradientOpacity0.8 / gradientFrom #9E7AFF / gradientTo #FE8BBB。
+     这里用 CSS 变量对应：--spot-size / --spot-op / 两个色停走令牌。
+     两层：① ::before 渐变边框（鼠标位置处显形）② ::after 内部柔光。 */
+  .ops-row { --spot-size:200px; --spot-op:.8; --spot-from:var(--accent); --spot-to:var(--note-line); }
+  .ops-row::before {
+    content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+    padding:1px; opacity:0; transition:opacity .18s var(--e);
+    background:radial-gradient(var(--spot-size) circle at var(--x,50%) var(--y,50%),
+      var(--spot-from), var(--spot-to), transparent calc(var(--spot-size) * .9));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+  }
+  .ops-row::after {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    opacity:0; transition:opacity .18s var(--e);
+    background:radial-gradient(calc(var(--spot-size) * .7) circle at var(--x,50%) var(--y,50%),
+      color-mix(in oklab, var(--spot-from) calc(var(--spot-op) * 22%), transparent), transparent 72%);
+  }
+  .ops-row:hover::before, .ops-row:hover::after { opacity:1; }
   .ops-row > * { position:relative; }
   .ops-t { color:var(--muted-3); font-variant-numeric:tabular-nums; font-size:11.5px;
            white-space:nowrap; }
@@ -518,6 +647,16 @@
 </style>
 </head>
 <body>
+
+<!-- 背景层：玻璃的本体。z-index:-1 + body 的 isolation:isolate 保证它在内容之下、
+     且不会跟页面外层产生层叠上下文冲突。aria-hidden：纯装饰，读屏不播报。 -->
+<div class="bg-layer" aria-hidden="true">
+  <div class="bg-blob b1"></div>
+  <div class="bg-blob b2"></div>
+  <div class="bg-blob b3"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-noise"></div>
+</div>
 
 <nav class="site-nav">
   <span class="brand"><i aria-hidden="true"></i>路书</span>
