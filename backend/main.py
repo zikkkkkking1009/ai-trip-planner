@@ -559,6 +559,12 @@ SUPPORT_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 SUPPORT_GENERATE = _int_env("SUPPORT_GENERATE", 0)
 
 
+@app.get("/support")
+def support_page():
+    """客服会话页（国内化一期前端件，workbuddy）。"""
+    return _serve_html("support.html")
+
+
 @app.post("/support/message")
 def support_message(body: dict) -> dict:
     """客服一问一答：检索 → 三档决策（命中/部分答案/转人工）→ 线索联动。

@@ -1112,3 +1112,136 @@ realbench：53 → 52             ❌ 退化 1 项
 - 简报第 7 步的 `main.py` 加 4 行路由是**唯一的越界例外**，按你给的原文照抄，不动其他代码。
 - 令牌值一律从 `backend/.env` 读、**不回显**（`.env` 在 gitignore 内）。
 - 与实现不符 → **停下登记 COLLAB_LOG，不改后端**。
+
+### 2026-10-07 16:20｜第 1 步实测结果（不改任何文件）
+
+运行中的 8000 实例**已含 merge 后代码**（`POST /support/message` → 200、`/meta` 有 `/support/*`），
+所以以下就是新代码的真机结果。三档**全部与你的契约一致**：
+
+| 输入 | action | gap.kind | citations | reply 关键句 |
+|---|---|---|---|---|
+| 西安有什么好吃的 | `answer` | None | 5（全 verified） | 「根据知识库，为你找到：」 |
+| 故宫需要预约吗 | `handoff` | `unsupported` | **0** | 「这个问题超出了知识库范围…已为你登记转人工」 |
+| 杭州西湖门票多少钱 | `answer_caveat` | `attr` | 5 | 「根据知识库…」+ ⚠️ 缺口说明 |
+
+- `GET /support/leads?status=handoff`（令牌 43 字符，未回显）→ `handoff_count=2`，
+  **channel=wechat_mp 可见**（session `wx-oIvNi3D4…`，`handoff_count=3`），另一条 `channel=web`。
+  简报第 5 步要的验收项全部具备。
+- 三档还额外验了 `generated=False`（渠道侧**未烧 LLM**，与附节①「渠道侧永不烧 LLM」一致）。
+
+**两处契约观察（不改后端，只报告）**
+1. **`lead_id` 三档都返回同一个值**（`b3583d548a9e`）。契约写的是 handoff 才落线索，
+   但 answer 档也带 lead_id 且与 handoff 档相同——看起来是「同一 session 复用同一线索 id」
+   （session 维度唯一，非按消息维度）。**对前端无影响**（我只在 handoff 档渲染登记态），
+   但如果将来要按「每次转人工一条线索」统计，口径需澄清。**归属你定。**
+2. **③ 档的语料里又出现了「免费」**：`杭州西湖风景名胜区` 的 text 含
+   「免费 不要钱 穷游 免票 不花钱 不要门票」——这**正是我上轮登记①的实锤**：
+   `tags` 里 `免费` 的景点数（313）与 `ticket=0` 数量完全相同，
+   也就是「**无票价数据**」被当成「**免费**」写进了语料、还说进了 answer 档的正文。
+   用户问「免费景点」时拿到的是「无数据」的点，这在客服语境下是**会误导决策的**（比页面语境更重）。
+   你的 attr 缺口说明已经说了「其余为空值，不是 0」——但**正文里还是在说它们免费**。建议同批修掉。
+
+**你的数据目录会多几条 `wbtest…` 记录**（`data/leads.json` + `data/conversations/wbtest0000000001.json`），
+gitignore 内、无害，与你的真机冒烟记录并存。
+
+### 🔴 换权请求｜workbuddy：请在 `test_auth.py` 的 `open_paths` 加一条 `/support`
+
+**第 7 步加了 `GET /support`（你给的 4 行原文照抄，diff 是 +6 行纯新增、零改动你任何代码），
+结果 `test_all_write_endpoints_are_protected` 红了：**
+
+```
+AssertionError: 以下写接口未受令牌保护（闸门漏洞）：
+  GET /support → 200
+```
+
+**我判定这是清单遗漏，不是路由缺陷**，理由（读代码，不是我猜的）：
+- 该守卫（`test_auth.py:100-126`）扫**所有** GET/POST/DELETE/PUT/PATCH 路由，
+  凡不在 `open_paths`、且响应不是 401/404，就判成闸门漏洞——**它不分「页面」和「写接口」**。
+- 同一份白名单里已经躺着 `/health`、`/`、`/app`、`/meta`、`/cities`、`/demo/spots`、`/ask`
+  ——**全是零副作用零花费的页面与只读接口**。`/support` 页面与 `/app` 完全同类，只是漏登记了。
+- 它返回的是静态 HTML，无副作用、无花费、无数据写入（会话与线索走的是 `/support/message`，
+  那条**有自己的一套闸**，已在白名单且你有注释说明）。
+- 修法是往 `open_paths` 加 `"/support"`，并补一行注释说明「客服会话页，纯静态，与 `/app` 同类」。
+
+**为什么不自己改**：`backend/tests/test_auth.py` 在你辖区，且这道闸门是你精心设计的
+（"将来新增写接口时只要忘了加依赖这里就会红"）——动它要你点头。
+
+**现状**：本地 pytest **520 passed / 1 failed / 1 skipped**（就是这一条）。
+CI 会红。**你加那一行（或授权我加）我就继续第 8 步的冒烟**；
+若你认为该改成「按副作用判定而非按路径」，也可以——那是更大的重构，等你定。
+
+---
+
+## ✅ 完结条目｜workbuddy：国内化一期前端收尾（support.html + 运营视图 + 冒烟进 CI）
+
+**改动文件（8 个，全部显式 add）**：`static/support.html`（新建，616 行）、
+`tools/support_smoke.js`（新建，66 项）、`tools/check_frontend.py`（PAGES 加新页）、
+`backend/main.py`（**+6 行纯新增**，你给的 4 行路由，原文照抄）、
+`.github/workflows/ci.yml`、`README.md`、`README_en.md`、`HANDOFF.md`、`COLLAB_LOG.md`。
+
+### UI 取舍（三条，写在这里免得以后有人改回去）
+1. **转人工用 `--accent-*` 钴蓝而不用红色** —— 它是正常业务流转不是错误，
+   红色留给真失败（401/429/网络）。用红会让用户以为系统坏了。
+2. **单栏纵向**，会话流是主角；运营视图折叠在底部，低频功能不抢视觉权重。
+3. **令牌复用 `appToken`**（home.html:2123 明写与规划器共用），不造第二份存储。
+
+### 顺带修掉的一个真问题：caveat 档同一句话说两遍
+后端 `support.py:133` 已把 `gap.note` 拼进 `reply` 尾部（`⚠️ {note}如需人工确认…`），
+而简报第 4 步要求 gap.note **独立成块** ⇒ 两边都做就是重复。
+前端加 `stripGapFromReply()` 剥离后单独渲染，**剥离失败则原样保留正文**
+（后端改文案时不能凭空丢信息）—— 宁可重复也不丢内容。已加断言钉住。
+
+### 门禁：我的那道门禁本身也补了个洞
+`check_frontend.py` 的 `PAGES` 原本只有两页，**新建的 support.html 默认不在门禁里**
+（该文件注释原文就写着「新增页面若漏进这份清单，就等于绕过了语法门与转义守卫」）。
+已加进去——**这张页渲染的全是外部文本**（reply 来自 RAG 生成层、引用名来自语料、
+线索问题来自用户与微信消息），是最需要这道门的一页。
+
+### 反向验证（第 9 步，已留档）
+把三处渲染点突变回裸 `innerHTML`（`addMsg` / 引用卡 `name` / ops 行的 `last_question`）→
+**突变版 60/66、6 条转义断言判红、退出码 1；正式版 66/66、退出码 0。**
+突变版已删。其中 `img=2` 证明注入**真的执行了**，不是假红。
+
+### responsive（第 6 步，七档全绿）
+320 / 360 / 390 / 640 / 768 / 1024 / 1200 全部零塌版零横向溢出。
+真机截图发现并修掉一个**只有窄屏才暴露的问题**：`#support-log` 是独立滚动容器
+（`max-height:62vh`），只滚到底会让**用户刚发的那条问题被顶出视野**——
+用户看到的是「我的问题不见了，冒出来一坨回答」。
+改成只改 log 自身 `scrollTop`（不用 `scrollIntoView`：它会连带滚动页面把输入框顶走），
+并接受一个刻意取舍：回答超一屏时「问题+回答全可见」物理上做不到，只保证问题可见 + 回答开头可见。
+
+### 我自己写错的断言（都是「期望不成立」≠ 产品有 bug，记下来别重犯）
+- `details` 折叠时 `innerText` 按规范返回空 → 断言「占位文案」必须用 `textContent`。
+- `/bad|danger/.test('badge handoff')` **为 true**——容器类名 `badge` 本身含子串 `bad`。
+  判「徽章语义类」必须先剥掉容器类再精确比对。
+- 「输入行同排」不能用 `top` 相近：输入框经 `autoGrow` 涨到 46px、按钮固定 44px 且
+  `align-items:flex-end`，top 天然差 2px ⇒ 320/360/**1200** 全部假红。
+  正确判据 = 垂直区间重叠 60% 以上 **且** 水平相邻。
+- jsdom 里 `.msg.q:last-of-type` 选不中（`last-of-type` 判的是最后一个 `div`，
+  不是最后一个 `.q`）→ 拿 `querySelectorAll` 取最后一个。
+- 「注入载荷未被解析」不能对整个容器查 `<b>`：`.ops-count` 模板里本来就有 `<b>`（加粗数字），
+  把自己写的标签当成了注入产物。断言必须精确到承载外部值的节点。
+- 「注入载荷作为纯文本保留」要定位到**含注入的那一行**，取第一个 `.ops-q` 会拿到正常那条。
+- **最重要的一条**：caveat / handoff / 转义三组最初全部拿到的是 `answer` 档的响应——
+  `boot()` 默认 `msgFixture='answer'`，我**忘了切 fixture** 就断言，6 条一起红。
+  写多档 stub 测试时，每组 boot 后必须显式设档位。
+
+### ⚠️ 数字口径：README 的「41 个接口」与运行时不一致，我按实测改了
+`_api_catalog()`（`/meta` 唯一数据源）实测 **39 个**（21 GET / 17 POST / 1 DELETE，
+WS 不计入）。原 README 写「41（21 GET / 18 POST / 1 DELETE / 1 WebSocket）」——
+**POST 18 实际是 17**（`/support/leads/status` 与别的同路径合并计了），
+WS 又不在这套口径里。已按实测改成 39 并注明 WS 不计入，中英双语同步。
+逐条对照 README 表与运行时路由：差异全是**占位符写法**（`{id}` vs `{task_id}`），
+无真缺接口。**如果你的 41 有我不知道的口径（比如把某条算了两遍），说一声我改回。**
+
+### 🔴 仍需你处理（一行）
+`test_auth.py::test_all_write_endpoints_are_protected` 需要 `open_paths` 加 `"/support"`
+——理由已在上面第 7 步的换权请求里写清：`/support` 与 `/`、`/app`、`/meta` 同类
+（纯静态页、零副作用零花费），是白名单**漏登记**不是闸门缺陷。
+现状 pytest **520 passed / 1 failed / 1 skipped**，CI 会红。
+
+### 门禁实测（本批全跑）
+pytest 520+1skip（**唯一红项是上面那条，等你**）｜ ruff 0 ｜ mypy 0（76 files）｜
+五维审计 0 错 0 警 ｜ check_frontend ✅（三页）｜ check_contrast ✅ ｜ contrast-audit ✅ ｜
+contrast_runtime 三页明暗 ✅ ｜ 四支 jsdom：**47/47 + 48/48 + 50/50 + 66/66** ｜
+rag_realbench **53/53 · 17/17** ｜ rag_rank_eval **precision@5 0.92 / ndcg 0.931**（你的 R6 把它从 0.58 提到了 0.92，基线我按你的终态抬过）｜ run_demo ✅。

@@ -182,13 +182,14 @@ cp backend/.env.example backend/.env
 | GET | `/favorites` · POST `/favorites` | 收藏列表 / 增删 |
 | POST | `/plan/capacity` · `/plan/recheck` | 规划前容量预估 / 结果侧确定性编辑（服务端全量重算） |
 | GET | `/ask` | 知识库检索问答：BM25 + 引用核查 + 三档拒答；`with_answer=1` 叠加 grounded 生成 |
+| GET | `/support` | 客服会话页（`static/support.html`，静态页面零副作用） |
 | POST | `/support/message` | 客服一问一答：三档决策（命中 / 部分答案 / 转人工）+ 线索联动 |
 | GET | `/support/leads` · POST `/support/leads/status` | 线索清单（管理端）/ 人工跟进状态闭环 |
 | GET | `/support/conversation/{sid}` | 会话留痕查询（每轮决策档位可审计） |
 | GET · POST | `/support/wechat` | 公众号（测试号）回调：sha1 验签 + 明文 XML 被动回复 |
 | GET | `/admin/usage` | LLM 成本台账：按「用途 × 模型」聚合调用量与 token 数 |
 
-共 **41 个接口**（21 GET / 18 POST / 1 DELETE / 1 WebSocket；`/meta` 为运行时权威口径）。
+共 **39 个接口**（21 GET / 17 POST / 1 DELETE；`/meta` 为运行时权威口径，WebSocket `/ws/{task_id}` 不计入）。
 
 ---
 
@@ -328,6 +329,8 @@ HANDOFF.md                新会话接上下文的第一份文件
 ---
 
 ## 更新日志
+
+- **v1.19（2026-10-07）**：**国内化一期前端收尾——客服会话页 + 运营视图 + 冒烟进 CI**。新增 `static/support.html`（单文件、零构建、零 CDN，`GET /support`），把 v1.18 只到后端的客服能力接上界面：**会话流**（`POST /support/message`）按三档给差异化徽章——命中（绿）/ 部分答案（黄）/ 已登记转人工（蓝）；caveat 档的 `gap.note` 会从 `reply` 正文里剥离成独立 ⚠️ 块（后端已把它拼进正文，不剥就是同一句话说两遍），handoff 档配固定话术「人工会跟进，也可以换个问法」。**引用卡**逐条呈现 `citations`（名称/城市/✓已核查），未核查的用虚线卡明确标出——「已核查」是后端给的硬事实，前端只如实呈现不自己判断。**运营视图**（`#ops-view`，折叠壳）接 `GET /support/leads` + `POST /support/leads/status`：默认筛 handoff、四档 chip 切换、行内「标记已跟进」置 closed 后刷新（状态机在后端，前端不做）、`updated_at` 格式化为 `YYYY-MM-DD HH:mm`、渠道 `wechat_mp` 单独标记。**UI 取舍三条**：① 转人工用 `--accent-*` 品牌钴蓝而**不用红色**——它是正常业务流转不是错误，红色留给真失败（401/429/网络）；② 单栏纵向、会话流为主角，运营视图折叠起来不抢视觉权重；③ 令牌复用现有 `appToken` key 与同源注入包装（用户在规划页填过不该再填一遍）。**响应式**七档（320→1200px）零塌版零溢出；**明暗双主题**运行时对比度全达标。新增 `tools/support_smoke.js`（jsdom，**66 项**断言，覆盖简报列的 7 组），并做了**反向验证**：把三处渲染点突变成裸 `innerHTML` 后 6 条转义断言判红、退出码 1；CI 挂上该冒烟（失败吐 `::error::` annotation）。「页面转义纪律」这条门禁也补上了：`check_frontend.py` 的 `PAGES` 加进 `support.html`——**它渲染的全是外部文本**（reply 来自 RAG 生成层、引用名来自语料、线索问题来自用户与微信消息），漏进清单等于绕过语法门与转义守卫。⚠️ 后端待办一处：`test_auth.py::test_all_write_endpoints_are_protected` 需把 `GET /support` 加进 `open_paths`（纯静态页面、与 `/app` 同类），已登记给 ZCode
 
 - **v1.18（2026-10-07）**：**国内化一期：RAG 客服 + 转人工线索 + LLM 成本台账**（分支 `feat/domestic-support`，首个走 GitHub 分支 + PR 的批次）——把一个跨境电商公司 6 模块 AI 项目需求做**国内化映射**后落到本项目（对应其「知识库客服/不确定转人工」「客户线索记录」「API 成本」三块；内容工具/社媒工作台/视频工厂经可行性判定本期不做）。**客服三档决策**（`backend/support.py`）：完全复用 RAG 已有的能力边界——`gap.kind=unsupported`（库里没有的数据）或空结果→**自动转人工**并落线索（`backend/leads.py`，JSON 落盘：锁 + 原子写，status 三态 open/handoff/closed，人工收尾后再来消息自动重开）；`attr/soft`（能答一部分但缺字段）→ 部分答案 + ⚠️ 缺口说明；正常命中 → 引用作答；用户发「人工/转人工」直接落工单。**会话留痕**：`data/conversations/{sid}.json` 每轮记录决策档位（可审计「当时为什么这么答」，也是转人工评测的数据来源）；session_id 白名单字符校验防路径穿越。**渠道**（`backend/wechat_mp.py`）：公众号**测试号**官方回调——sha1 验签（标准库）、明文 XML 被动回复、MsgId 去重（微信 5s 无回复会重发）、加密模式如实 501（零依赖边界）；**渠道永不烧 LLM**（被动回复 5s 时限），生成层只对 web 端开放且默认关（`SUPPORT_GENERATE=0`，开了也走 `/ask` 的生成配额总闸）。**LLM 成本台账**（`backend/llm_ledger.py`）：5 个运行时 LLM 出口（抽取 / 意图解析 / 评价生成 / 行程总评 / RAG 生成 / 对齐仲裁）统一打点落 `data/llm_usage.jsonl`（只记账不改行为，写失败不拖垮业务），`GET /admin/usage?days=7` 按用途 × 模型聚合。接口 34 → **41**；测试 484 → **521**（+40：三档决策 / 验签去重 / 台账轮转 / 线索生命周期），转人工守卫做了**反向验证**（把决策突变回「永远 answer」后 3 条用例判红）；门禁全绿（pytest / ruff / mypy / 五维审计 / 前端静态 + 47+48+50 冒烟）
 

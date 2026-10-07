@@ -91,6 +91,21 @@ jobs:
           }
           tail -n 3 smoke_home_ask.log
 
+      # 客服会话页（国内化一期前端件）的运行时断言。
+      # 立这道门的理由与 home_ask 那条同类但更要紧：这张页渲染的**全部是外部文本**——
+      # reply 来自 RAG 生成层、citations[].name 来自语料、运营视图的 last_question
+      # 来自用户/微信消息。一个裸 innerHTML 就是可被注入的客服页面。
+      # 这套用例含**已反向验证过**的转义断言（把三处渲染点改成 innerHTML 后
+      # 6 条判红、退出码 1），不是恒绿的摆设。
+      - name: Support page runtime smoke test (jsdom)
+        run: |
+          NODE_PATH=tools/node_modules node tools/support_smoke.js > smoke_support.log 2>&1 || {
+            echo "SUPPORT SMOKE FAILED, dumping tail to annotation..."
+            python -c "import urllib.parse; print('::error::' + urllib.parse.quote(open('smoke_support.log', encoding='utf-8', errors='ignore').read()[-1500:]))"
+            exit 1
+          }
+          tail -n 3 smoke_support.log
+
       # ruff / mypy（C3）。为什么必须进 CI：
       # 「缺常量导致接口 500」这类问题能靠肉眼 review 漏掉、也能被单元测试漏掉，
       # 但 pyflakes 一眼就看得到。配置见 backend/ruff.toml 与 backend/mypy.ini。
