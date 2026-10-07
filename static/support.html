@@ -400,14 +400,20 @@
   .composer button::after { content:''; position:absolute; top:0; left:0; width:45%; height:100%;
     background:linear-gradient(100deg, transparent, color-mix(in oklab, var(--on-accent) 45%, transparent), transparent);
     transform:translateX(-150%); pointer-events:none; }
-  .composer button:not(:disabled) { animation:shimmer 2.6s linear infinite; }
-  @keyframes shimmer { from { transform:none; } 12% { transform:translateX(-150%); }
+  /* ⚠️ 动画必须挂在 ::after（高光条）上，**不能挂按钮本体**。
+     第一版我写成 `.composer button:not(:disabled){animation:shimmer …}`，
+     而 keyframes 里是 `transform:translateX(-150%→350%)`
+     ⇒ **整个按钮在左右平移**，真机一眼看出「按钮一直在乱晃」。
+     按钮本体是**位置敏感的交互元素**（用户要瞄准点它），不能有 transform。
+     高光条用绝对定位覆盖在按钮上，扫的是它自己，不是按钮。 */
+  .composer button:not(:disabled)::after { animation:shimmer 2.6s linear infinite; }
+  @keyframes shimmer { from { transform:translateX(-150%); }
+                       12% { transform:translateX(-150%); }
                        to { transform:translateX(350%); } }
-  .composer button:disabled { background:var(--fill-2); color:var(--muted-3); cursor:not-allowed;
-                              animation:none; }
+  .composer button:disabled { background:var(--fill-2); color:var(--muted-3); cursor:not-allowed; }
   .composer button:disabled::after { display:none; }
   @media (prefers-reduced-motion: reduce) {
-    .composer button:not(:disabled) { animation:none; }
+    .composer button:not(:disabled)::after { animation:none; }
     .composer button:not(:disabled)::after { display:none; }
   }
 

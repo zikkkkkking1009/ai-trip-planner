@@ -1723,3 +1723,42 @@ Playwright 的 `element is not stable` 判定会永远等下去（卡 30s 抛 Ti
   点阵 + mask 渐隐、气泡双玻璃 + 圆角 16px + 内高光、缺口块 warn 左条 3px、
   handoff beam 扫边、landing ≤2 / handoff ≤3、`resize:none`、点 chip 填入
 - 明暗两态截图已存`%TEMP%/step3_{light,dark}.png`
+
+---
+
+## 🐛 热修｜workbuddy：发送按钮整体左右平移（用户发现：「发送按键一直在乱晃」）
+
+**用户一句话点出来的 bug，静态门禁全绿、jsdom 全绿、真机截图也全绿，只有真人在用鼠标时会察觉。**
+
+### 根因：动画挂错了元素
+我写的是 `.composer button:not(:disabled){ animation:shimmer 2.6s linear infinite; }`
+而 `@keyframes shimmer` 里是 `transform: translateX(-150% → 350%)`
+⇒ **整个按钮在左右平移**，而不是高光条在扫。
+高光条是 `::after`（`position:absolute` + `width:45%`），它扫自己的 transform 才对。
+
+magicui 原版的结构本来就是：`animation` 挂在 `::after` 上，按钮本体只有 `position:relative`。
+**我把「谁承担动画」这一层写反了** —— 这是照抄配方表时没对照原版结构的后果。
+
+### 修法
+```css
+.composer button:not(:disabled)::after { animation:shimmer 2.6s linear infinite; }
+```
+只改挂载目标，按钮本体**不加任何 transform/animation**。
+`@keyframes` 的 `from` 也从 `translateX(-150%)` 改成同值（原来 `from{transform:none}` 是错位跳变）。
+
+**理由（不只是「看起来不对」）**：按钮本体是**位置敏感的交互元素**——
+用户要瞄准它点下去。它在动 = 点击目标在移动 = 误触与漏触。
+「动效影响可点性」比「动效不好看」严重一个量级。
+
+### 实测证据（不是推断）
+按钮 x 坐标 **8 次采样（间隔 120ms）全为 911** ⇒ 位置稳定，不再晃动；
+`本体 transform = none`、`本体 animation = none`、`::after animation = shimmer`。
+
+### 教训（值得单列）
+**这次不是「判据写错」，是「照抄配方时没对照原版结构」。**
+v4 配方表那一行写的是「伪元素 45° 白色高光条 translateX(-150%→150%)」——
+**已经说了是「伪元素」，我却把 animation 挂到了 button 上**。
+⇒ **抄配方表要连「哪个元素承担动画」一起抄**，只抄动画名会错。
+
+⇒已加回归断言（真机探针内）：按钮本体 `transform` 须为 none、本体 `animation` 须为 none、
+`::after` 须承担 shimmer。**这三条会钉死它**，将来再写错会立刻红。
