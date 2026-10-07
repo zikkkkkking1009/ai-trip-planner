@@ -44,24 +44,29 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
    前端必须把它剥离后单独成块，否则同一句话说两遍 —— 这一点专门有断言盯着。 */
 const FIXTURES = {
   answer: {
-    reply: '根据知识库，为你找到：\n· 甑糕（西安）甑糕 糯米红枣层层蒸，晨间推车现切\n（引用 2/2 条已核查到库内实体）',
+    // plain 双轨后的网页端形态（zcode 615683b）：reply 只留话术头，
+    // 引用内容全走 citations[].snippet。fixture 必须跟真实契约一致，
+    // 否则测试变成「对着旧格式假装通过」的假绿。
+    reply: '根据知识库，为你找到：',
     action: 'answer',
     citations: [
-      { name: '甑糕', city: '西安', verified: true },
-      { name: '肉夹馍', city: '西安', verified: true },
+      { name: '甑糕', city: '西安', verified: true, snippet: '甑糕 糯米红枣层层蒸，晨间推车现切 西安' },
+      { name: '肉夹馍', city: '西安', verified: true, snippet: '肉夹馍 白吉馍夹腊汁肉，肥瘦由己 西安' },
     ],
     gap: null, lead_id: 'b3583d548a9e', generated: false,
   },
   answer_caveat: {
-    reply: '根据知识库，为你找到：\n· 杭州西湖风景名胜区（杭州）三面云山一面城\n（引用 1/1 条已核查到库内实体）\n⚠️ 库里只有 62/375 个景点有「门票」数据（其余为空值，不是 0），排在第一的「杭州西湖风景名胜区」也没有——不猜。如需人工确认，请回复「人工」。',
+    // ⚠️ 网页端 reply **不再拼 gap.note**（plain=False），缺口只走 gap 字段。
+    reply: '根据知识库，为你找到：',
     action: 'answer_caveat',
-    citations: [{ name: '杭州西湖风景名胜区', city: '杭州', verified: true }],
+    citations: [{ name: '杭州西湖风景名胜区', city: '杭州', verified: true,
+                  snippet: '杭州西湖风景名胜区 三面云山一面城的城市湖泊，世界文化遗产，西湖十景所在 杭州 建议游玩180分钟' }],
     gap: { kind: 'attr', attr: '门票',
            note: '库里只有 62/375 个景点有「门票」数据（其余为空值，不是 0），排在第一的「杭州西湖风景名胜区」也没有——不猜。' },
     lead_id: 'b3583d548a9e', generated: false,
   },
   handoff: {
-    reply: '这个问题超出了知识库范围：库里只有景点和美食的名称与简介，没有预约规则数据——这条答不了，不拿景点凑。已为你登记转人工，请留意后续回复；也可以换个问法试试。',
+    reply: '这个问题超出了知识库范围，已为你登记转人工。',
     action: 'handoff',
     citations: [],
     gap: { kind: 'unsupported', topic: '预约规则',
@@ -236,6 +241,10 @@ async function main() {
        badge && badge.textContent);
     ok('answer：徽章在气泡顶部', badge && badge.parentElement.firstElementChild === badge);
     ok('answer：无 gapnote（命中不该报缺口）', !w.document.querySelector('#support-log .gapnote'));
+    const adet = w.document.querySelector('#support-log .citedetails');
+    ok('answer：渲染引用详情（snippet）', !!adet);
+    ok('answer：引用详情含 snippet 文本',
+       adet && /糯米红枣|白吉馍/.test(adet.textContent || ''), adet && adet.textContent.slice(0, 40));
     ok('answer：无 handoff 话术', !w.document.querySelector('#support-log .handoff-note'));
     ok('① 组无 JS 运行时错误', errs.length === 0, errs.join(' | '));
   }
@@ -258,10 +267,15 @@ async function main() {
     ok('caveat：独立块带图标', gn && gn.querySelectorAll('svg').length >= 1);
     const body = w.document.querySelector('#support-log .msg.a').childNodes[1];
     const bodyTxt = body ? (body.textContent || '') : '';
-    ok('caveat：正文已剥离 ⚠️ 段（不与独立块重复）',
-       !/⚠/.test(bodyTxt) && bodyTxt.indexOf('如需人工确认') < 0, bodyTxt.slice(-40));
-    ok('caveat：正文仍保留检索内容（剥的只是缺口段）', bodyTxt.includes('根据知识库'),
-       bodyTxt.slice(0, 30));
+    ok('caveat：正文不含 ⚠️ 段（plain=False 后端不拼了）',
+       !/⚠/.test(bodyTxt), bodyTxt.slice(-40));
+    ok('caveat：正文仍保留话术头', bodyTxt.includes('根据知识库'), bodyTxt.slice(0, 30));
+    /* 引用内容现在只在 citations[].snippet 里 ⇒ 必须渲染，否则网页端等于什么都没答 */
+    const det = w.document.querySelector('#support-log .citedetails');
+    ok('caveat：渲染引用详情（citations[].snippet）', !!det);
+    ok('caveat：引用详情含 snippet 文本',
+       det && /西湖|城市湖泊/.test(det.textContent || ''), det && det.textContent.slice(0, 40));
+    ok('caveat：引用详情标出实体名', det && det.querySelector('.cite-name') !== null);
     ok('② 组无 JS 运行时错误', errs.length === 0, errs.join(' | '));
   }
 
@@ -286,6 +300,8 @@ async function main() {
        txt(w, '#support-log .handoff-note').includes('人工会跟进'));
     ok('handoff：正文说明「超出了知识库范围」',
        txt(w, '#support-log .msg.a').includes('超出了知识库范围'));
+    ok('handoff：正文不再重复缺口详情（改由 ⚠️ 块承担或不重复）',
+       !txt(w, '#support-log .msg.a').includes('不拿景点凑'), txt(w, '#support-log .msg.a'));
     ok('③ 组无 JS 运行时错误', errs.length === 0, errs.join(' | '));
   }
 

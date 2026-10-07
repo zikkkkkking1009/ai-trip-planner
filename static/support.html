@@ -186,6 +186,18 @@
   .cite .cv { color:var(--ok-ink); margin-left:3px; font-weight:700; }
   .cite.unverified { border-style:dashed; }
   .cite.unverified .cv { color:var(--muted-3); }
+  /* 引用详情（citations[].snippet）：plain 双轨后网页端 reply 只剩一句引导语，
+     引用内容全在这个字段里 ⇒ 不渲染它等于网页端什么都看不到。
+     限 3 条 + 可滚动：5 条全展开会把气泡撑得比回答还长。 */
+  .citedetails { margin-top:8px; padding:9px 11px; border-radius:9px;
+                 background:var(--fill); border:1px solid var(--border);
+                 max-height:15em; overflow-y:auto; }
+  .cite-line { font-size:12.5px; line-height:1.6; color:var(--muted-2);
+               padding:3px 0; overflow-wrap:anywhere; }
+  .cite-line + .cite-line { border-top:1px solid var(--border); }
+  .cite-name { font-weight:600; color:var(--fg); margin-right:6px; }
+  .cite-snip { color:var(--muted-2); }
+  .cite-warn { color:var(--bad-ink); font-size:11.5px; margin-left:6px; }
 
   /* ---- 三档徽章：颜色即语义，且**刻意不用红表示转人工** ----
      handoff 是「已登记、人工会跟进」＝正常业务流转；用 --bad-* 红会让用户
@@ -435,8 +447,8 @@ function addCitations(bubble, list) {
   box.className = 'cites';
   list.forEach(function (c) {
     if (!c || !c.name) return;
-    var chip = document.createElement('span');
     var ok = c.verified === true;
+    var chip = document.createElement('span');
     chip.className = 'cite' + (ok ? '' : ' unverified');
     // 名称用 textContent：语料里的实体名同样不可信
     chip.appendChild(document.createTextNode(String(c.name)));
@@ -450,6 +462,39 @@ function addCitations(bubble, list) {
       chip.appendChild(city);
     }
     box.appendChild(chip);
+  });
+  if (box.childElementCount) { bubble.appendChild(box); scrollDown(); }
+}
+
+/* 引用详情：citation.snippet（2026-10-07 后端 plain 双轨新增）。
+   网页端 reply 只留一句引导语，**引用内容全部走这个字段**——
+   所以它不是可选装饰，不渲染等于网页端什么都看不到。
+   snippet 同样来自语料 ⇒ 一律 textContent。 */
+function addCiteDetails(bubble, list) {
+  if (!bubble || !Array.isArray(list) || !list.length) return;
+  var box = document.createElement('div');
+  box.className = 'citedetails';
+  list.forEach(function (c) {
+    if (!c) return;
+    var line = document.createElement('div');
+    line.className = 'cite-line';
+    var head = document.createElement('span');
+    head.className = 'cite-name';
+    head.textContent = String(c.name || '');
+    line.appendChild(head);
+    if (c.snippet) {
+      var sn = document.createElement('span');
+      sn.className = 'cite-snip';
+      sn.textContent = String(c.snippet);       // 语料文本，纯文本
+      line.appendChild(sn);
+    }
+    if (c.verified === false) {
+      var w = document.createElement('span');
+      w.className = 'cite-warn';
+      w.textContent = '未核查到库内实体';
+      line.appendChild(w);
+    }
+    box.appendChild(line);
   });
   if (box.childElementCount) { bubble.appendChild(box); scrollDown(); }
 }
@@ -492,23 +537,6 @@ function addGapNote(bubble, gap) {
   bubble.appendChild(el);
 }
 
-/* 后端 `_compose_reply` 在 caveat 档会把 gap.note 拼进 reply 尾部
-   （格式：`⚠️ {note}如需人工确认，请回复「人工」。`）。
-   简报要求 gap.note **独立成块**与正文视觉分开 ⇒ 这里从正文里剥掉那段，
-   交给 addGapNote 单独渲染，否则同一句话说两遍。
-   剥离失败**必须原样保留正文**（后端改文案时不能凭空丢掉这段信息）——
-   宁可重复也不丢内容。*/
-function stripGapFromReply(reply, gap) {
-  if (!gap || !gap.note) return reply;
-  var s = String(reply || '');
-  var note = String(gap.note);
-  var at = s.indexOf(note);
-  if (at < 0) return s;                     // 格式变了 → 不动正文
-  // 连同它前面的 ⚠️ 与紧随其后的引导句一起剥
-  return s.replace(/⚠️\s*[\s\S]*$/, '').replace(/\s*如需人工确认，请回复「人工」。\s*$/, '')
-          .trimEnd() || s;
-}
-
 function addHandoffNote(bubble) {
   var el = document.createElement('div');
   el.className = 'handoff-note';
@@ -537,9 +565,10 @@ async function send() {
     var d = await res.json();
     if (mySeq !== seq) return;               // 有更新的请求在飞，丢弃本次
     if (!res.ok) throw new Error((d && d.detail) || ('HTTP ' + res.status));
-    var bubble = addMsg('a', stripGapFromReply(d && d.reply, d && d.gap));
+    var bubble = addMsg('a', (d && d.reply) || '');
     addBadge(bubble, d && d.action);
     addCitations(bubble, d && d.citations);
+    addCiteDetails(bubble, d && d.citations);
     if (d && d.action === 'answer_caveat') addGapNote(bubble, d.gap);
     if (d && d.action === 'handoff') addHandoffNote(bubble);
     scrollDown();
