@@ -60,6 +60,10 @@ from media_cache import (get_media, suspected_wrong_city,
 from models import PlanRequest, PlanResult
 from solver import Solver, capacity_estimate
 from weather import daily_weather
+import leads
+import llm_ledger
+import support
+from wechat_mp import router as wechat_router
 
 # Key 可用性自检。selftest 顶层**只**依赖标准库（项目内 import 全部写在函数里），
 # 所以这里 import 它不会形成环 —— 把探测逻辑内联进 main 反而会破坏
@@ -224,7 +228,10 @@ RATE_LIMIT_PER_MIN = _int_env("RATE_LIMIT_PER_MIN", 120)
 
 # 只对**会花钱/触发外部调用**的路径计数。/ask 整体计入：with_answer=1 会烧 LLM 配额，
 # 而限流按路径前缀无法区分查询参数，纯检索的少量误伤可接受（2026-10-04 workbuddy 风险登记后补入）。
-RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather", "/food", "/ask")
+# /support 同口径：/support/message 是公开写接口（落线索/会话），/support/wechat 是
+# 公网回调（匿名写）——都是检索零成本但**必须挡刷**；429 对微信侧无害（5s 无回复它会重发）。
+RATE_LIMIT_PREFIXES = ("/plan", "/extract", "/hotel/", "/poi/", "/weather", "/food", "/ask",
+                       "/support")
 
 # /ask 的 with_answer=1 烧 LLM 配额，且隧道不透传 IP（全场共享一桶）——按 IP 配额无意义，
 # 所以生成走**独立的全局桶**（默认 10 次/分钟）。换隧道后 client_ip 按人生效，此桶仍作总闸。
@@ -540,6 +547,83 @@ def ask_corpus(q: str, city: str | None = None, k: int = 5,
     公开白名单接口不自动烧 LLM 配额），LLM 失败自动降级为纯检索结果。
     """
     return rag_ask(q=q, city=city, k=k, with_answer=with_answer, tag=tag)
+
+
+# ---------- 客服会话（国内化一期：RAG 客服 + 转人工 + 线索） ----------
+# 与 /ask 的关系：/ask 是检索问答页（白名单、只读），/support/message 是客服
+# 动作（公开但**有写**：线索与会话落盘）。三档决策在 support.py，这里只做
+# 接口层校验与生成配额闸门。
+SUPPORT_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+# 站内客服的生成层总开关（渠道侧公众号永远不生成——被动回复 5s 时限）。
+# 默认 0 = 零 LLM 成本；置 1 且请求显式带 generate=true 才可能生成。
+SUPPORT_GENERATE = _int_env("SUPPORT_GENERATE", 0)
+
+
+@app.post("/support/message")
+def support_message(body: dict) -> dict:
+    """客服一问一答：检索 → 三档决策（命中/部分答案/转人工）→ 线索联动。
+
+    body: `{"session_id": 前端生成, "text": 用户消息, "generate": 可选 true}`
+    generate=true 时尝试 grounded 生成（复用 /ask 生成配额总闸，超限自动
+    降级为纯检索组句——客服不该把 429 抛到用户脸上）。默认零 LLM 成本。
+    """
+    sid = str(body.get("session_id") or "").strip()
+    if not SUPPORT_SESSION_RE.fullmatch(sid):
+        raise HTTPException(400, "session_id 格式非法（字母数字下划线短横线，≤64 字）")
+    allow_gen = False
+    if body.get("generate") and SUPPORT_GENERATE:
+        if ask_gen_limit_hit(time.time()):
+            log.info("客服生成额度已满，本条降级为纯检索组句")
+        else:
+            allow_gen = True
+    try:
+        return support.answer(sid, str(body.get("text") or ""),
+                              channel="web", allow_generate=allow_gen)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/support/leads", dependencies=[Depends(verify_token)])
+def support_leads(status: str | None = None, limit: int = 100) -> dict:
+    """线索清单（管理端）：按更新时间倒序；handoff 态是运营唯一必看的待跟进。"""
+    try:
+        rows = leads.list_leads(status=status, limit=limit)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"leads": rows,
+            "handoff_count": sum(1 for r in rows if r.get("status") == "handoff")}
+
+
+@app.post("/support/leads/status", dependencies=[Depends(verify_token)])
+def support_lead_status(body: dict) -> dict:
+    """人工跟进闭环：改线索状态（open / handoff / closed）。"""
+    try:
+        lead = leads.set_status(str(body.get("lead_id") or ""),
+                                str(body.get("status") or ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if lead is None:
+        raise HTTPException(404, "线索不存在")
+    return {"lead": lead}
+
+
+@app.get("/support/conversation/{session_id}", dependencies=[Depends(verify_token)])
+def support_conversation(session_id: str) -> dict:
+    """会话留痕查询（管理端）：每轮的决策档位都在——审计「当时为什么这么答」。"""
+    try:
+        msgs = support.load_conversation(session_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"session_id": session_id, "messages": msgs}
+
+
+@app.get("/admin/usage", dependencies=[Depends(verify_token)])
+def admin_usage(days: int = 7) -> dict:
+    """LLM 成本台账：按「用途 × 模型」聚合最近 N 天的调用量与 token 数。"""
+    return llm_ledger.summary(days=days)
+
+
+app.include_router(wechat_router)
 
 
 @app.get("/cities")

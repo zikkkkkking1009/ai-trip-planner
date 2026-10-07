@@ -342,3 +342,9 @@ cd backend && python eval_aligner.py
   两个测试随语料变富演进（垃圾词输入改生僻字构造；美食查询允许描述提及该菜的景点伴随命中，
   闸门仍逐条核查）。测试 433 → **437**。首页问答演示框由 workbuddy 落地（25 项 smoke 进 CI）；
   `/ask` 补入限流花钱路径清单；10 个积压提交已 push。与 workbuddy 并发协作机制确立（COLLAB_LOG 10-04 条目）。
+- 2026-10-07（国内化一期，分支 `feat/domestic-support` 首走 PR 流）：把投递公司的 6 模块 AI 项目需求
+  做国内化映射后落地**三件套**——RAG 客服三档决策 + 转人工线索（`support.py`/`leads.py`，复用 R3
+  能力边界做下游动作，新增评测维度「转人工正确率」）、公众号测试号官方回调（`wechat_mp.py`，
+  sha1 验签 + 明文 XML + MsgId 去重，渠道侧永不烧 LLM）、LLM 成本台账（`llm_ledger.py`，5 出口打点 +
+  `/admin/usage` 聚合）。内容工具/社媒/视频工厂经可行性判定暂不做（无 ffmpeg/无 GPU，方案级呈现）。
+  接口 34 → **41**，测试 484 → **521**（+40），反向验证成立；详见 HANDOFF 附节与 README v1.18。

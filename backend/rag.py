@@ -12,8 +12,10 @@ from __future__ import annotations
 import logging
 import math
 import re
+import time
 from functools import lru_cache
 
+import llm_ledger
 from corpus_fields import food_tags, spot_fields
 from demo_data import DEMO_SPOTS
 from editor import _llm
@@ -347,6 +349,7 @@ def generate_answer(q: str, results: list[dict[str, object]]) -> dict[str, objec
         snippets = "\n".join(
             f"[{i}] {r['type']}｜{r['city']}｜{r['name']}｜{r['text']}"
             for i, r in enumerate(results, 1))
+        t0 = time.monotonic()
         resp = retry_call(lambda: client.chat.completions.create(
             model=model,
             messages=[
@@ -357,6 +360,7 @@ def generate_answer(q: str, results: list[dict[str, object]]) -> dict[str, objec
             ],
             temperature=0.1,
         ), what="RAG 答案生成 LLM 调用")
+        llm_ledger.record("rag_answer", model=model, resp=resp, t0=t0)
         text = (resp.choices[0].message.content or "").strip()
     except Exception as e:  # 降级：生成不可用不影响检索结果本身，宁可缺答案不编答案
         log.warning("RAG 生成降级：%s: %s", type(e).__name__, e)

@@ -36,6 +36,7 @@ from pathlib import Path
 
 from commute import load_env_file
 from reliability import retry_call
+import llm_ledger
 
 log = logging.getLogger(__name__)
 
@@ -456,6 +457,7 @@ class POIAligner:
             "（注意排除商店、公交站、景区内子景点、同名商户）。\n"
             '只输出 JSON，不要输出其他内容：{"pick": "<候选名称原文，若都不合适则为空字符串>"}'
         )
+        t0 = time.monotonic()
         try:
             client = OpenAI(api_key=api_key, base_url=base_url, timeout=30)
             resp = client.chat.completions.create(
@@ -463,6 +465,9 @@ class POIAligner:
                 temperature=0,
                 messages=[{"role": "user", "content": prompt}],
             )
+            llm_ledger.record("align_arb",
+                              model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
+                              resp=resp, t0=t0)
             text = resp.choices[0].message.content or ""
             m = re.search(r"\{.*\}", text, re.S)
             data = json.loads(m.group(0)) if m else {}
