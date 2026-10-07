@@ -1051,3 +1051,15 @@ realbench：53 → 52             ❌ 退化 1 项
 - **我辖区（后端）**：新增 `backend/leads.py`（线索 JSON 落盘，复用 favorites/media_cache 锁+原子写模式）、`backend/support.py`（`POST /support/message` 三档决策：命中→R4 grounded 答案｜边缘→不确定话术｜无支撑→自动转人工置 leads；会话历史落 `data/conversations/`，每轮档位留痕；新评测指标=转人工正确率）、`backend/llm_ledger.py`（LLM 出口打点落 `data/llm_usage.jsonl`，只记账不改行为；`GET /admin/usage` verify_token 罩住）、`backend/channels/wechat_mp.py`（公众号测试号适配：sha1 验签+明文 XML 回调，**零新依赖**，离线 XML fixture 测试）；`main.py` 注册路由 + `.env.example` 补 `WECHAT_MP_TOKEN`；`/support/wechat` 加入限流花钱路径清单。
 - **你的辖区（前端）**：本期**零前端改动**（UI 已超标纪律）；若要「转人工已记录」状态展示，走 COLLAB_LOG 协商另行排期——API 完整性我先保证。
 - **纪律沿用**：R4 默认关——渠道消息先检索后生成、无支撑不生成，匿名微信消息不烧 LLM 配额；不引入任何依赖；测试先行+反向验证；`spot_media.json` 不裹入。
+
+## 2026-10-07 15:10 | ZCode | 完结条目：国内化一期落地——RAG 客服三档 + 转人工线索 + LLM 成本台账（分支 `feat/domestic-support`，PR 待合并）
+
+- **交付**（计划条目见 13:50 那条，全部兑现）：① `backend/support.py`——`POST /support/message` 三档决策（unsupported/空结果→自动转人工落线索；attr/soft→部分答案+⚠️缺口说明；命中→引用作答；用户发「人工」跳过检索直接落单），会话留痕 `data/conversations/{sid}.json` 每轮记决策档位；② `backend/leads.py`——线索 JSON 落盘（锁+原子写），status 三态 open/handoff/closed，closed 再来消息自动重开；③ `backend/llm_ledger.py`——5 个运行时 LLM 出口（extract/edit_parse/reviews/plan_review/rag_answer/align_arb）打点 `data/llm_usage.jsonl`（2MB 轮转，写失败不拖垮业务），`GET /admin/usage` 聚合；④ `backend/wechat_mp.py`——公众号测试号官方回调：sha1 验签（标准库）、明文 XML 被动回复、**MsgId 去重**（微信 5s 无回复会重发）、加密模式如实 501；⑤ `main.py` 注册 7 个新接口（`/support/message`、`/support/leads`、`/support/leads/status`、`/support/conversation/{sid}`、`/admin/usage`、`/support/wechat` GET+POST），`/support` 前缀进限流清单。
+- **你的辖区零占用**：前端一行没动（「转人工已记录」的展示留给你，API 已备好 `/support/leads` + `/support/conversation/{sid}`，均 verify_token）；动到的既有后端文件只有 LLM 出口记账接线（`editor.py` ×3 处、`extractor.py`、`aligner.py`、`rag.py` 各 +2 行，`llm_ledger.record()` 出任何异常都不影响原调用）与 `main.py` 的限流前缀表（`/support` 加入，理由写在注释里）。
+- **数字**：接口 34 → **41**（21 GET / 18 POST / 1 DELETE / 1 WS，openapi 口径）；测试 484 → **521 passed + 1 skipped**（+40：三档决策 16、公众号回调 13、台账 5、线索 6；那 1 个 skip 是依赖真实 Key 的用例，无 Key 环境按设计跳过）。
+- **反向验证**：把 `support.py` 两处 handoff 分支突变回「永远 answer」→ 3 条转人工守卫用例判红（unsupported/no-results/gibberish），关键词分支用例不受影响（正确范围）→ 已还原，突变脚本没留下痕迹。
+- **真机冒烟九项全过**（临时端口 8010，未动 8000 线上实例）：命中→5 条引用全 verified；「故宫需要预约吗」→自动转人工；「请转人工」→工单话术；401/200 闸门；线索 handoff_count=1；会话 3 轮档位 answer/handoff/handoff；验签 echo；错签 403；同 MsgId 去重。**剩一项真机验收需用户**：注册公众号测试号 → 回调 `https://13054hfil6910.vicp.fun/support/wechat` + Token → 关注发消息收 RAG 回复。
+- **两枚新坑（已进 HANDOFF 附节）**：① 本机跑测试掐 Key 必须 `env -u`（unset）而不是 `KEY=`（置空）——置空会撞 selftest 的「fast_key_missing」静态矛盾判定（真 `.env` 的 `LLM_FAST_BASE_URL` 还在、Key 是空串）；② 这版 FastAPI 把 include 的 router 包成 `_IncludedRouter`（`app.routes` 里 `path=None`），枚举路由必须走 `app.openapi()['paths']`，遍历 `app.routes` 会漏 router 路由。
+- **文档同步**：HANDOFF（横幅数字/测试行/接口行/决策 18/附节）、README + README_en（徽章 521、API 表 26→41、门禁数字、v1.18 条目）、ROADMAP 更新记录、interview-defense（「转人工怎么实现」「LLM 成本怎么管」两条答法）。
+- **门禁（全部本批复跑）**：pytest 521+1skip ｜ ruff 0 ｜ mypy 0 ｜ 五维审计 0 错 0 警 ｜ check_frontend 绿 ｜ 对比度门禁绿 ｜ 冒烟 47/47 + 48/48 + 50/50。
+- **未裹入**：`backend/spot_media.json`（运行期脏文件）；`data/` 下新增的运行期文件（leads/conversations/llm_usage.jsonl）本就在 gitignore 内。

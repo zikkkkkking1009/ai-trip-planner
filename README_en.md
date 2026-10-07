@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-349%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-521%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -150,7 +150,7 @@ cp backend/.env.example backend/.env
 | DELETE | `/plans/{id}` · POST `/plans/delete` | Delete / batch delete (soft delete, recoverable) |
 | GET | `/favorites` · POST `/favorites` | Favorites list / add-remove |
 
-**26 endpoints in total** (13 GET / 11 POST / 1 DELETE / 1 WebSocket).
+**41 endpoints in total** (21 GET / 18 POST / 1 DELETE / 1 WebSocket; `/meta` is the runtime source of truth).
 
 ---
 
@@ -159,7 +159,7 @@ cp backend/.env.example backend/.env
 **Test and gate commands** (all run without an API key):
 
 ```bash
-cd backend && python -m pytest -q          # unit tests (349 passed; AMap-dependent hotel cases skip without AMAP_KEY)
+cd backend && python -m pytest -q          # unit tests (521 passed + 1 skipped; cases needing real keys skip in key-less environments)
 cd .. && node tools/frontend_smoke.js      # frontend jsdom runtime smoke (18 assertions)
 node tools/hotel_smoke.js                  # hotel picker + long-image preview + map view jsdom smoke (30 assertions)
 python tools/check_frontend.py             # frontend static check (10 blocking gates)
@@ -173,7 +173,7 @@ python tools/check_backend_health.py       # backend five-dimension robustness a
 > broke CI 10 times in a row on 2026-09-28). CI pins jsdom to `30.1.1`; to reproduce the CI
 > environment run `npx -y node@20 tools/frontend_smoke.js`.
 
-- **Tests and CI**: **349 unit tests** all passing (alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather / hotel endpoints), GitHub Actions green
+- **Tests and CI**: **521 unit tests** all passing (521 passed + 1 skipped without keys; alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather / hotel endpoints / integration / **RAG retrieval & generation / support three-tier decision & human handoff / WeChat callback / LLM usage ledger**), GitHub Actions green
 - **Nine CI gates**: unit tests + **frontend static check** (10 blocking gates: syntax / variable shadowing / hardcoded coordinates / attribute escaping / CSS self-reference / undefined CSS variables / document integrity) + **two-level contrast gates** (page-level token parsing + spec-level light/dark) + **backend five-dimension robustness audit** + **ruff lint** + **mypy type check** + **jsdom runtime smoke** (`frontend_smoke.js` 22 assertions + `hotel_smoke.js` 48 assertions) + a keyless solver demo
 - **Static-check strategy**: ruff enables only **bug-catching rules** (`E4/E7/E9/F`) rather than every style rule — turning everything on at once produces a wall of `# noqa` and the gate stops being read. `main.py`'s `E402` is an **intentional exemption** (`.env` must load before logging is initialised); the reason is recorded in `ruff.toml`. mypy runs **gradually** (bodies of unannotated functions are not checked by default), so genuine type errors in annotated code surface first — **zero `# type: ignore`**
 - **Caching and throttling**: three-tier commute cache (repeat solves issue **zero** API calls); AMap throttled at 0.35 s
@@ -211,7 +211,7 @@ backend/
   reliability.py          Unified timeouts and retries (shared by LLM and AMap)
   weather.py              Trip weather (open-meteo, keyless; admits "unavailable" rather than inventing data)
   logging_setup.py        Logging config and request-id context
-  tests/                  349 unit tests
+  tests/                  521 unit tests
 static/index.html         Roadbook frontend (single file, zero build, zero CDN)
 tools/                    Check and verification scripts (five-dimension audit / frontend static check / frontend & hotel jsdom smoke / multi-city end-to-end)
 data/plans/               Plan snapshots (soft-delete flag)
@@ -282,6 +282,7 @@ Architecture ideas drawn from [liketrek/TREK](https://github.com/liketrek/TREK),
 
 ## Changelog
 
+- **v1.18（2026-10-07）**: **Domestic phase 1: RAG customer service + human-handoff leads + LLM usage ledger** (branch `feat/domestic-support`, the first batch to go through a GitHub branch + PR) — a cross-border e-commerce company's 6-module AI project brief was mapped onto this project with domestic equivalents (its "knowledge-base support with human fallback", "lead capture" and "API cost" pillars; content tool / social workbench / video factory were judged out of scope for now). **Three-tier support decision** (`backend/support.py`) fully reuses the RAG capability boundary: `unsupported` gaps or empty results → **automatic human handoff** with a lead record (`backend/leads.py`, JSON store with lock + atomic write, three states open/handoff/closed); `attr/soft` gaps → partial answer plus an explicit caveat; normal hits → cited answers; messages asking for a human skip retrieval entirely. **Transcripts** land in `data/conversations/{sid}.json` with the decision tier per turn (auditable). **Channel** (`backend/wechat_mp.py`): official WeChat MP sandbox callback — stdlib sha1 signature verification, plaintext XML passive replies, MsgId de-duplication (WeChat re-sends after 5s), honest 501 for encrypted modes; the channel **never burns LLM budget** (5s passive-reply window), generation stays web-only and off by default (`SUPPORT_GENERATE=0`, gated by the shared `/ask` generation bucket when enabled). **LLM usage ledger** (`backend/llm_ledger.py`): all 5 runtime LLM call sites record purpose/model/tokens/latency into `data/llm_usage.jsonl` (bookkeeping only, failures never break the caller), aggregated by `GET /admin/usage?days=7`. Endpoints 34 → **41**; tests 484 → **521** (+40), handoff guards **reverse-validated** (collapsing the decision back to "always answer" turns 3 cases red); all gates green
 - **v1.17（2026-09-28）**: **Response gzip enabled — public bandwidth capacity ×3** — the two pages measure **310 KB** uncompressed (`/` 87 KB + `/app` 223 KB; single-file SPA with inline JS/CSS), while the tunnel only gives 139–185 KB/s ⇒ loading the planner took **1.28 s**. With `GZipMiddleware`: `/app` 223→**74 KB**, `/` 87→**28 KB** (3.08×/3.15×), measured **0.69 s** through the tunnel, and the monthly 1 GB now covers about 3000 → **~9700** full sessions. Two traps are documented in the code: (1) it must sit on the **inner** side (`add_middleware` must precede `@app.middleware("http")`) — Starlette makes the last-added middleware the outermost, and out there `BaseHTTPMiddleware` strips `content-length`, so `minimum_size` silently stops working (the 127-byte `/health` got compressed too); (2) it only applies when the client sends `Accept-Encoding: gzip`. Four endpoint-level assertions added. pytest 349→**350**
 - **v1.16（2026-09-28）**: **Correction + final call: the hero deliberately ignores `prefers-reduced-motion`** — the previous version got this backwards. **This machine has Windows "Animation effects" turned off** (`SPI_GETCLIENTAREAANIMATION = 0`, read directly via ctypes), so the browser **always reports reduce** and the fallback froze the hero into a static frame — the site owner's screen recording is the proof (frames at 0.15s and 1.36s are **0.00%** different pixel-wise, versus 6%/0.8s on a dev machine). The previous version concluded "the premise does not hold" because **Playwright emulates `reducedMotion` as no-preference by default**, so "testing reduce with Playwright" can never observe it. **Final call: the hero illustration intentionally opts out of reduce** — done by putting `!important` on each of its animation declarations (`.hero-card svg .x` = 0,2,1 beats the global `*` = 0,0,0), while every other motion (scroll reveal / theme switch / desktop pet / view transitions) **still** respects the preference. The gate now asserts **both environments** (≥4% under normal *and* reduce) and was **reverse-validated** (against the previous version the reduce row fails, exit 1, measuring 0.00%)
 - **v1.15（2026-09-28）**: **Fixed the homepage hero reading as "frozen" + added a motion-visibility gate** — the animation was never broken (it ran, with correct 5.5s/7s durations); the problem was **amplitude**: only **2.61%** of the hero's pixels changed per 0.8s, so it read as a static illustration. Fix: the main route now **draws itself** (a dashed ghost underneath marks "not yet drawn"), the full-route dash march is kept, the comet segment goes 12→38 and its width 3.5→5px, anchors light up in tip order, and the whole illustration drifts slowly (amplitude kept inside the card padding). Measured **2.61% → 6.00% (peak 6.77%)**. This entry also once judged the "reduce premise" to be false (the old accessibility fallback was re-instated as a result) — **that judgement was wrong**: it rested on a Playwright measurement, and Playwright emulates `reducedMotion` as no-preference by default. Reading `SPI_GETCLIENTAREAANIMATION` directly yields **0**, so the premise holds; see v1.16 for the final call. New `tools/hero_motion_check.js` (local gate: real-render per-window pixel diff, with a "frozen must be ≈0" self-validating control; **reverse-validated** — it fails with exit 1 on the previous version). Count corrections: pytest 348→**349**, hotel_smoke 49→**48**

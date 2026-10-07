@@ -2,7 +2,7 @@
 
 > 用途：**新会话读这一份就能无损接上下文**。
 > ✅ **2026-09-24 已同步**：**SSH 已配好**（`~/.ssh/id_ed25519`，remote 已切 `git@github.com:zikkkkkking1009/ai-trip-planner.git`），58 个提交已推上远程 `main`（`f79fa7f..5f86b91`）。以后 `git push` 免交互。
-> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 445**、接口 **20 → 34**、前端冒烟 **12 → 22+48**（详见二、六节）。
+> ② 本项目**已迁移到 `D:\workby room\ai-trip-planner`**（旧文档里的 `C:\Users\周周\OneDrive\桌面\...` 已失效）；③ 单元测试 **84 → 521**、接口 **20 → 41**、前端冒烟 **12 → 47+48+50**（详见二、六节）。
 > 项目：AI 行程规划系统（LLM + 组合优化的行程调度）。仓库：https://github.com/zikkkkkking1009/ai-trip-planner
 > 目标背景：为**周周（2028 届，大三）**积累一段能写进简历、能扛面试追问的经历，deadline 是 2027 年 3 月暑期实习开岗。
 
@@ -65,9 +65,9 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | RAG 能力边界（realbench 17 条） | **53/53 检查项 · 17/17 用例**（2026-10-04）。三档拒答 unsupported / attr / soft + 属性覆盖率动态实数 | `python tools/rag_realbench.py` |
 | RAG 生成层（R4） | `/ask?with_answer=1` 基于**本次检索片段**生成 ≤100 字答案（glm-4-flash + retry_call，失败降级 text=None）+ **实体回链核查 `grounded`**（答案实体必须 ∈ 引用片段，子串豁免防误报）；**默认关**——公开白名单接口不自动烧 LLM 配额 | `backend/tests/test_rag_gen.py` |
 | 语料增强（R5） | `spot_desc.py` 360 条一句话描述（公开常识、无营销话术，测试闸门管覆盖率/键名一致/纪律），`build_corpus` 对 desc 空景点兜底；三臂重测 BM25 hit@1 66.7→90.0 | `backend/spot_desc.py` |
-| 单元测试 | **484 个**全过（**0 skipped**，2026-10-05 实测 `484 passed in 55.10s`） | `pytest backend/tests/ -q` |
+| 单元测试 | **521 个**全过 + 1 skipped（**2026-10-07 实测** `521 passed, 1 skipped`，无 Key 环境——那个 skip 依赖真实 Key；有 Key 时它会执行） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **12 项**全绿；冒烟 **47/47**（规划页，含容量预警条 13 项）+ **48/48**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态）+ **50/50**（首页检索问答）；真机 **12/12**（容量条，真实 Edge + 真实后端） | `tools/` |
-| 接口数 | **34 个**（15 GET / 17 POST / 1 DELETE / 1 WS）。较 09-28 新增主力：`/ask`（RAG 检索问答）、`/plan/recheck` + `/plan/edit`（结果侧确定性编辑）、`/plan/capacity`（规划前容量预估）、`/poi/search`、`/food` ×4（美食情报卡） | `backend/main.py` |
+| 接口数 | **41 个**（21 GET / 18 POST / 1 DELETE / 1 WS，openapi 运行时口径）。较 09-28 新增主力：`/ask`（RAG 检索问答）、`/plan/recheck` + `/plan/edit`（结果侧确定性编辑）、`/plan/capacity`（规划前容量预估）、`/poi/search`、`/food` ×4（美食情报卡）、`/support` ×5（国内化一期客服：message / leads / leads/status / conversation / wechat 回调）+ `/admin/usage`（LLM 成本台账） | `backend/main.py` |
 
 **产品功能**：**桌面网站形态**（顶部毛玻璃导航 + Hero + 左表单/右结果双栏，<1024px 自动降级单列；已去掉 460px 手机壳）、**桌宠式 AI 对话助手**（右下角常驻角色：眨眼/呼吸/光标跟随/四表情，点击展开气泡面板，消息气泡 + 动态快捷指令 + 思考动画；能改行程**也能回答行程问题**；对话操控走主模型，消息用 textContent 防 XSS）、**偏好选择**（均衡 / 少走路 / 省钱 / 多玩，权重经扫描标定）、**稳健性模拟**（1000 次抽样估"按时走完的概率"+ 给出"去掉哪个景点能提升多少"，一键执行；参数敏感性见实验七）、**多城市**（**38 城 375 个景点**预置 = 西安 14 手写 + 37 城 361 条脚本抓取，坐标全部来自高德真实抓取；任意城市走「粘攻略→识别城市→对齐」，`build_demo_data.py --auto` 可继续扩容）、**粘贴攻略自动识别景点**（LLM 抽取 + 城市识别 + 低置信度条目自动跳过）、日历选期、地图按天分色 + 图例开关、景点详情卡（实景图灯箱 / AI 介绍 / 好评避雷双卡 / 地址一键导航）、**酒店选择器（2026-09-24 重做：打开即推荐附近酒店，无需先搜索；关键词收窄；分页「加载更多」每页 25 条；卡片给出评分 / 归一化档位 / 区域 / 到行程中心的真实距离 / 地址 / 电话 / 多图画廊；三种排序 + 档位·评分筛选；一键更换；就地小地图；⚠️ 没有真实房价——高德免费接口不含房价，字段留空即不显示、绝不编造）**、**住宿锚点**（每天起点终点，往返通勤计入；支持「先选酒店再规划」，`PlanRequest.hotel` 透传并回显）、对话式修改（多轮记忆）、历史规划（预览 / 软删除 / 批量清理）、收藏、免费模型通道。
 
@@ -131,6 +131,13 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
     （glm-4-flash + `retry_call`，失败降级 text=None）——公开白名单接口不能让匿名请求自动烧 LLM 配额。
     生成答案跑 `check_grounding`：**答案实体必须 ∈ 本次引用片段**（子串豁免防误报：「古城」⊂「大同古城」
     算同一提及，宁可漏报不误报）——R2 的反幻觉闸门从「引用」延伸到「生成文本」。
+18. **客服「不确定转人工」是能力边界的下游动作，不是新闸门（2026-10-07，国内化一期）**：
+    `support.py` 的三档决策**完全复用** rag.py 的 `gap`（unsupported/attr/soft），不另造一套判断——
+    两个口径必然漂移。客服语境与检索问答页的差别只在**代价**：页面答错只是少条引用，客服答错误导客户决策，
+    所以 `unsupported`/空结果在客服侧的动作是**转人工 + 落线索**，而不是「硬凑同城清单」。
+    渠道侧（公众号被动回复）**永不烧 LLM**：5s 回复时限 × LLM 延迟不可控，两个约束选了确定性组句；
+    web 端生成默认关（`SUPPORT_GENERATE`），开了也走 `/ask` 的生成配额总闸。
+    「该转的转了、不该转的没转」（转人工正确率）是这一层的评测指标，数据来自会话留痕。
 
 ---
 
@@ -440,3 +447,38 @@ Node 22 才有的 `webidl.util.markAsUncloneable`；而 CI 的 `node-version` �
   —— **这次排查最大的障碍就是 Actions 日志要登录才看得到**，以后失败原因直接出现在摘要上
 
 验证：run **#92 = success**，15 个步骤全部 ✓（无 skipped）。提交 `128f52e`。
+
+## 附：2026-10-07 国内化一期（RAG 客服 + 转人工线索 + LLM 成本台账，ZCode）
+
+**背景**：用户把投递公司（跨境电商）的 6 模块 AI 项目需求做**国内化映射**落到本项目，
+是**首个走 GitHub 分支 + PR 的批次**（分支 `feat/domestic-support`，CI 在 PR 上跑，门禁全绿后合并）。
+可行性判定：内容工具 / 社媒工作台 / 视频工厂本期不做（视频工厂：本机无 ffmpeg、无 GPU，方案级呈现；
+映射文档在工作区 `sessions/20261007-1334_crossborder-agent/NOTES.md`）。
+
+**新增四模块**（接口 34 → 41、测试 484 → 521）：
+
+| 模块 | 文件 | 要点 |
+|------|------|------|
+| 线索存储 | `backend/leads.py` | JSON 落盘（锁 + 原子写，同 favorites 纪律）；status 三态 open/handoff/closed；人工收尾后再来消息自动**重开**（找回客户≠新建客户）；上限 500 条防刷 |
+| 客服三档 | `backend/support.py` | 决策完全复用 rag 的 `gap`（见决策 18）；会话留痕 `data/conversations/{sid}.json` 每轮记档位；session_id 白名单防路径穿越；用户发「人工」跳过检索直接落工单 |
+| 成本台账 | `backend/llm_ledger.py` | 5 个运行时 LLM 出口统一打点（extract/ edit_parse/ reviews/ plan_review/ rag_answer/ align_arb），JSONL 追加 + 2MB 轮转；**只记账不改行为**，写失败不拖垮业务；`GET /admin/usage` 聚合 |
+| 公众号渠道 | `backend/wechat_mp.py` | 测试号官方回调：sha1 验签（标准库）、明文 XML 被动回复、**MsgId 去重**（微信 5s 无回复会重发）、加密模式如实 501；`GET` 验证 + `POST` 回调都**不走 APP_TOKEN**（微信带不了，验签即鉴权），已登记进 test_auth 留开清单 |
+
+**给后续维护的三条**：
+① 渠道侧**永不烧 LLM**——被动回复 5s 时限，生成层只对 web 端开且默认关（`SUPPORT_GENERATE=0`，
+开了也要同时满足「请求显式 generate=true + 生成配额桶未满」）；改这条前先想清楚 5s 红线。
+② conftest 有 autouse fixture `isolated_llm_ledger` 把台账重定向到 tmp——**测试里的 mock LLM 调用也会记账**，
+不重定向会污染真实 `data/llm_usage.jsonl`（运行期成本报表就废了）。
+③ `/support/wechat` 对微信侧 429 无害（5s 无回复它会重发，MsgId 去重保证不重复应答），
+但**必须保持验签**——它是不带 APP_TOKEN 的公网写接口，是整个白名单里唯一一个。
+
+**真机冒烟（2026-10-07，临时端口 8010，九项全过）**：命中问题→引用作答（5 条引用全 verified）；
+「故宫需要预约吗」→自动转人工；「请转人工」→工单话术；无令牌 401 / 带令牌 200；线索 handoff_count=1；
+会话留痕 3 轮档位 answer/handoff/handoff；验签 echo 原样返回；错误签名 403；同 MsgId 重发去重。
+**真机验收剩一项（需用户操作）**：注册公众号测试号 → 接口配置填 `https://13054hfil6910.vicp.fun/support/wechat`
++ Token（与 `.env` 的 `WECHAT_MP_TOKEN` 一致）→ 关注后发消息，收到带引用的 RAG 回复即闭环。
+
+**坑两枚**：① 本机掐 Key 跑测试要用 `env -u`（真正 unset），用 `KEY=`（置空）会触发 selftest
+「fast_key_missing」静态矛盾判定——真 `.env` 的 `LLM_FAST_BASE_URL` 还在、Key 却是空串；
+② 这版 FastAPI 把 include 的 router 包成 `_IncludedRouter`（`app.routes` 里 `path=None`），
+枚举路由要用 `app.openapi()['paths']`，直接遍历 `app.routes` 会漏掉 router 路由。

@@ -29,6 +29,7 @@ from cities import DEFAULT_CITY, city_center
 from commute import AMAP_TIMEOUT_S, load_env_file
 from models import Spot
 from reliability import retry_call
+import llm_ledger
 
 log = logging.getLogger(__name__)
 
@@ -116,6 +117,7 @@ def parse_instruction(instruction: str, plan_summary: str,
         ],
         temperature=0.1,
     ), what="意图解析 LLM 调用")
+    llm_ledger.record("edit_parse", model=model, resp=resp, t0=_t0)
     log.info("意图解析完成：%.2fs（模型 %s，历史 %d 轮）",
              time.time() - _t0, model, len(history or []))
     raw = resp.choices[0].message.content or ""
@@ -541,6 +543,7 @@ def generate_reviews(name: str, intro: str = "") -> dict | None:
         ],
         temperature=0.8,
     ), what=f"评价生成 LLM 调用（{name}）")
+    llm_ledger.record("reviews", model=model, resp=resp, t0=_t0)
     log.info("评价生成完成：%.2fs（模型 %s，%s）", time.time() - _t0, model, name)
     try:
         parsed = _tolerant_json_parse(resp.choices[0].message.content or "")
@@ -614,6 +617,7 @@ def review_plan(plan_summary: str, memory: list[str] | None = None) -> dict:
                        "content": f"{mem_txt}行程如下：\n{plan_summary}"}],
             temperature=0.4,
         ), what="行程总评 LLM 调用")
+        llm_ledger.record("plan_review", model=model, resp=resp, t0=t0)
     except Exception as e:
         log.warning("行程总评失败: %s: %s", type(e).__name__, e)
         raise RuntimeError(f"总评生成失败：{type(e).__name__}") from e

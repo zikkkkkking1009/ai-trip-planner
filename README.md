@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-349%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-521%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -175,12 +175,20 @@ cp backend/.env.example backend/.env
 | GET | `/weather` | 行程期间的按天天气（open-meteo，免 key）；拿不到时返回 `available=false` + 原因 |
 | POST | `/hotel/recommend` · `/hotel/search` | 附近酒店推荐（无需关键词）/ 关键词检索（均支持 `page` 分页） |
 | POST | `/hotel/set` | 设为住宿锚点并重排 |
-| GET | `/poi/detail` · `/poi/reviews` | 地点详情（快接口）/ AI 评价（可异步补） |
+| GET | `/poi/detail` · `/poi/reviews` · `/poi/search` | 地点详情（快接口）/ AI 评价（可异步补）/ 关键词搜索 |
+| GET | `/food` · `/food/recommend` · POST `/food` · `/food/remove` | 美食情报卡：按城市增删查 / 城市特色推荐 |
 | GET | `/plans` | 历史规划列表 |
 | DELETE | `/plans/{id}` · POST `/plans/delete` | 删除 / 批量删除（软删除，可恢复） |
 | GET | `/favorites` · POST `/favorites` | 收藏列表 / 增删 |
+| POST | `/plan/capacity` · `/plan/recheck` | 规划前容量预估 / 结果侧确定性编辑（服务端全量重算） |
+| GET | `/ask` | 知识库检索问答：BM25 + 引用核查 + 三档拒答；`with_answer=1` 叠加 grounded 生成 |
+| POST | `/support/message` | 客服一问一答：三档决策（命中 / 部分答案 / 转人工）+ 线索联动 |
+| GET | `/support/leads` · POST `/support/leads/status` | 线索清单（管理端）/ 人工跟进状态闭环 |
+| GET | `/support/conversation/{sid}` | 会话留痕查询（每轮决策档位可审计） |
+| GET · POST | `/support/wechat` | 公众号（测试号）回调：sha1 验签 + 明文 XML 被动回复 |
+| GET | `/admin/usage` | LLM 成本台账：按「用途 × 模型」聚合调用量与 token 数 |
 
-共 **26 个接口**（13 GET / 11 POST / 1 DELETE / 1 WebSocket）。
+共 **41 个接口**（21 GET / 18 POST / 1 DELETE / 1 WebSocket；`/meta` 为运行时权威口径）。
 
 ---
 
@@ -189,9 +197,10 @@ cp backend/.env.example backend/.env
 **测试与门禁命令**（均可无 Key 运行）：
 
 ```bash
-cd backend && python -m pytest -q          # 单元测试（349 passed；依赖高德的酒店用例无 AMAP_KEY 时跳过）
-cd .. && node tools/frontend_smoke.js      # 前端 jsdom 运行时冒烟（22 项）
+cd backend && python -m pytest -q          # 单元测试（521 passed + 1 skipped；依赖真实 Key 的个别用例在无 Key 环境自动跳过）
+cd .. && node tools/frontend_smoke.js      # 前端 jsdom 运行时冒烟（47 项）
 node tools/hotel_smoke.js                  # 酒店弹层 + 长图预览 + 主题切换 jsdom 冒烟（48 项）
+node tools/home_ask_smoke.js               # 首页检索问答演示框 jsdom 冒烟（50 项）
 python tools/check_frontend.py             # 前端静态检查（10 项阻塞门禁）
 python tools/check_backend_health.py       # 后端五维健壮性审计（AST，无 Key 即可跑）
 python tools/check_contrast.py             # 页面级对比度门禁（解析两页 :root 令牌，零依赖）
@@ -208,8 +217,8 @@ cd backend && mypy .                       # 类型检查（渐进式，当前 0
 > - `node tools/contrast_runtime.js static/index.html static/home.html --all` —— 对比度真渲染复核
 > - `node tools/hero_motion_check.js` —— 首页 hero 插画「动效是否肉眼可辨」（覆盖一个周期逐窗比像素，正常与 reduce 双环境均值均须 ≥4%）
 
-- **测试与 CI**：**349 个单元测试**全过（对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / **接口级集成**），GitHub Actions 全绿
-- **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 22 项 + `hotel_smoke.js` 48 项）+ 无密钥的求解器 demo
+- **测试与 CI**：**521 个单元测试**全过（无 Key 环境 521 passed + 1 skipped；对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / 接口级集成 / **RAG 检索与生成 / 客服三档决策与转人工 / 公众号回调 / LLM 成本台账**），GitHub Actions 全绿
+- **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 47 项 + `hotel_smoke.js` 48 项 + `home_ask_smoke.js` 50 项）+ 无密钥的求解器 demo
 - **静态检查策略**：ruff 只开**能抓真 bug 的规则**（`E4/E7/E9/F`），不堆风格规则——一上来开全量只会产出满屏 `# noqa`，门禁就没人看了；`main.py` 的 `E402` 是**有意豁免**（必须先加载 .env 再初始化日志），理由写在 `ruff.toml` 里。mypy 走**渐进式**（默认不进未标注函数体），先把已标注部分的真类型错误抓干净，**0 处 `# type: ignore`**
 - **缓存与限频**：通勤矩阵三级缓存（重复求解 API 调用降为 0）；高德 0.35s 节流
 - **快慢接口分离**：详情接口只返回毫秒级可达的高德数据，AI 评价走二次请求异步补，避免首屏等待
@@ -280,7 +289,7 @@ backend/
   media_cache.py          媒体缓存 key 规则（城市|景点名）与原子写
   reliability.py          统一超时与重试（LLM + 高德共用）
   logging_setup.py        日志配置与请求 ID 上下文
-  tests/                  349 个单元测试
+  tests/                  521 个单元测试
 static/index.html         路书前端（单文件，零构建，零 CDN）
 tools/                    检查与验证脚本（五维审计 / 前端静态检查 / 前端与酒店 jsdom 冒烟 / 多城市端到端）
 data/plans/               规划快照（软删除标记）
@@ -319,6 +328,8 @@ HANDOFF.md                新会话接上下文的第一份文件
 ---
 
 ## 更新日志
+
+- **v1.18（2026-10-07）**：**国内化一期：RAG 客服 + 转人工线索 + LLM 成本台账**（分支 `feat/domestic-support`，首个走 GitHub 分支 + PR 的批次）——把一个跨境电商公司 6 模块 AI 项目需求做**国内化映射**后落到本项目（对应其「知识库客服/不确定转人工」「客户线索记录」「API 成本」三块；内容工具/社媒工作台/视频工厂经可行性判定本期不做）。**客服三档决策**（`backend/support.py`）：完全复用 RAG 已有的能力边界——`gap.kind=unsupported`（库里没有的数据）或空结果→**自动转人工**并落线索（`backend/leads.py`，JSON 落盘：锁 + 原子写，status 三态 open/handoff/closed，人工收尾后再来消息自动重开）；`attr/soft`（能答一部分但缺字段）→ 部分答案 + ⚠️ 缺口说明；正常命中 → 引用作答；用户发「人工/转人工」直接落工单。**会话留痕**：`data/conversations/{sid}.json` 每轮记录决策档位（可审计「当时为什么这么答」，也是转人工评测的数据来源）；session_id 白名单字符校验防路径穿越。**渠道**（`backend/wechat_mp.py`）：公众号**测试号**官方回调——sha1 验签（标准库）、明文 XML 被动回复、MsgId 去重（微信 5s 无回复会重发）、加密模式如实 501（零依赖边界）；**渠道永不烧 LLM**（被动回复 5s 时限），生成层只对 web 端开放且默认关（`SUPPORT_GENERATE=0`，开了也走 `/ask` 的生成配额总闸）。**LLM 成本台账**（`backend/llm_ledger.py`）：5 个运行时 LLM 出口（抽取 / 意图解析 / 评价生成 / 行程总评 / RAG 生成 / 对齐仲裁）统一打点落 `data/llm_usage.jsonl`（只记账不改行为，写失败不拖垮业务），`GET /admin/usage?days=7` 按用途 × 模型聚合。接口 34 → **41**；测试 484 → **521**（+40：三档决策 / 验签去重 / 台账轮转 / 线索生命周期），转人工守卫做了**反向验证**（把决策突变回「永远 answer」后 3 条用例判红）；门禁全绿（pytest / ruff / mypy / 五维审计 / 前端静态 + 47+48+50 冒烟）
 
 - **v1.17（2026-09-28）**：**开启响应 gzip —— 公网带宽容量 ×3** —— 实测两页未压缩共 **310 KB**（`/` 87 KB + `/app` 223 KB；单文件 SPA、JS/CSS 全内联），穿花生壳隧道只有 139~185 KB/s ⇒ 打开规划页 **1.28 s**。加 `GZipMiddleware` 后：`/app` 223→**74 KB**、`/` 87→**28 KB**（3.08×/3.15×），隧道实测 **0.69 s**，1 GB 月流量可服务的完整会话 约 3000 → **约 9700**。⚠️ 两个坑已写进代码注释：① 必须加在**内层**（`add_middleware` 要写在 `@app.middleware("http")` 之前）—— Starlette 里「最后添加的在最外层」，放外层会被 BaseHTTPMiddleware 吃掉 `content-length`，`minimum_size` 静默失效（实测 127 B 的 `/health` 也被压）；② 只对带 `Accept-Encoding: gzip` 的请求生效。新增 4 条接口级断言（大页面压 / `identity` 不压 / 解压后与原文字节一致 / <1 KB 不压）。pytest 349→**350**
 - **v1.16（2026-09-28）**：**勘误 + 定案：hero 动效有意豁免 `prefers-reduced-motion`** —— 上一版的结论写反了。**这台机器的 Windows「动画效果」是关的**（`SPI_GETCLIENTAREAANIMATION = 0`，用 ctypes 直读系统 API 验的），所以浏览器**恒报 reduce**，当时的降级把 hero 冻成静态帧 —— 站长的录屏就是铁证（0.15s 与 1.36s 两帧逐像素 **0.00%** 变化，而开发机同口径是 6%/0.8s）。上一版之所以判"前提不成立"，是因为**Playwright 默认把 reducedMotion 模拟成 no-preference**，"用 Playwright 去测 reduce"永远测不到。**定案：hero 插画有意不遵守 reduce** —— 做法是给它的每条动画声明加 `!important`（`.hero-card svg .x` 特异性 0,2,1 压过全局 `*` 的 0,0,0），其余动效（滚动淡入 / 主题切换 / 桌宠 / 视图过渡）**照旧**尊重系统偏好。门禁升级为**双环境**断言：正常与 reduce 下都须 ≥4%，**已反向验证**（对上一版跑 → reduce 项判红 exit 1，实测 0.00%）

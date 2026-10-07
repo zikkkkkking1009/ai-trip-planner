@@ -55,3 +55,11 @@ def no_selftest_network(monkeypatch):
     """
     monkeypatch.setenv("SELFTEST_SKIP", "1")
     monkeypatch.setattr(selftest, "_spawn", lambda fn: None)
+
+
+@pytest.fixture(autouse=True)
+def isolated_llm_ledger(monkeypatch, tmp_path):
+    """LLM 台账重定向到临时目录：测试里的 mock LLM 调用也会记账（editor/rag 出口），
+    不重定向会污染真实的 data/llm_usage.jsonl，把运行期成本报表搅浑。"""
+    import llm_ledger
+    monkeypatch.setattr(llm_ledger, "LEDGER_FILE", tmp_path / "llm_usage.jsonl")

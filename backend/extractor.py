@@ -16,6 +16,7 @@ import time
 from cities import DEFAULT_CITY, city_center, normalize_city
 from models import Spot
 from reliability import retry_call
+import llm_ledger
 
 LLM_TIMEOUT_S = 30.0   # 单次 LLM 调用超时（秒），失败由 reliability 重试
 
@@ -90,15 +91,17 @@ def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:
             "请先在 .env 中配置，或直接使用手工输入的景点列表。")
 
     client = OpenAI(api_key=api_key, base_url=base_url, timeout=LLM_TIMEOUT_S)
+    model_id = os.environ.get("LLM_MODEL_ID", "deepseek-chat")
     t0 = time.time()
     resp = retry_call(lambda: client.chat.completions.create(
-        model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
+        model=model_id,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"攻略文本：\n{text}\n\n参考格式：{json.dumps(_EXAMPLE, ensure_ascii=False)}"},
         ],
         temperature=0.1,
     ), what="攻略抽取 LLM 调用")
+    llm_ledger.record("extract", model=model_id, resp=resp, t0=t0)
     log.info("攻略抽取完成：%.2fs，输入 %d 字，输出 %d 字", time.time() - t0, len(text),
              len(resp.choices[0].message.content or ""))
     data = _tolerant_json_parse(resp.choices[0].message.content or "")

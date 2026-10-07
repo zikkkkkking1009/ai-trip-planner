@@ -87,6 +87,13 @@ def test_all_write_endpoints_are_protected(with_token):
     # 语料检索（/ask 零 Key 只读，数据与 /demo/spots 同源公开）、服务状态
     open_paths = {"/health", "/", "/app", "/meta", "/cities",
                   "/demo/spots", "/demo/config", "/ask", "/static",
+                  # 国内化一期（2026-10-07）刻意留开的两个公开路径，各有自己的闸：
+                  # ① /support/message —— 客服问答入口（检索零成本；写入只有线索/
+                  #    会话留痕，受限流 + 条数上限 + 消息长度三重约束；生成层
+                  #    SUPPORT_GENERATE 默认关，开了也走 /ask 的生成配额总闸）
+                  # ② /support/wechat —— 公众号回调，鉴权 = 官方 sha1 验签
+                  #    （微信服务器带不了 APP_TOKEN），加密模式直接 501
+                  "/support/message", "/support/wechat",
                   # FastAPI 自带的接口文档：**刻意留开**，不是漏网。
                   # ① 首页 footer 有意链到 /docs（作品集要展示 Swagger UI）；
                   # ② 文档只暴露接口形状，不泄露任何 Key；
@@ -96,7 +103,8 @@ def test_all_write_endpoints_are_protected(with_token):
                   "/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
     # 需要的路径参数值：用格式合法但必定不存在的 id（12 位 hex），
     # 这样"不是 401"就一定是漏了鉴权，而不是因为 404 侥幸通过
-    sample = {"task_id": "000000000000", "name": "x", "city": "西安"}
+    sample = {"task_id": "000000000000", "name": "x", "city": "西安",
+              "session_id": "000000000000"}
     leaks = []
     for route in app.routes:
         path = getattr(route, "path", "")
