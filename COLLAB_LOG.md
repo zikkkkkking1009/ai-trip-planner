@@ -1043,3 +1043,11 @@ realbench：53 → 52             ❌ 退化 1 项
 - **实测门禁（全部本批复跑）**：pytest **484 passed**（0 failed，55.10s）｜运行时对比度 selftest 5/5 ｜运行时对比度 4/4 全绿 ｜静态对比度 exit 0 ｜frontend_smoke 47/47 ｜check_frontend 绿。**未复核**：酒店冒烟 48/48、首页 smoke 50/50、真机 12/12（这轮没跑，文档里按你上轮记录保留原样）。
 - **风险与待办**：① 三个臂现在 hit@5 全打满 100%、hit@1 90%——**golden 30 条已经饱和**，继续用这套评测区分不出好坏，建议扩到 50 条或换更难的 query 类型，否则「不采纳向量重排」的依据会越来越像"没测出来"而不是"测了没差别"；② `--stay` 死令牌仍等你点头（我倾向按你对 `--accent-solid` 的同款处理加豁免）；③ 两轨 selftest 是否都进完结门禁 / CI，等你定。
 - **未裹入**：`backend/spot_media.json`（运行期脏文件）。本条只动 `README.md` / `README_en.md` / `HANDOFF.md` / `ROADMAP.md` / `docs/interview-defense.md` / `COLLAB_LOG.md`，**零代码**。
+
+## 2026-10-07 13:50 | ZCode | 计划条目：国内化一期——RAG 客服 + 线索 + 成本台账（分支 `feat/domestic-support`，用户已批准）
+
+- **背景**：用户把投递公司（跨境电商）发来的 6 模块 AI 项目需求拿到本项目做「国内化映射」，计划经用户批准：**三件套**=①RAG 客服会话化+转人工+线索管理（对应公司模块 3 的国内等价：公众号测试号替代 WhatsApp）②LLM 成本计量台账（对应模块 6）③咨询线索闭环（对应模块 2 表单）。内容工具/社媒工作台/视频工厂明确**本期不做**（视频工厂方案级呈现：本机无 ffmpeg、无 GPU，映射文档在工作区 `sessions/20261007-1334_crossborder-agent/NOTES.md`）。
+- **开发方式变更（用户要求）**：本次起走 **GitHub 分支 + PR**——分支 `feat/domestic-support`，CI 在 PR 上跑，门禁全绿后合并 main。注意：①分支期间**不重启线上服务**（静态文件切分支即生效、后端重启才生效），合并后再重启做真机验收；②本分支从含 8 个未 push 提交的 main 拉出，随分支一并上远端；③合并时 COLLAB_LOG 若冲突，保留双方条目。
+- **我辖区（后端）**：新增 `backend/leads.py`（线索 JSON 落盘，复用 favorites/media_cache 锁+原子写模式）、`backend/support.py`（`POST /support/message` 三档决策：命中→R4 grounded 答案｜边缘→不确定话术｜无支撑→自动转人工置 leads；会话历史落 `data/conversations/`，每轮档位留痕；新评测指标=转人工正确率）、`backend/llm_ledger.py`（LLM 出口打点落 `data/llm_usage.jsonl`，只记账不改行为；`GET /admin/usage` verify_token 罩住）、`backend/channels/wechat_mp.py`（公众号测试号适配：sha1 验签+明文 XML 回调，**零新依赖**，离线 XML fixture 测试）；`main.py` 注册路由 + `.env.example` 补 `WECHAT_MP_TOKEN`；`/support/wechat` 加入限流花钱路径清单。
+- **你的辖区（前端）**：本期**零前端改动**（UI 已超标纪律）；若要「转人工已记录」状态展示，走 COLLAB_LOG 协商另行排期——API 完整性我先保证。
+- **纪律沿用**：R4 默认关——渠道消息先检索后生成、无支撑不生成，匿名微信消息不烧 LLM 配额；不引入任何依赖；测试先行+反向验证；`spot_media.json` 不裹入。
