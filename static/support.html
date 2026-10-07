@@ -504,7 +504,7 @@
      resize:none + 固定 2 行高，内容超长纵向滚动（JS 的 autoGrow 仍管自适应）。 */
   .composer { display:flex; gap:8px; align-items:flex-end; }
   .composer textarea { flex:1; min-height:44px; max-height:140px; resize:none; overflow-y:auto;
-                       padding:11px 14px; border-radius:var(--radius-lg);
+                       padding:11px 20px; border-radius:var(--radius-pill);
                        border:1px solid var(--glass-brd); background:var(--glass-bg);
                        color:var(--fg); font-family:inherit;
                        font-size:14.5px; line-height:1.5;
@@ -512,10 +512,16 @@
                        -webkit-backdrop-filter:blur(14px) saturate(140%); }
   .composer textarea:focus { border-color:var(--accent-line); outline:none; }
   /* ---- Shimmer 发送钮（magicui）：45° 白色高光条扫过，2.6s linear infinite ---- */
+  /* 输入框有 1px 边框、按钮没有 ⇒ 内容自然高度差 2px（实测输入框 46 / 按钮 44），
+     两者并排时基线差 2px、肉眼只觉得「有点歪」。
+     按钮补1px 同色边框，配合全局 `box-sizing:border-box` + `height:44px`
+     ⇒ **外部尺寸不变**（仍是 44），内部对齐。border-color 用 transparent
+     以免在可用态看到多余描边（可用态是靠背景色表明「可点」的）。 */
   .composer button { position:relative; overflow:hidden; flex:none; height:44px; padding:0 20px;
                      border-radius:var(--radius-pill); cursor:pointer;
                      font-family:inherit; font-size:14.5px; font-weight:600;
-                     background:var(--accent-solid); color:var(--on-accent); border:none; }
+                     background:var(--accent-solid); color:var(--on-accent);
+                     border:1px solid transparent; }
   .composer button::after { content:''; position:absolute; top:0; left:0; width:45%; height:100%;
     background:linear-gradient(100deg, transparent, color-mix(in oklab, var(--on-accent) 45%, transparent), transparent);
     transform:translateX(-150%); pointer-events:none; }
@@ -529,7 +535,19 @@
   @keyframes shimmer { from { transform:translateX(-150%); }
                        12% { transform:translateX(-150%); }
                        to { transform:translateX(350%); } }
-  .composer button:disabled { background:var(--fill-2); color:var(--muted-3); cursor:not-allowed; }
+  /* 禁用态：**描边式**而不是灰白填充。
+     原来用 `background:var(--fill-2)` 填出一块灰白，跟玻璃输入区贴在一起
+     糊成一片、看不出那是个按钮（真机截图发现的）。
+
+     ⚠️ 两点都是截图/实测逼出来的：
+     ① 用 `outline` 而**不是 `border`**：按钮 `height:44px` 定高，
+        换 border 后实测变 46px、与输入框差 2px 并排时基线歪（量几何才看得见）。
+        `outline` 不参与布局。
+     ② 用**实线**而不是 dashed：2x 截图下虚线呈锯齿状、显脏（真机 1x 也偏重）。
+        「不可点」靠**字色压暗 + 无填充**表达已经足够，不需要虚线。 */
+  .composer button:disabled { background:transparent; color:var(--muted-3);
+    cursor:not-allowed; outline:1px solid var(--glass-brd); outline-offset:-1px;
+    padding:0 24px; }                       /* 内边距加大：描边框里「发送」不局促 */
   .composer button:disabled::after { display:none; }
   @media (prefers-reduced-motion: reduce) {
     .composer button:not(:disabled)::after { animation:none; }
@@ -702,8 +720,10 @@
     <div id="support-log" aria-live="polite"></div>
 
     <div class="composer">
+      <!-- placeholder 不带省略号：示例问题已由上方 marquee chip 承担（可点击），
+           占位文案再列一串 + 省略号是重复且拖沓。 -->
       <textarea id="support-input" rows="1" maxlength="500"
-                placeholder="问景点、美食、门票、开放时间……"></textarea>
+                placeholder="问景点、美食、门票、开放时间"></textarea>
       <button id="support-send" disabled>发送</button>
     </div>
   </section>
@@ -1076,6 +1096,10 @@ function autoGrow() {
   input.style.height = Math.min(140, Math.max(44, input.scrollHeight)) + 'px';
 }
 if (input) {
+  /* 初始化就跑一次：否则初始高度是「内容自然高度」（实测 46px），
+     而发送后 autoGrow 会把它固定成 44px —— 于是**发一次消息输入框会变矮 2px**，
+     按钮行跟着跳一下。这个 2px 只有量几何才看得见（截图只觉得「有点歪」）。 */
+  autoGrow();
   input.addEventListener('input', autoGrow);
   // Enter 发送、Shift+Enter 换行；用属性判断而不是 e.keyCode（已废弃）
   input.addEventListener('keydown', function (e) {
