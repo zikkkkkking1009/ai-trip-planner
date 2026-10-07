@@ -189,7 +189,7 @@ cp backend/.env.example backend/.env
 | GET · POST | `/support/wechat` | 公众号（测试号）回调：sha1 验签 + 明文 XML 被动回复 |
 | GET | `/admin/usage` | LLM 成本台账：按「用途 × 模型」聚合调用量与 token 数 |
 
-共 **39 个接口**（21 GET / 17 POST / 1 DELETE；`/meta` 为运行时权威口径，WebSocket `/ws/{task_id}` 不计入）。
+共 **42 个接口**（22 GET / 18 POST / 1 DELETE / 1 WebSocket；`/meta` 为运行时权威口径）。⚠️ 39/41 均系 `_api_catalog()` 漏计 router 路由时期的缺陷数字（2026-10-07 已修），勿再引用。
 
 ---
 

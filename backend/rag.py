@@ -184,19 +184,23 @@ def build_corpus() -> list[dict[str, object]]:
             fields = spot_fields(s)
             raw_tags = fields["tags"]
             tags = (list(raw_tags) if isinstance(raw_tags, list) else []) + ["景点"]   # 类型也进标签：tag=景点 可过滤、可评测
+            # display = 给**人看**的干净文本；text = display + 意图扩展词（R6，给 BM25 用）。
+            # 两者必须分开：前端一旦渲染 text，用户就会看到「不要钱 穷游 免票」这类检索词（2026-10-07 实锅）
+            display = " ".join(x for x in (s.name, desc, city, spot_facts(s)) if x)
             docs.append({
                 "type": "景点", "city": city, "name": s.name,
-                "text": " ".join(x for x in (s.name, desc, city, spot_facts(s)) if x)
-                        + _intent_expansion(tags),
+                "text": display + _intent_expansion(tags),
+                "display": display,
                 "source": "预置景点库",
                 **{**fields, "tags": tags},
             })
     for city, foods in FOOD_SEEDS.items():
         for name, intro in foods:
+            display = " ".join(x for x in (name, intro, city) if x)
             docs.append({
                 "type": "美食", "city": city, "name": name,
-                "text": " ".join(x for x in (name, intro, city) if x)
-                        + _intent_expansion(food_tags()),
+                "text": display + _intent_expansion(food_tags()),
+                "display": display,
                 "source": "美食种子库",
                 "tags": food_tags(), "ticket": None, "ticket_known": False,
                 "stay_min": None, "open_h": None, "close_h": None,
@@ -445,7 +449,8 @@ def ask(q: str, city: str | None = None, k: int = 5,
             filled.append((d, 0.0, True))
     results = [{
         "type": d["type"], "city": d["city"], "name": d["name"],
-        "text": d["text"], "source": d["source"], "score": round(s, 3),
+        "text": d["text"], "display": d.get("display", d["text"]),
+        "source": d["source"], "score": round(s, 3),
         "tags": d.get("tags", []), "ticket": d.get("ticket"),
         "ticket_known": d.get("ticket_known", False), "stay_min": d.get("stay_min"),
         **({"fallback": True} if fb else {}),

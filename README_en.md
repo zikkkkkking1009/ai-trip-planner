@@ -156,7 +156,7 @@ cp backend/.env.example backend/.env
 | GET · POST | `/support/wechat` | WeChat MP sandbox callback: sha1 verification + plaintext XML passive reply |
 | GET | `/admin/usage` | LLM usage ledger: calls and tokens by purpose × model |
 
-**39 endpoints in total** (21 GET / 17 POST / 1 DELETE; `/meta` is the runtime source of truth, the `/ws/{task_id}` WebSocket is not counted).
+**42 endpoints in total** (22 GET / 18 POST / 1 DELETE / 1 WebSocket; `/meta` is the runtime source of truth). Note: 39/41 were faulty counts while `_api_catalog()` skipped router-wrapped routes (fixed 2026-10-07).
 
 ---
 

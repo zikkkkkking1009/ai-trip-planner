@@ -108,29 +108,49 @@ def _snippet(text: object, limit: int = 70) -> str:
 
 
 def _compose_reply(results: list[dict], gap: dict | None, q: str,
-                   action: str, generated: str | None) -> str:
-    """从检索结果确定性组句（不烧 LLM）。generated 是已过 grounding 的生成答案。"""
+                   action: str, generated: str | None, *, plain: bool) -> str:
+    """组回复。**plain 双轨是刻意的**（2026-10-07，废掉前端 stripGap 正则）：
+
+    - plain=True（纯文本渠道：公众号被动回复 XML）——一段话带全部上下文：
+      引用行、缺口说明、人工引导都拼进正文，因为 XML 没有结构化渲染。
+    - plain=False（网页端）——正文只留话术与生成文本；引用走 citations（含
+      snippet 干净一句话）、缺口走 gap 字段，**由前端用结构化数据渲染**。
+      此前把 gap.note 拼进 reply、前端再用正则剥掉，_compose_reply 一改
+      剥离正则就会吃错内容——重复事实源必然漂移，从根上改掉。
+    """
     if action == ACTION_HANDOFF:
         if gap and gap.get("kind") == "unsupported":
-            reason = str(gap.get("note") or "知识库没有这类数据")
-            return (f"这个问题超出了知识库范围：{reason}"
-                    "已为你登记转人工，请留意后续回复；也可以换个问法试试。")
-        return f"知识库里没有找到与「{q[:60]}」直接相关的内容，已为你登记转人工。"
+            if plain:
+                reason = str(gap.get("note") or "知识库没有这类数据")
+                return (f"这个问题超出了知识库范围：{reason}"
+                        "已为你登记转人工，请留意后续回复；也可以换个问法试试。")
+            return "这个问题超出了知识库范围，已为你登记转人工。"
+        if plain:
+            return f"知识库里没有找到与「{q[:60]}」直接相关的内容，已为你登记转人工。"
+        return f"知识库里没有找到与「{q[:60]}」相关的内容，已登记转人工。"
 
     lines: list[str] = []
     if generated:
         lines.append(generated)
-    elif results:
-        lines.append("根据知识库，为你找到：")
-        for r in results[:2]:
-            lines.append(f"· {r['name']}（{r['city']}）{_snippet(r['text'])}")
+    if plain:
+        if not generated and results:
+            lines.append("根据知识库，为你找到：")
+            for r in results[:2]:
+                lines.append(f"· {r['name']}（{r['city']}）"
+                             f"{_snippet(r.get('display') or str(r.get('text', '')), 70)}")
+        if not (generated or results):
+            lines.append(f"关于「{q[:60]}」，知识库里暂时没有内容。")
+        if results:
+            ok = sum(1 for r in results if r.get("verified"))
+            lines.append(f"（引用 {ok}/{len(results)} 条已核查到库内实体）")
+        if action == ACTION_CAVEAT and gap:
+            lines.append(f"⚠️ {gap.get('note', '')}如需人工确认，请回复「人工」。")
     else:
-        lines.append(f"关于「{q[:60]}」，知识库里暂时没有内容。")
-    if results:
-        ok = sum(1 for r in results if r.get("verified"))
-        lines.append(f"（引用 {ok}/{len(results)} 条已核查到库内实体）")
-    if action == ACTION_CAVEAT and gap:
-        lines.append(f"⚠️ {gap.get('note', '')}如需人工确认，请回复「人工」。")
+        if not (generated or results):
+            lines.append(f"关于「{q[:60]}」，知识库里暂时没有内容。")
+        elif results and not generated:
+            # 引用内容由前端用 citations[].snippet 渲染成卡片，正文只留话术头
+            lines.append("根据知识库，为你找到：")
     return "\n".join(lines)[:REPLY_MAX_CHARS]
 
 
@@ -185,7 +205,9 @@ def answer(session_id: str, text: str, *, channel: str = "web",
                     log.info("客服生成降级 sid=%s note=%s", sid, gen.get("note"))
 
     if reply is None:
-        reply = _compose_reply(results, gap, q, action, generated)
+        # plain 双轨：纯文本渠道（公众号 XML）拼全量；网页端只留正文，缺口/引用结构化下发
+        reply = _compose_reply(results, gap, q, action, generated,
+                               plain=(channel == "wechat_mp"))
     _append_turn(sid, {"ts": int(time.time()), "channel": channel, "q": q[:200],
                        "reply": reply, "action": action,
                        "gap_kind": (gap or {}).get("kind") if gap else None,
@@ -196,5 +218,8 @@ def answer(session_id: str, text: str, *, channel: str = "web",
              sid, channel, action, len(results), lead.get("id"))
     return {"session_id": sid, "reply": reply, "action": action,
             "citations": [{"name": r["name"], "city": r["city"],
-                           "verified": bool(r.get("verified"))} for r in results],
+                           "verified": bool(r.get("verified")),
+                           "snippet": _snippet(r.get("display")
+                                               or str(r.get("text", "")), 60)}
+                          for r in results],
             "gap": gap, "lead_id": lead.get("id"), "generated": bool(generated)}

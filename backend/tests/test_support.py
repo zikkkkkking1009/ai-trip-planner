@@ -83,11 +83,24 @@ def test_no_results_becomes_handoff(monkeypatch, tmp_path):
 
 
 def test_attr_gap_becomes_caveat(monkeypatch, tmp_path):
+    """web 端（plain=False）：缺口说明走结构化 gap 字段，reply 不再拼工程文本。"""
     _redirect(monkeypatch, tmp_path)
     monkeypatch.setattr(support, "rag_ask",
                         lambda q, **kw: _rag_out(_hit(), {"kind": "attr", "attr": "门票",
                                                           "note": "库里只有 62/375 个景点有票价"}))
     out = support.answer("s1", "兵马俑门票多少钱")
+    assert out["action"] == "answer_caveat"
+    assert "62/375" in out["gap"]["note"]          # 前端从 gap.note 渲染 ⚠️ 块
+    assert "62/375" not in out["reply"]            # reply 不再拼缺口（重复事实源已废）
+
+
+def test_wechat_channel_embeds_gap_note(monkeypatch, tmp_path):
+    """公众号（plain=True）：XML 没有结构化渲染，缺口说明必须拼进正文。"""
+    _redirect(monkeypatch, tmp_path)
+    monkeypatch.setattr(support, "rag_ask",
+                        lambda q, **kw: _rag_out(_hit(), {"kind": "attr", "attr": "门票",
+                                                          "note": "库里只有 62/375 个景点有票价"}))
+    out = support.answer("s1", "兵马俑门票多少钱", channel="wechat_mp")
     assert out["action"] == "answer_caveat"
     assert "62/375" in out["reply"] and "人工" in out["reply"]
 
@@ -99,7 +112,21 @@ def test_normal_hit_answers_with_citations(monkeypatch, tmp_path):
     assert out["action"] == "answer"
     assert out["citations"][0]["name"] == "秦始皇兵马俑博物馆"
     assert out["citations"][0]["verified"] is True
-    assert "已核查" in out["reply"]
+    assert "snippet" in out["citations"][0]        # 干净一句话，前端卡片用它（不带检索扩展词）
+    assert "根据知识库" in out["reply"]
+
+
+def test_reply_never_leaks_intent_expansion(monkeypatch, tmp_path):
+    """语料 text 尾部是给 BM25 的意图扩展词——任何口径都不许漏给用户（2026-10-07 实锅）。"""
+    _redirect(monkeypatch, tmp_path)
+    dirty = dict(_hit()[0])
+    dirty["text"] = dirty["name"] + " 正文 数据 免费 不要钱 穷游 免票 不花钱 不要门票"
+    dirty["display"] = "秦始皇兵马俑博物馆（西安）正文 数据"
+    monkeypatch.setattr(support, "rag_ask", lambda q, **kw: _rag_out([dirty]))
+    out = support.answer("s1", "西安有什么好吃的")
+    assert "穷游" not in out["reply"]
+    assert "穷游" not in out["citations"][0]["snippet"]
+    assert out["citations"][0]["snippet"].startswith("秦始皇兵马俑博物馆")
 
 
 def test_human_keyword_short_circuits(monkeypatch, tmp_path):

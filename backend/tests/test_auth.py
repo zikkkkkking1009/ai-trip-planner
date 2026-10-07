@@ -93,7 +93,9 @@ def test_all_write_endpoints_are_protected(with_token):
                   #    SUPPORT_GENERATE 默认关，开了也走 /ask 的生成配额总闸）
                   # ② /support/wechat —— 公众号回调，鉴权 = 官方 sha1 验签
                   #    （微信服务器带不了 APP_TOKEN），加密模式直接 501
-                  "/support/message", "/support/wechat",
+                  # ③ /support —— 客服会话页（workbuddy 2026-10-07），纯静态
+                  #    HTML 与 /、/app 同类；真正的写入走 /support/message
+                  "/support/message", "/support/wechat", "/support",
                   # FastAPI 自带的接口文档：**刻意留开**，不是漏网。
                   # ① 首页 footer 有意链到 /docs（作品集要展示 Swagger UI）；
                   # ② 文档只暴露接口形状，不泄露任何 Key；

@@ -664,20 +664,36 @@ def _api_catalog() -> dict:
     框架自带的路由（/docs、/openapi.json 等）与无 HTTP 方法的路由（/static 挂载、
     /ws WebSocket）一律跳过，但都记进 `skipped` 一并返回，让首页能如实说明
     「这些去哪了」，而不是让人以为接口悄悄少了几个。
+
+    ⚠️ FastAPI 0.141 起 `include_router` 的路由在 app.routes 里被包成
+    `_IncludedRouter`（自身无 methods、path=None）——不展开它，/meta 与首页清单
+    就会悄悄漏掉 router 里的接口（实测漏过 GET/POST /support/wechat 两个）。
+    真实路由在其 `original_router.routes` 里，这里递归展开（2026-10-07 修复）。
     """
     endpoints, skipped = [], []
-    for r in app.routes:
-        path = getattr(r, "path", "")
-        methods = sorted(getattr(r, "methods", None) or [])
+
+    def _collect(route, *, via_router: bool = False):
+        path = getattr(route, "path", "")
+        methods = sorted(getattr(route, "methods", None) or [])
         if not methods:
-            skipped.append({"path": path, "reason": "无 HTTP 方法（静态挂载或 WebSocket）"})
-        elif not isinstance(r, APIRoute):
+            nested = getattr(route, "original_router", None)
+            if nested is not None and not via_router:      # 只展开一层，防意外环
+                for sub in getattr(nested, "routes", []) or []:
+                    _collect(sub, via_router=True)
+                skipped.append({"path": path or "（router 容器）",
+                                "reason": "router 容器（子路由已展开计入）"})
+            else:
+                skipped.append({"path": path, "reason": "无 HTTP 方法（静态挂载或 WebSocket）"})
+        elif not isinstance(route, APIRoute):
             skipped.append({"path": path, "reason": "框架自带路由（非本项目接口）"})
         else:
-            doc = (r.endpoint.__doc__ or "").strip().splitlines()
+            doc = (route.endpoint.__doc__ or "").strip().splitlines()
             # 摘要优先取 docstring 首行；没写 docstring 就退回函数名，至少有个标识
             endpoints.append({"methods": methods, "path": path,
-                              "summary": doc[0].strip() if doc else r.name})
+                              "summary": doc[0].strip() if doc else route.name})
+
+    for r in app.routes:
+        _collect(r)
     endpoints.sort(key=lambda e: e["path"])
     return {"endpoints": endpoints, "skipped": skipped}
 
