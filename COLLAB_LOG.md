@@ -1822,3 +1822,54 @@ hover 时 opacity 0→1 过渡。~10 行 JS，一次绑全列表。
   时区行为（00:00Z→08:00）、chip 反白（底≠字）、计数合并、spotlight 写--x/--y、
   窄屏 390 不溢出、**刷新恢复（内容+徽章都在，无运行时错误）**
 - 真机三档回归 **20/20** ✅（会话区未被本步改动影响）
+
+---
+
+## ✅ 第 4 步｜workbuddy：v4 第 6 步全量门禁（七档 + 三页对比度 + pytest）
+
+| 门禁 | 结果 |
+|---|---|
+| pytest | **523 passed / 1 skipped** ✅（与 v4 简报基线一致） |
+| 七档 responsive | **7/7** ✅（320/360/390/640/768/1024/1200，窄屏 ops 行 90px 两行折叠） |
+| contrast_runtime 三页 `--all` | ✅ 全绿（明暗双主题） |
+| check_frontend | ✅（三页） |
+| check_contrast | ✅（页面级） |
+| support_smoke | **78/78** ✅ |
+| 真机·会话区 | **20/20** ✅ |
+| 真机·运营视图 | **18/18** ✅ |
+| ruff / mypy | 未跑（本步只改前端，但收尾前会补） |
+
+---
+
+## ✅ 第 5 步｜workbuddy：新成片 + 滚动方案定案（v4 第 7 步）
+
+**成片**：`sessions/20261007-1728_support-frontend/demo-v4.webm`（2.2MB，1280×860真机）
++ 9 张关键帧（`shots/v4-*.png`：五轮逐轮 / beam / ops / 暗色 / reduce）。
+
+### 🔴 录成片时抓到「逐轮完整可见」这条验收不通过 —— 滚动方案第三次返工
+第一版按简报第 11 条用 `scrollIntoView({block:'end'})`，实测**scrollTop 一直是 0**
+—— marquee 移到 log 之前后，log 底部本来就在视口内，`block:'end'` 不产生滚动。
+⇒ 第 3 轮起最后一条问答被顶出视野（回答高 353px、容器 533px，明明装得下却看不见）。
+
+**定案（第三版）：只改 log 的 scrollTop，把最后一轮的用户问题放在容器可视区顶部偏下30%。**
+实测 scrollTop 序列 `0 → 114 → 483`，五轮**逐轮完整可见** ✅。
+
+⇒ **这条滚动逻辑改了三版才對。三版的原因是每次都只按「简报字面」或「上版效果」改，
+   没先量 scrollTop 与 offsetTop。** 下次遇到滚动类问题先量再改。
+
+### reduce 冻结「成对验证」（v4 验收第 3 点）
+单测「reduce 下没有动画」是不够的 —— 万一本来就没动画，那条断言恒绿。
+所以录制成片脚本里做了**两组对照**：
+- reduce context（`reducedMotion:'reduce'`）：同屏 infinite **0**、beam/shimmer/marquee 全冻结 ✅
+- 正常 context（对照组）：同屏 infinite **≥2** ✅ ⇒ 证明前一组不是因为「本来就没动画」
+
+**这个「成对」思路值得推广**：任何「确保 X 没发生」的断言，都要有一个「X 确实在发生」的对照，
+否则断言可能因为前提不成立而恒绿（与realbench 的「反向验证」同源）。
+
+### 本轮门禁（全部复跑）
+pytest **523 passed / 1 skipped** ｜ 七档 **7/7** ｜ contrast_runtime 三页`--all` ✅ ｜
+check_frontend ✅ ｜ check_contrast ✅ ｜ support_smoke **78/78** ｜
+真机会话 **20/20** ｜ 真机运营视图 **18/18** ｜ 录制 **13/13**（含 reduce 成对）。
+
+**未做**：Tier 2（liquid-glass-react 经 esm.sh）—— 简报说「可选，做不完可留」。
+我倾向留：它要拖一个 React 运行时进单文件页，Tier 1 已覆盖 7/9 条配方。

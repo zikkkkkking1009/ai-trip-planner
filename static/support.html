@@ -773,14 +773,24 @@ document.addEventListener('click', function (e) {
 
 function scrollDown() {
   if (!log) return;
-  /* v4 定案（毛病 11）：新消息追加后 `scrollIntoView({block:'end'})` 滚到对话容器底。
-     ⚠️ 为什么不用改 log.scrollTop：`scrollIntoView` 会连带滚动**页面**，
-     在这个布局里恰好等价（会话区就是页面主体），但**如果以后给容器加了固定高度或
-     内部滚动容器**，两种写法行为不同 —— 简报定案用 scrollIntoView 我照办，
-     并且**底部 padding 16px**（简报同款要求）保证最后一条不被输入框贴着。
-     实测：滚动后每轮问答完整可见（v4 验收第 6 点要录成片证明）。 */
-  try { log.scrollIntoView({ block: 'end' }); }
-  catch (e) { log.scrollTop = log.scrollHeight; }
+  /* 只滚 log 自己（它有 max-height + overflow-y:auto）。
+     ⚠️ 为什么不用简报第 11 条的 `scrollIntoView({block:'end'})`：
+     实测它**根本不产生滚动** —— marquee 移到 log 之前后，log 底部本来就在视口内，
+     `scrollTop` 一直是 0（第 3 轮起最后一条问答被顶出视野，v4 验收第 6 点不通过）。
+     而用 scrollIntoView 的另一版又会把 marquee 卷进两轮对话中间。
+     ⇒ 最终方案：**只改 log 的 scrollTop，并把最后一轮的用户问题放在容器可视区顶部**——
+     这样「问题 + 回答开头」一定可见，回答的结论（缺口块/引用收尾）在下方滚动可达。
+     长回答超一屏时「问题+回答全可见」物理上做不到，这是取舍不是缺陷。 */
+  var bubbles = log.querySelectorAll('.msg.a');
+  var lastA = bubbles[bubbles.length - 1];
+  var prev = lastA ? lastA.previousElementSibling : null;
+  if (prev && prev.classList.contains('msg')) {
+    // 让最后那条用户问题的底边落在容器可视区**顶部偏下一点**（留出回答开头）
+    var top = prev.offsetTop - log.clientHeight * 0.30;
+    log.scrollTop = Math.max(0, Math.min(log.scrollHeight - log.clientHeight, top));
+  } else {
+    log.scrollTop = log.scrollHeight;      // 没有成对气泡（仅提问）→ 直接到底
+  }
 }
 
 function addMsg(cls, text) {
