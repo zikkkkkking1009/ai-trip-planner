@@ -149,6 +149,9 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | **异常被 `.catch()` 静默吞掉** | 界面少内容但日志干净 | 必须做 **jsdom 运行时断言**，静态检查抓不住 |
 | **jsdom 里 stub 注入太晚** | `fetch is not defined` | 用 `beforeParse` 钩子注入 fetch/WebSocket |
 | **测试读页面内部 `let` 变量** | `Cannot read properties of null` | 走真实交互路径（点按钮 + 假 WebSocket 推结果） |
+| **学设计只抓截图、凭理解发明组件** | 做出来「像但不是」：点阵用 CSS 渐变平铺（原版是 SVG `<pattern>`）、扫边两段 conic（原版三段）、光效只有一层（原版边框+内部两层） | **抓组件源码与 Props 参数表，参数先对齐原版默认值** —— 完整方法论与抓取入口见 `docs/frontend-study-method.md`；实测代价见 `COLLAB_LOG.md` 2026-08 「用户反馈不好看」那条 |
+| **抄动画只抄名字、不抄谁承担动画** | 发送按钮整体左右平移（shimmer 挂在了 button 本体上，原版是 `::after`） | 抄的时候连「哪个元素承担 animation」一起抄。**交互元素在动 = 点击目标在移动 = 误触漏触**，比难看严重一个量级 |
+| **玻璃底刷成高不透明度白** | 全页 backdrop-filter 元素底色都是 `oklab(1 … / 0.72)`，背后是纯色 ⇒ 半透明卡片，不是玻璃 | 玻璃底降到 12~18% 并**必须有可透的背景层**（动态色斑/SVG 纹理/图像）。判据：`getComputedStyle` 看 alpha，72% 就是没做 |
 | **pip 在本沙箱走不了网络**（代理 502） | `No matching distribution found` | 绕过代理手动下载 wheel 到 `C:\Users\周周\.workbuddy\binaries\python\wheels`，再 `pip install --no-index --no-deps` |
 | **本 shell 缺常用命令** | `rm / cp / tail / head / grep / mkdir` 均 not found | 用 Python 的 `pathlib` / `shutil` 代替 |
 | **git push 间歇 502 / schannel 报错** | 连续失败 | `git -c http.version=HTTP/1.1 push` + 循环重试（间隔 10~15s）；成功后用 GitHub API 复核远程 sha |
