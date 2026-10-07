@@ -1380,3 +1380,170 @@ pytest **523 passed / 1 skipped / 0 failed** ✅（你的白名单修好了那�
 我会把这条当验收自查项，第五部分第 2 点我会贴 grep 结果。
 
 **预计**：第 2~7 步 2.5~3 小时。每步做完自验再进下一步，一次最多连 3 步汇报一次。
+
+---
+
+## 2026-10-07 19:40 | workbuddy | 计划条目：v4 第 0 步——四站学习笔记（素材已落盘）
+
+**素材库**：`D:/workby room\sessions\20261007-1728_support-frontend\study\`
+（24 个文件：四站明/暗/全页截图 12 张、`probe-*.json` 计算样式 4 份、配方 `.css` 4 份、
+`probe_sites.js` 探针脚本可复跑、本文件说明）
+
+**探针方法**（不只截图）：除 WebFetch 读文档外，另用 Edge/Playwright `getComputedStyle`
+**量**出圆角实际档位、backdrop-filter 真实取值、`@property`/`conic-gradient`/`mask`
+配方原文、`animation-iteration-count: infinite` 的元素数（即「同屏几个循环动画在跑」）。
+截图看的是「像不像」，探针量的是「能不能复刻」。
+
+---
+
+### 站 1｜Cult UI（shadcn 动效组件库，154 个组件，MIT）
+**实测**：`border-radius` 实际 **11 档**（`2/6/8/10/12/14/16/24/32px` + `999px` 胶囊
++ `0 0 0 8px` 异形）；`backdrop-filter: blur(8px)` 用在 **7 个元素**上；
+同屏 infinite 动画 **2 个**；字体 `GeistSans / GeistMono / GeistPixelSquare`。
+
+1. **卡片是「多档圆角混用」而非统一档** —— 实测 11 档，最大 32px、最小 2px，
+   还有 `0 0 0 8px` 这种**单角异形**。⇒ 我 v4 简报写的「大圆角 12~16px 卡片 / 999px 胶囊」
+   是**收敛后的纪律**，不是它的实际做法；实际是放开后自己长出来的秩序。
+2. **玻璃用得极浅**：`blur(8px)` 一个值打天下，**没有 saturate**。
+   对比 liquid-glass 的 `saturate(1.4)` ⇒ **saturate 是「真玻璃」与「磨砂」的分水岭**，
+   只 blur 是磨砂塑料感。我 v4 配方表里写了 `saturate(140%)`，方向对。
+3. **同屏只跑 2 个 infinite 动画**（实测值）⇒ 印证简报「循环动画同屏 ≤2 个」的纪律
+   **不是我编的**，是这批库的共同实践。
+4. **Shift card = hover/focus 展开详情**（官网原文 "Hover or focus it"）
+   ⇒ **键盘可达**（focus 也触发），不是纯 hover。support 页的引用卡展开若做，必须带 focus。
+5. 组件命名偏**拟物+设备**（Fluted glass、Mac screen、Apple Watch Ultra、Shadow card）
+   ⇒ 「组件即营销」：靠视觉差异制造记忆点，不是靠功能密度。
+
+**纯 CSS 可复刻？** blur 玻璃 ✅、多档圆角 ✅、hover 展开 ✅（`:hover` + `:focus-visible`）、
+marquee ✅。**必须 JS**：无（本库组件基本是 CSS 变体 + 少量 JS）。
+
+---
+
+### 站 2｜Magic UI（本方向主力词汇表，80+ 组件）
+**实测**：圆角 **4 档**（`4/8/10px` + `999px`）；**backdrop-filter = 0**（它不靠玻璃）；
+同屏 infinite **1 个**；字体 **`Geist` + `Geist Mono`**（无衬线配等宽，印证 tweakcn 纪律）。
+
+组件清单已抓全（80+），本方向直接相关的 12 个：
+`Animated Beam / Border Beam / Shimmer Button / Glow Card / Marquee / Dot Pattern /
+Animated Grid Pattern / Aurora Text / Blur Fade / Meteors / Particles / Number Ticker /
+Scroll Progress / Noise Texture / Progressive Blur / Bento Grid`。
+
+1. **`@property` 是它的核心手法**（实测抓到 20+ 条声明）：`--tw-enter-blur/opacity/rotate/
+   scale/translate-x/translate-y`、`--tw-exit-*`、`--tw-backdrop-blur/brightness/contrast`。
+   ⇒ **可插值的自定义属性**是「CSS 能做序列帧」的关键；v4 配方表里写
+   `@property --beam-angle{syntax:'<angle>'}` 与它同源，但**它实际用 `syntax:"*"`**
+   （更宽松，能插任意值）⇒ **我照抄时用 `"*"` 更省事，且兼容性更好**（`<angle>` 在旧浏览器可能不认）。
+2. **`@layer` 分层**（实测抓到）⇒ 样式按层组织，不是平铺。
+   这对我「单文件 + 无构建」很关键：**用 `@layer` 就能在单文件里做出可维护的层序**。
+3. **`Border Beam`（扫边）**：`@property` + `conic-gradient(from var(--beam-angle), transparent…, accent…)`
+   做边框层 + `animation: beam Ns linear infinite`，外层 `padding:1px` + 内层同底色盖中间。
+   ⇒ **纯 CSS 可复刻**，v4 配方表这条**准确，不用改**。
+4. **`Dot Pattern`**：`radial-gradient` 平铺 + `background-size` + mask 渐隐
+   ⇒ 纯 CSS 可复刻 ✅，但**必须叠在极低透明度**否则抢内容。
+5. **`Blur Fade`（入场渐隐）**：实测用 `--tw-enter-blur` + opacity
+   ⇒ v4 配方表写的 `animation-timeline: view()` 是**更新方案**；
+   它用的是 tw-animate-css 那套类，**兼容性更好**（view() 需要 Chrome 115+）。
+   我倾向双轨：`@supports (animation-timeline: view())` 用它，否则用 tw 那套的 opacity+blur。
+6. **`Number Ticker`** 是 JS（rAF 计数）⇒ v4 配方表写 rAF 是对的。
+7. 它**不用玻璃**（backdrop 元素数 0）⇒ **Magic UI 负责「动效词汇」，liquid-glass 负责「材质词汇」，
+   两边不重叠** —— v4 把它们混在一个配方表里其实是对的分工，不是拼盘。
+
+**纯 CSS 可复刻？** 扫边 ✅、点阵 ✅、跑马 ✅、shimmer ✅、marquee ✅、aurora 文字 ✅（`background-clip:text`）。
+**必须 JS**：Number Ticker（rAF）、Smooth Cursor、Pointer 跟随、Text Animate（字符级序列）。
+
+---
+
+### 站 3｜tweakcn（token 架构纪律，本页第 2 步的规范来源）
+**实测**：圆角 5 档（`4/6/8/10px` + `999px`）；backdrop 0；同屏 infinite **6 个**
+（工具型页面，动画多是 spinner/状态指示，**不算风格参考**）；
+字体 `ui-sans-serif` + `ui-monospace`。
+
+1. **token 配对纪律（v4「新增令牌必须 `:root` 与 `[data-theme=dark]` 成对定义」的来源）**：
+   编辑器 UI 本身就是**两组 Background/Foreground 并排**（Primary/Secondary/Accent/Base/Card/
+   Popover/Muted/Destructive 各有 Background+Foreground 两列），另加 Border & Input
+   （Border/Input/Ring）与 Chart 1~5、Sidebar（带 Sync 按钮可同步）。
+   ⇒ **每个语义色都拆成「底 + 字」两枚**，而不是一个色值。这是「压白字不达标」的根治办法，
+   和我们 `check_contrast` 的 `--accent-solid`/`--on-accent` 成对思路**同源**——
+   说明我们之前的做法本来就是对的，tweakcn 只是把它系统化了。
+2. **sidebar token 独立成套** ⇒ 同一套主题里，页面级与侧栏级语义**分开**，
+   避免所有组件挤在同一组变量里。
+3. **字体配对**：实测 `ui-sans-serif` + `ui-monospace`（系统栈，不锁品牌字体）；
+   配合 magicui/cultui 都用 Geist 系列 ⇒ **结论：无衬线正文 + 等宽元数据是这批站的共识**。
+   我们现有 `--font-body` + `--font-mono` 已经是这个结构 ✅。
+4. **预设主题库 40+ 个**（modern minimal / catppuccin / cyberpunk / claude / vercel / t3 chat /
+   northern lights / claymorphism…）⇒ 说明**语义 token 架构的价值在于可换肤不改结构**。
+   这对我们只有一个意义：**以后做「暗色/亮色」不要新增第三套变量名，只换值**。
+5. **圆角 5 档但没有 999px 用于卡片**（999px 只给 pill/输入）⇒
+   **卡片与控件的圆角要分开**，v4 配方表把这两者混写（16px 卡 / 999px 钮）**方向对，但要有意识区分**。
+
+**纯 CSS 可复刻？** 全部 ✅（纯 CSS 变量）。**必须 JS**：无（它就是一套变量）。
+
+---
+
+### 站 4｜liquid-glass-react（Apple Liquid Glass 的 React 实现，MIT）
+**实测**：圆角 6 档（`6/8/24/32px` + `999px`）；**backdrop 3 个元素**
+（`blur(20px) saturate(1.4)` / `blur(8px)` / `blur(12px)`）；**infinite 动画 0 个**
+（玻璃本身静止，动效靠参数随鼠标变化）；字体 `Arial / Geist`。
+
+**README 参数表原文（我抄下来了）**：
+| prop | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `displacementScale` | number | **70** | 折射强度 |
+| `blurAmount` | number | **0.0625** | 磨砂度 |
+| `saturation` | number | **140** | 饱和度 |
+| `aberrationIntensity` | number | **2** | 色差强度 |
+| `elasticity` | number | **0.15** | 弹性手感（0=硬，越高越弹） |
+| `cornerRadius` | number | **999** | 圆角 px |
+| `overLight` | boolean | `false` | 是否压在浅色背景上 |
+| `mode` | standard/polar/prominent/shader | `standard` | 折射模式 |
+| `mouseContainer` | ref | `null` | 鼠标追踪范围容器 |
+| `globalMousePos` / `mouseOffset` | {x,y} | - | 手动控制鼠标位置 |
+
+**浏览器限制（README 原文警告）**：
+> Safari and Firefox only partially support the effect (**displacement will not be visible**)
+
+1. **折射（边缘弯曲）是 SVG `feDisplacementMap` + JS 实现的，不是 CSS** ——
+   我在 demo 页截图里**看到卡片把下方文字弯折了**，那是真折射，纯 CSS 做不到。
+   ⇒ **结论：`displacementScale` / `aberrationIntensity` / `elasticity` 三项必须 JS+SVG**，
+   纯 CSS 无法复刻。Tier 1 只能做「模糊 + 饱和 + 高光描边」的退化版。
+2. **「玻璃」的关键量是 `saturation=140`**（实测 demo 用 `saturate(1.4)`）
+   ⇒ 只 blur 是磨砂，**blur + saturate 才是玻璃**。v4 配方表 `saturate(140%)` 有实测依据。
+3. **`overLight` 是为浅底准备的开关** —— 玻璃压在白底和压深底的高光强度不同（inset 高光要减弱）。
+   ⇒ v4 配方表「暗色减白强度」有据，但**更稳的做法是用 CSS 变量分两套**，而不是手写两个值。
+4. **`mode` 四档里 `shader` 最准但"最不稳"**（README 原文）⇒ 生产别用 shader。
+5. **`cornerRadius` 默认 999**（胶囊）⇒ 印证 v4「按钮胶囊 999px」审美有出处。
+6. **MIT + 单文件 API**（`<LiquidGlass>` 包任意 children）⇒ Tier 2 真要挂，
+   esm.sh 拉 React 依赖是可行的；但**它会拖一个 React 运行时进单文件页**，
+   代价不小 —— 我倾向**先做 Tier 1，把 Tier 2 当加分项而不是必需项**。
+
+**纯 CSS 可复刻？** blur + saturate + 高光描边 ✅；**必须 JS+SVG**：折射弯曲、色差、
+弹性跟随。**必须 React**：这个包本身。
+
+---
+
+### 我从四站提炼的「可复刻性分级」（写进第 2~3 步的判断依据）
+
+| 效果 | 纯 CSS | 需 JS | 需 React/SVG |
+|---|---|---|---|
+| 玻璃底（blur+saturate+高光） | ✅ | | |
+| 玻璃**折射弯曲/色差/弹性** | ❌ | ✅（JS） | ✅（SVG filter） |
+| Border Beam 扫边 | ✅ | | |
+| Shimmer / Marquee / Aurora | ✅ | | |
+| Dot Pattern 点阵 | ✅ | | |
+| Spotlight 鼠标光晕 | 部分（`:hover`） | ✅（写 `--x/--y`） | |
+| Number Ticker | ❌ | ✅（rAF） | |
+| 入场渐隐 | ✅（tw 那套） | | |
+
+**⇒ Tier 1（纯 CSS）能覆盖我 v4 配方表的 7/9 条**；
+剩下 2 条（折射、ticker）分别降级为「静态高光」与「直接数字」。
+
+### ⚠️ 两个方法论点（避免下次踩）
+1. **Tailwind v4 站点（magicui/liquid-glass）的样式表里 grep 关键字大量假阳性**：
+   `grep -c backdrop liquidglass.css` = **18**，但那 18 条全是
+   `@property --tw-backdrop-blur` 这类**变量声明**，**没有一条是真配方**。
+   ⇒ **真实取值只能从 `getComputedStyle` 拿**，CSS 原文只能找 `@property`/`@layer` 这类结构。
+2. **Next.js 站点的 `load` 事件常因长连接不触发** ⇒ 探针用 `domcontentloaded` 才稳
+   （cultui 首轮 45s 超时，改后成功）。
+
+**下一步（第 1 步令牌层）**：按 tweakcn 的「每个语义色拆成底+字两枚」+
+magicui 的 `@property`/`@layer` 建玻璃令牌层，`:root` 与 `[data-theme="dark"]` **成对定义**。
