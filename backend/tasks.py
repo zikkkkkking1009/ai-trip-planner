@@ -103,7 +103,9 @@ class TaskManager:
             mtask = self._tasks.get(task_id)
             if mtask is not None and mtask.status not in ("completed", "failed"):
                 mtask.status = "failed"
-                mtask.error = f"{type(exc).__name__}: {exc}"
+                # 对外只回类型名：exc 字符串可能带高德 URL（含 key=），经 /task 与 WS 下发
+                # 会把密钥泄给客户端；全量细节已在上一行 log.exception（审查 A4）
+                mtask.error = type(exc).__name__
                 mtask.version += 1
 
         atask.add_done_callback(_done)
@@ -240,7 +242,7 @@ async def run_plan_task(task_id: str, req: PlanRequest) -> None:
             [s["name"] for s in task.request_spots], req.city))  # 后台预取媒体，点开即显
     except Exception as e:  # 后台任务不能静默死掉
         task.status = "failed"
-        task.error = f"{type(e).__name__}: {e}"
+        task.error = type(e).__name__      # 对外只回类型（同 A4，细节在 log）
         task.version += 1
         log.exception("排期任务失败 task_id=%s", task.id)
 
@@ -543,7 +545,7 @@ async def run_edit_task(task_id: str, base_task_id: str, instruction: str,
         save_plan_snapshot(task)
     except Exception as e:
         task.status = "failed"
-        task.error = f"{type(e).__name__}: {e}"
+        task.error = type(e).__name__      # 对外只回类型（同 A4，细节在 log）
         task.version += 1
         log.exception("编辑任务失败 task_id=%s base=%s", task.id, base_task_id)
 
@@ -626,7 +628,7 @@ async def run_set_hotel(task_id: str, base_task_id: str, hotel: dict) -> None:
             params.get("city", DEFAULT_CITY)))
     except Exception as e:
         task.status = "failed"
-        task.error = f"{type(e).__name__}: {e}"
+        task.error = type(e).__name__      # 对外只回类型（同 A4，细节在 log）
         task.version += 1
         log.exception("换酒店任务失败 task_id=%s hotel=%s", task.id, hotel.get("name"))
 
@@ -655,7 +657,9 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
 
     async def one(name: str):
         ck = media_key(city, name)
-        if ck in _prefetching or (get_entry(media, city, name) or {}).get("reviews"):
+        # 判据用「字段存在」而非真值：generate_reviews 失败写 None 也是有效结论
+        #（负面缓存）——用真值判断会让失败条目每次规划都重烧一次 LLM（审查 A9）
+        if ck in _prefetching or "reviews" in (get_entry(media, city, name) or {}):
             return
         _prefetching.add(ck)
         try:
@@ -663,7 +667,7 @@ async def prefetch_media(names: list[str], city: str = DEFAULT_CITY) -> None:
             if not entry:
                 from fetch_spot_details import fetch
                 entry = await asyncio.to_thread(fetch, name, city)
-            if not entry.get("reviews"):
+            if "reviews" not in entry:
                 rv = await asyncio.to_thread(
                     editor.generate_reviews, name,
                     (entry.get("intro", "") or "") + " " +

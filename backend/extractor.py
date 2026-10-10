@@ -90,7 +90,9 @@ def extract_guide(text: str, city_hint: str = "") -> tuple[list[Spot], str]:
             "未配置 LLM_API_KEY / LLM_BASE_URL，无法做文本抽取。"
             "请先在 .env 中配置，或直接使用手工输入的景点列表。")
 
-    client = OpenAI(api_key=api_key, base_url=base_url, timeout=LLM_TIMEOUT_S)
+    # max_retries=0：SDK 自带重试与下面的 retry_call 相乘最坏 3×3=9 次调用（审查 A5）
+    client = OpenAI(api_key=api_key, base_url=base_url,
+                    timeout=LLM_TIMEOUT_S, max_retries=0)
     model_id = os.environ.get("LLM_MODEL_ID", "deepseek-chat")
     t0 = time.time()
     resp = retry_call(lambda: client.chat.completions.create(

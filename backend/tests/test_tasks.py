@@ -135,7 +135,8 @@ def test_spawn_marks_failed_on_unhandled_exception():
     asyncio.run(driver())
     task = result["task"]
     assert task.status == "failed", f"僵尸 running：status={task.status}"
-    assert "炸了" in (task.error or "")
+    # A4 后对外只回类型名（细节进日志，防高德 key 经 /task 泄出）
+    assert "RuntimeError" in (task.error or "")
 
 
 # ---------------------------------------------------------------- 编辑任务（run_edit_task / run_set_hotel）

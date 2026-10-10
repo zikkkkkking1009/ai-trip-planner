@@ -43,7 +43,9 @@ SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 SUPPORT_MAX_CHARS = 500        # 单条消息上限（防匿名刷长文本）
 REPLY_MAX_CHARS = 600          # 回复上限（公众号被动回复 XML 有 2048 字节红线）
 CONVERSATION_MAX_TURNS = 100   # 单会话留痕轮数上限（超出丢最旧）
-HUMAN_KEYWORDS = ("转人工", "人工客服", "人工")
+MAX_CONVERSATION_FILES = 300   # 会话文件总量上限（审查 Medium#3：匿名可刷盘 ⇒ 超限淘汰最旧）
+# 刻意不收裸「人工」子串：「人工湖」「人工智能」会被误转工单（审查 Low#4）
+HUMAN_KEYWORDS = ("转人工", "人工客服")
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 CONVERSATIONS_DIR = DATA_DIR / "conversations"
@@ -57,6 +59,24 @@ ACTION_HANDOFF = "handoff"
 
 def _session_file(session_id: str) -> Path:
     return CONVERSATIONS_DIR / f"{session_id}.json"
+
+
+def _prune_conversations() -> None:
+    """会话文件数超上限时按 mtime 淘汰最旧（调用方须持锁）。
+
+    为什么要有：每个新 session_id 一个 JSON，匿名可刷——leads 有 MAX_LEADS 兜底，
+    会话文件没有对应机制就是缺口（审查 Medium#3，理论一晚可刷数万文件）。"""
+    try:
+        files = list(CONVERSATIONS_DIR.glob("*.json"))
+        if len(files) <= MAX_CONVERSATION_FILES:
+            return
+        files.sort(key=lambda f: f.stat().st_mtime)
+        for f in files[:len(files) - MAX_CONVERSATION_FILES]:
+            f.unlink(missing_ok=True)
+        log.warning("会话文件超上限 %d，已淘汰最旧 %d 个",
+                    MAX_CONVERSATION_FILES, len(files) - MAX_CONVERSATION_FILES)
+    except OSError as e:
+        log.warning("会话文件修剪失败: %s: %s", type(e).__name__, e)
 
 
 def _append_turn(session_id: str, turn: dict) -> None:
@@ -79,6 +99,7 @@ def _append_turn(session_id: str, turn: dict) -> None:
             tmp = f.with_name(f.name + ".tmp")
             tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
             os.replace(tmp, f)
+            _prune_conversations()
     except OSError as e:
         log.warning("会话留痕写入失败 sid=%s: %s: %s",
                     session_id, type(e).__name__, e)
@@ -92,11 +113,12 @@ def load_conversation(session_id: str) -> list[dict]:
         f = _session_file(session_id)
         if not f.exists():
             return []
-    try:
-        doc = json.loads(f.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as e:
-        log.warning("会话文件读取失败 sid=%s: %s: %s", session_id, type(e).__name__, e)
-        return []
+        try:
+            # 读也在锁内：Windows 上与 _append_turn 的 os.replace 竞争会丢一轮留痕（审查 Low#3）
+            doc = json.loads(f.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            log.warning("会话文件读取失败 sid=%s: %s: %s", session_id, type(e).__name__, e)
+            return []
     msgs = doc.get("messages") if isinstance(doc, dict) else None
     return [m for m in msgs if isinstance(m, dict)] if isinstance(msgs, list) else []
 
@@ -175,7 +197,7 @@ def answer(session_id: str, text: str, *, channel: str = "web",
     gap: dict | None = None
     generated: str | None = None
     reply: str | None = None        # 下方两个分支直接给定话术；其余走统一组句
-    if any(kw in q for kw in HUMAN_KEYWORDS):
+    if any(kw in q for kw in HUMAN_KEYWORDS) or q == "人工":
         action = ACTION_HANDOFF
         reply = "好的，已为你转人工，请稍候；人工回复前也可以继续提问。"
     else:
@@ -212,8 +234,15 @@ def answer(session_id: str, text: str, *, channel: str = "web",
                        "reply": reply, "action": action,
                        "gap_kind": (gap or {}).get("kind") if gap else None,
                        "generated": bool(generated)})
-    lead = leads.upsert_lead(sid, channel=channel, question=q,
-                             reply_kind=action, handoff=(action == ACTION_HANDOFF))
+    try:
+        lead = leads.upsert_lead(sid, channel=channel, contact=(contact or None),
+                                 question=q, reply_kind=action,
+                                 handoff=(action == ACTION_HANDOFF))
+    except OSError as e:
+        # 磁盘满/权限/杀软锁文件 ⇒ 落盘失败必须旁路化：客服对用户不 500
+        #（否则公众号路径会叠加重发+去重把回复静默吞掉——审查 Medium#1）
+        log.warning("线索落盘失败（旁路化）sid=%s: %s: %s", sid, type(e).__name__, e)
+        lead = {"id": None}
     log.info("客服应答 sid=%s channel=%s action=%s results=%d lead=%s",
              sid, channel, action, len(results), lead.get("id"))
     return {"session_id": sid, "reply": reply, "action": action,

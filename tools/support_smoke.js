@@ -472,8 +472,11 @@ async function main() {
     const sid = w.localStorage.getItem('support_sid');
     ok('首次发送后写入 localStorage.support_sid', !!sid, 'sid=' + sid);
     ok('sid 匹配 ^[0-9a-f]{16}$（后端白名单要求）', /^[0-9a-f]{16}$/.test(sid || ''), sid);
-    const again = await (await fetch('http://127.0.0.1:8000/health')).text().catch(() => '');
-    void again;   // 真后端在跑就顺带探一下，不影响断言
+    /* ⚠️ 这里**不许有任何真实网络调用**（2026-10-07 CI 实锤）：
+       上一版留了一句 `await (await fetch('http://127.0.0.1:8000/health')).text().catch(…)`
+       「探一下后端」——但它漏掉了 CI 里根本没有后端：fetch 被拒时 .text() 根本不会执行，
+       内层 await 直接抛 ⇒ .catch 兜不住 ⇒ 整个 smoke 崩在主流程 ⇒ main 的 CI 红。
+       冒烟必须完全封闭：页面内 fetch 全部由 stub 注入，本脚本自身零外呼。 */
   }
 
   console.log('\n' + pass + '/' + (pass + fail) + ' 项通过\n');

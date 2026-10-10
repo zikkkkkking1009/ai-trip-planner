@@ -417,13 +417,16 @@ class POIAligner:
         pick_name = self.arb_cache.get(ck)
         if pick_name is None:
             pick_name = self._call_llm_arbiter(alias, city, pool) or ""
-            self.arb_cache[ck] = pick_name
-            try:
-                ARB_CACHE_FILE.write_text(
-                    json.dumps(self.arb_cache, ensure_ascii=False),
-                    encoding="utf-8")
-            except OSError:
-                pass
+            if pick_name:
+                # 空结果不进缓存：LLM 一次抖动就把该别名仲裁永久判「无」
+                # 等于负面缓存（审查 A8）；不缓存 ⇒ 下次还能再试
+                self.arb_cache[ck] = pick_name
+                try:
+                    ARB_CACHE_FILE.write_text(
+                        json.dumps(self.arb_cache, ensure_ascii=False),
+                        encoding="utf-8")
+                except OSError:
+                    pass
         if not pick_name:
             return None
         for p in pool:
@@ -459,7 +462,7 @@ class POIAligner:
         )
         t0 = time.monotonic()
         try:
-            client = OpenAI(api_key=api_key, base_url=base_url, timeout=30)
+            client = OpenAI(api_key=api_key, base_url=base_url, timeout=30, max_retries=0)
             resp = client.chat.completions.create(
                 model=os.environ.get("LLM_MODEL_ID", "deepseek-chat"),
                 temperature=0,

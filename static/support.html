@@ -3,6 +3,7 @@
 <html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%232563eb'/%3E%3Cpath d='M9 21.5c4-1.2 6.5-3.8 7.5-9l3 1.5c-1.2 6.4-5 10.4-10.5 11.6z' fill='white' fill-opacity='.92'/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>客服问答 · 路书</title>
 <!-- ---- 主题：跟随系统 / 亮 / 暗（无闪烁：首帧前就把 data-theme 定下来）----
@@ -143,6 +144,10 @@
        我在计划条目里写过这个坑，这次自己踩了一次——**登记了不等于不会犯**。 */
     --x: 50%;
     --y: 50%;
+    /* Click Spark 的每粒火花位移（JS 逐粒内联覆盖；:root 声明是防
+       「未定义变量让整条 radial/transform 静默失效」的同款坑）。 */
+    --dx: 0px;
+    --dy: 0px;
     /* 背景层专用（2026-10-08）：网格线与噪点。
        --noise-src 是**内联 SVG data-URI**（零外链、零构建），
        feTurbulence 生成的颗粒用来消除大面积渐变的「塑料光滑感」。 */
@@ -200,7 +205,7 @@
   .bg-blob.b2 { width:55vw; height:55vw; right:-16vw; bottom:-20vw; opacity:.42;
     background:radial-gradient(circle at 60% 50%,
       color-mix(in oklab, var(--note-line) 70%, transparent), transparent 70%); }
-  .bg-blob.b3 { width:38vw; height:38vw; left:52%; top:34%; opacity:.3;
+  .bg-blob.b3 { width:38vw; height:38vw; left:34%; top:26%; opacity:.34;
     background:radial-gradient(circle at 50% 50%,
       color-mix(in oklab, var(--ok-line) 45%, transparent), transparent 70%); }
   @keyframes drift1 { from { transform:translate3d(0,0,0) scale(1); }
@@ -440,7 +445,7 @@
      形态按 v4 配方表：**胶囊 + 1px 描边**（不是灰底 pill）。
      ⚠️ 徽章**不叠玻璃**：backdrop-filter 会把描边底下的 accent 冲淡，
      实测在小元素上 blur 14px 已经让 1px 描边发虚 —— 胶囊保持实底 + 描边才清楚。 */
-  .badge { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700;
+  .badge { display:flex; width:fit-content; align-items:center; gap:5px; font-size:12px; font-weight:700;
            line-height:1.5; padding:3px 11px; border-radius:var(--radius-pill);
            margin-bottom:8px; border:1px solid transparent; }
   .badge .licon { flex:0 0 auto; }
@@ -633,6 +638,26 @@
     .marquee { -webkit-mask:none; mask:none; }
   }
 
+  /* ---- 入场与点击动效 — React Bits 词汇表（Click Spark / Split Text / Animated Content）
+     ⚠️ 全部**一次性**（one-shot）：不占「循环 ≤2」的名额；
+     reduce 下一律 animation:none（一次性动画冻结 = 直接呈现终态，无需成对处理）。 ---- */
+  @keyframes msg-in { from { opacity:0; transform:translateY(10px); filter:blur(3px); }
+                      to { opacity:1; transform:translateY(0); filter:blur(0); } }
+  .msg { animation: msg-in .32s var(--e) both; }
+  @media (prefers-reduced-motion: reduce) { .msg { animation:none; } }
+
+  @keyframes char-in { from { opacity:0; transform:translateY(14px); filter:blur(4px); }
+                       to { opacity:1; transform:translateY(0); filter:blur(0); } }
+  .page-title .ch { display:inline-block; animation: char-in .5s var(--e) both; }
+  @media (prefers-reduced-motion: reduce) { .page-title .ch { animation:none; } }
+
+  .composer { position:relative; }        /* Click Spark 的坐标系宿主 */
+  .click-spark { position:absolute; width:4px; height:4px; border-radius:50%; z-index:5;
+                 pointer-events:none; background:var(--accent-solid);
+                 animation:spark-fly .45s ease-out forwards; }
+  @keyframes spark-fly { to { transform:translate(var(--dx), var(--dy)) scale(.2); opacity:0; } }
+  @media (prefers-reduced-motion: reduce) { .click-spark { display:none; } }
+
   /* ---- 运营视图：低频内部功能，折叠起来不与主流程抢视觉权重 ---- */
   #ops-view { margin-top:26px; border-top:1px solid var(--border); padding-top:14px; }
   #ops-view > summary { cursor:pointer; font-size:13px; color:var(--muted-2); list-style:none; }
@@ -773,7 +798,7 @@
 <div class="wrap">
   <!-- 页头说明融进标题区（v3 毛病 13：原来是浮块）。副题不是卡片，是标题的一部分。 -->
   <header class="page-head">
-    <h1 class="page-title">咨询助手</h1>
+    <h1 class="page-title" id="pageTitle">咨询助手</h1>
     <p class="page-sub">基于行程知识库；答不了的会转人工跟进</p>
   </header>
 
@@ -882,11 +907,50 @@ function esc(v) {
     var h = (init && init.headers) || {};
     var o = {};
     var has = false;
-    for (var k in h) { o[k] = h[k]; if (k.toLowerCase() === 'x-app-token') has = true; }
+    /* Headers 实例不可 for-in 枚举（审查 Low#7）：先展开成普通对象，
+       否则调用方原有的 Content-Type 等头会被静默丢弃。 */
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      h.forEach(function (v, k) { o[k] = v; });
+    } else {
+      for (var k in h) { o[k] = h[k]; }
+    }
+    for (var k2 in o) { if (k2.toLowerCase() === 'x-app-token') has = true; }
     if (!has) o['X-App-Token'] = tok;
     return orig(input, { ...(init || {}), headers: o });
   };
 })();
+
+/* ---- Split Text（React Bits）：标题逐字入场，一次性、load 后跑一遍 ---- */
+(function () {
+  var t = document.getElementById('pageTitle');
+  if (!t) return;
+  var chars = t.textContent.split('');
+  t.textContent = '';
+  chars.forEach(function (c, i) {
+    var sp = document.createElement('span');
+    sp.className = 'ch';
+    sp.textContent = c;
+    sp.style.animationDelay = (i * 80) + 'ms';
+    t.appendChild(sp);
+  });
+})();
+
+/* ---- Click Spark（React Bits）：发送时从按钮中心迸出 8 粒一次性火花 ---- */
+function clickSparks(host, x, y) {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (var i = 0; i < 8; i++) {
+    var s = document.createElement('span');
+    s.className = 'click-spark';
+    var ang = (Math.PI * 2) * (i / 8) + Math.random() * 0.6;
+    var dist = 26 + Math.random() * 26;
+    s.style.left = x + 'px';
+    s.style.top = y + 'px';
+    s.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(1) + 'px');
+    s.style.setProperty('--dy', (Math.sin(ang) * dist).toFixed(1) + 'px');
+    s.addEventListener('animationend', function () { this.remove(); });
+    host.appendChild(s);
+  }
+}
 
 /* ---- 401/429 提示：各只弹一次，不刷屏 ---- */
 var authToastTimer = null, rateNoted = false;
@@ -1141,6 +1205,13 @@ async function send() {
   if (!text) return;
   busy = true;
   if (sendBtn) sendBtn.disabled = true;
+  /* Click Spark：以按钮中心为原点迸花（reduce 下内部直接 return） */
+  if (sendBtn) {
+    var host = sendBtn.closest('.composer');
+    var br = sendBtn.getBoundingClientRect();
+    var hr = host ? host.getBoundingClientRect() : { left: 0, top: 0 };
+    clickSparks(host, br.left - hr.left + br.width / 2, br.top - hr.top + br.height / 2);
+  }
   addMsg('q', text);
   histSave({ cls: 'q', text: text });          // 问句先存：即使回答失败也不丢用户的话
   input.value = '';
@@ -1269,8 +1340,9 @@ async function loadOps() {
 function renderOps(d) {
   var box = document.getElementById('ops-body');
   if (!box) return;
-  var old = box.querySelector('.ops-live');
-  if (old) old.remove();
+  /* 渲染前整盒清空：#ops-body 里静态写死的「需要访问令牌」占位文本，
+     只删 .ops-live 是清不掉它的（探针 1280_ops 截图抓到的残留瑕疵）。 */
+  box.textContent = '';
   var wrap = document.createElement('div');
   wrap.className = 'ops-live';
 

@@ -55,8 +55,8 @@ def _save(rows: list[dict]) -> None:
     os.replace(tmp, LEADS_FILE)
 
 
-def upsert_lead(session_id: str, *, channel: str, question: str,
-                reply_kind: str, handoff: bool) -> dict:
+def upsert_lead(session_id: str, *, channel: str, contact: str | None = None,
+                question: str, reply_kind: str, handoff: bool) -> dict:
     """按 session 定位线索并更新；不存在则新建。
 
     - handoff=True：置 handoff（运营侧待跟进）
@@ -71,7 +71,7 @@ def upsert_lead(session_id: str, *, channel: str, question: str,
                      and r.get("channel") == channel), None)
         if lead is None:
             lead = {"id": uuid.uuid4().hex[:12], "session_id": sid,
-                    "channel": channel, "contact": sid,
+                    "channel": channel, "contact": (contact or sid),
                     "created_at": now, "handoff_count": 0}
             rows.append(lead)
         lead["last_question"] = str(question)[:200]
@@ -104,6 +104,17 @@ def set_status(lead_id: str, status: str) -> dict | None:
         lead["updated_at"] = int(time.time())
         _save(rows)
         return dict(lead)
+
+
+def count_handoff() -> int:
+    """全量待跟进计数（不受 status 过滤与 limit 截断影响）。
+
+    为什么单独开：main 的 /support/leads 曾用「已过滤+已截断」的 rows 求
+    handoff_count——handoff 超 100 条封顶、筛 closed 恒为 0，运营标题会错
+    （审查 Medium#2）。前端注释声称它是全量数，后端必须兑现这个口径。"""
+    with _lock:
+        rows = _load()
+    return sum(1 for r in rows if r.get("status") == STATUS_HANDOFF)
 
 
 def list_leads(status: str | None = None, limit: int = 100) -> list[dict]:

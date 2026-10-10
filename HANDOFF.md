@@ -65,7 +65,7 @@ cd "D:\workby room\ai-trip-planner" && node tools/hotel_smoke.js
 | RAG 能力边界（realbench 17 条） | **53/53 检查项 · 17/17 用例**（2026-10-04）。三档拒答 unsupported / attr / soft + 属性覆盖率动态实数 | `python tools/rag_realbench.py` |
 | RAG 生成层（R4） | `/ask?with_answer=1` 基于**本次检索片段**生成 ≤100 字答案（glm-4-flash + retry_call，失败降级 text=None）+ **实体回链核查 `grounded`**（答案实体必须 ∈ 引用片段，子串豁免防误报）；**默认关**——公开白名单接口不自动烧 LLM 配额 | `backend/tests/test_rag_gen.py` |
 | 语料增强（R5） | `spot_desc.py` 360 条一句话描述（公开常识、无营销话术，测试闸门管覆盖率/键名一致/纪律），`build_corpus` 对 desc 空景点兜底；三臂重测 BM25 hit@1 66.7→90.0 | `backend/spot_desc.py` |
-| 单元测试 | **521 个**全过 + 1 skipped（**2026-10-07 实测** `521 passed, 1 skipped`，无 Key 环境——那个 skip 依赖真实 Key；有 Key 时它会执行） | `pytest backend/tests/ -q` |
+| 单元测试 | **523 个**全过 + 1 skipped（**2026-10-07 实测** `523 passed, 1 skipped`，无 Key 环境——那个 skip 依赖真实 Key；有 Key 时它会执行） | `pytest backend/tests/ -q` |
 | 前端静态检查 + 运行时冒烟 | 静态 **13 项**全绿（含 `static/support.html`）；冒烟 **47/47**（规划页，含容量预警条 13 项）+ **48/48**（酒店弹层 / 长图预览 / 地图视图 / 首屏空状态）+ **50/50**（首页检索问答）+ **78/78**（客服会话页，国内化一期；已做反向验证：突变成裸 innerHTML 后转义断言判红）；真机：容量条 **12/12**、support 会话区 **20/20**、support 运营视图 **18/18**、七档 responsive **7/7**、成片录制 **13/13**（含 `prefers-reduced-motion` 冻结**成对验证**） | `tools/` |
 | 接口数 | **42 个**（22 GET / 18 POST / 1 DELETE / 1 WS，openapi 运行时口径）。⚠️ **口径勘误（2026-10-07）**：`_api_catalog()` 曾漏计 include_router 包裹的 `_IncludedRouter` 路由（GET/POST /support/wechat），39/41 均为缺陷期数字勿再引用，已修为递归展开。较 09-28 新增主力：`/ask`（RAG 检索问答）、`/plan/recheck` + `/plan/edit`（结果侧确定性编辑）、`/plan/capacity`（规划前容量预估）、`/poi/search`、`/food` ×4（美食情报卡）、`/support` ×6（国内化一期客服：页面 + message / leads / leads/status / conversation / wechat 回调）+ `/admin/usage`（LLM 成本台账） | `backend/main.py` |
 

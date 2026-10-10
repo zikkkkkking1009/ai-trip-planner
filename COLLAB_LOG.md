@@ -2002,3 +2002,23 @@ support.html 是无构建单文件页、装不了 `pnpm dlx shadcn add`，所以
 门禁：`check_frontend` ✅ ｜ `check_contrast --all` ✅ ｜ `support_smoke` **78 ✓ 0 ✗**
 （脚本随后 `TypeError: fetch failed` 属既有环境问题：第 475 行 `.catch()` 只挂在 `.text()` 上）。
 新增文件：`docs/upstream-provenance.md`（含偏离登记 8 条 + 不移植清单）。
+
+
+## 2026-10-11 | ZCode | 完结条目：用户转授全权——v5 验证收口 + 审查修复 21 处 + React Bits 动效层（规划页 v2 已立项）
+
+- **背景**：用户把 support 批次收口全权转授 ZCode（「火力全开推进到 100%」），并追加两条指令：①允许 CDN+React（v4 已裁定 Tier 1 全量 + Tier 2 点睛）；②规划页可以全部推翻重构（已立项，见文末）。workbuddy 的 v5 成果经独立复核**全部属实**（五站审计数据、upstream-provenance 溯源、verify-demo PASS、78/78 冒烟、七档 21/21）——这轮 ZCode 的活是**验证 + 修瑕疵 + 补缺口**，不是重做。
+- **修复清单（全部有编号出处）**：
+  ① **CI 红（main 5010d78）**：`support_smoke.js:475` 一句「探一下后端」的真实 fetch 在 CI（无后端）必崩且 `.catch` 挂错层——冒烟必须完全封闭，已删并写明原则；
+  ② **README 三处硬伤**（未提交编辑里抓的）：HTML 实体损坏 ×3（`&#x662F;` 等）、CI 徽章超链接被误删、测试数 526/521 漂移 → 全部修正为 **523+1skip**；
+  ③ **support.html 四处**：`renderOps` 不清静态占位文案（探针截图抓的）、「已登记转人工」徽章未独立成行（inline-flex + margin-bottom 不产生换行）、b3 色斑偏出内容区（空态玻璃无物可透）、fetch 包装不兼容 Headers 实例（审查 Low#7）；
+  ④ **审查 Medium×5**：线索落盘 OSError 击穿「客服不 500」契约（旁路化）、`handoff_count` 用已过滤+截断的 rows 求全量口径（新增 `leads.count_handoff()`）、conversations 目录无总量上限（MAX_CONVERSATION_FILES=300 淘汰最旧）、公众号回调同步阻塞（asyncio.to_thread）、MsgId 去重「先记账后处理」与 docstring 相悖（拆 `_is_seen`/`_mark_seen`，成功才记账）；
+  ⑤ **审查 Low×8**：compare_digest 非 ASCII 500、CDATA 内 escape 字面量、load_conversation 锁外读、裸「人工」子串误转工单（收紧+全句等于「人工」）、lead.contact 参数被丢弃、llm_ledger.summary 锁外读、匿名回调无体积上限（64KB）、——前端 Headers 那条见 ③；
+  ⑥ **09-28 审查遗留 Low 复核**（审查代理逐条到代码核实）：10 条里 2 条已被顺带修掉，本轮再修 **A4（task.error 对外只回类型名，防高德 key 经 /task 泄出——4 处 + 测试口径更新）/A5（SDK 重试与 retry_call 相乘，3 处 max_retries=0）/A6（高德 0.35s 限频无锁，共享锁串行化）/A8（仲裁空结果不进负面缓存）/A9（评价负面缓存判据改「字段存在」）** 共 5 条 + 顺手核销 2 条已修；**A7 特殊**：审查建议的修法（全干扰时回 None）会误伤「明天下午加个咖啡馆」这个核心功能——改为**两档制**（干净类型优先 → 排除硬交通设施 → None），既修地铁站漏洞又保住合法目标，理由登记在 editor.py 注释。
+- **React Bits 动效层（用户点名 reactbits.dev）**：Click Spark（发送迸花）/ Split Text（标题逐字）/ 气泡入场（Animated Content 同族）——全部**一次性动效**，不占「循环 ≤2」名额，reduce 下一律关闭；`--dx/--dy` 未声明的静默失效坑被 check_frontend 当场抓住（与 `--x/--y` 同款），已在 :root 声明。登记进 `docs/upstream-provenance.md` §6。
+- **独立验证（不信任自报，全部亲跑）**：门禁套件 9 项（pytest **523+1skip** / ruff 0 / mypy 0 / 五维 0 错 0 警 / check_frontend / check_contrast / 47+48+50+78 冒烟）；ui-style-kit 技能自带工具独立复核 `verify-demo.mjs` **PASS**、`audit-page.mjs` glassCount=26 / loopCount 5→**1（reduce）** / minRatio 6.55 / 零页面错误；七档 21/21；rag_rank 基线 0.92/0.931 实测吻合（workbuddy 欠的抬基线其实已完成，核实即可）。
+- **数据卫生**：leads.json 32→1（保留真实微信线索），测试会话文件删 174 个（运行期文件，不入库）。
+- **成片**：`Zcode room/sessions/20261007-1334_crossborder-agent/demo-v5.webm` + shots-v5 11 帧（含暗色/reduce/390），真后端三档 + 运营闭环（2→1）+ 零 JS 错误。
+- **新立项（用户令）**：规划页全部重构（「一直不满意，全部换了都可以」）——产品设计稿 `SPEC-规划页v2-工作台.md`（单页两泳道工作台：输入流→候选卡→行程画布，AI 助理叙事前台化，玻璃系统复用，API 全复用现接口，只加 GET /app2 路由）；旧 /app 保留至 v2 对齐。React Bits 完整词汇表进 v2。
+- **Tier 2 维持有意不做**：liquid-glass-react 真折射需 React+SVG displacement，Tier 1 的「动态背景层」方案让玻璃有了真透底（这是 workbuddy 比 v4 简报走得更远的正解）。
+- **门禁（本批全量复跑）**：pytest 523+1skip ｜ ruff 0 ｜ mypy 0（10 文件）｜ 五维 0/0 ｜ 前端静态绿 ｜ 对比度页面级+运行时绿 ｜ 47+48+50+78 冒烟 ｜ 七档 21/21 ｜ verify-demo PASS。
+- **未裹入**：`backend/spot_media.json`。

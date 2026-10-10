@@ -596,8 +596,9 @@ def support_leads(status: str | None = None, limit: int = 100) -> dict:
         rows = leads.list_leads(status=status, limit=limit)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"leads": rows,
-            "handoff_count": sum(1 for r in rows if r.get("status") == "handoff")}
+    # handoff_count 是**全量**待跟进数：用已过滤+已截断的 rows 求会把口径算错
+    #（筛 closed 恒 0、超 100 封顶——审查 Medium#2）
+    return {"leads": rows, "handoff_count": leads.count_handoff()}
 
 
 @app.post("/support/leads/status", dependencies=[Depends(verify_token)])

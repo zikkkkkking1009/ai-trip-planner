@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -34,6 +35,7 @@ import llm_ledger
 log = logging.getLogger(__name__)
 
 LLM_TIMEOUT_S = 30.0   # 单次 LLM 调用超时（秒）
+_qps_lock = threading.Lock()   # 高德 0.35s 限频的共享锁（两个搜索入口 + 预热线程）
 
 
 # ---- LLM 意图解析 ----
@@ -216,11 +218,14 @@ def poi_search(query: str, lat: float, lon: float,
     url = f"https://restapi.amap.com/v3/place/around?{params}"
 
     def once() -> dict:
-        wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
-        if wait > 0:
-            time.sleep(wait)
-        # 记限频时间戳：两个搜索入口共用 poi_search._last（同一份高德配额）
-        setattr(poi_search, "_last", time.time())
+        # 持锁「算等待+记时间戳」：to_thread 预热与请求线程并发时，
+        # 无锁读改写会让两个线程同时放行、双双超 QPS（审查 A6）。
+        # 睡眠也在锁内：0.35s 是两个入口**共享**的配额，串行化正是目的。
+        with _qps_lock:
+            wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
+            if wait > 0:
+                time.sleep(wait)
+            setattr(poi_search, "_last", time.time())
         with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
             _loaded: dict = json.loads(resp.read().decode("utf-8"))
             return _loaded
@@ -267,10 +272,11 @@ def text_search(query: str, city: str = DEFAULT_CITY,
     url = f"https://restapi.amap.com/v3/place/text?{params}"
 
     def once() -> dict:
-        wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
-        if wait > 0:
-            time.sleep(wait)
-        setattr(poi_search, "_last", time.time())
+        with _qps_lock:
+            wait = 0.35 - (time.time() - getattr(poi_search, "_last", 0))
+            if wait > 0:
+                time.sleep(wait)
+            setattr(poi_search, "_last", time.time())
         with urllib.request.urlopen(url, timeout=AMAP_TIMEOUT_S) as resp:
             _loaded: dict = json.loads(resp.read().decode("utf-8"))
             return _loaded
@@ -294,12 +300,26 @@ def text_search(query: str, city: str = DEFAULT_CITY,
     return out
 
 
+_TRAVEL_BAD_TYPES = ("公交", "地铁", "停车场", "加油站", "服务区", "充电站")
+
+
 def pick_poi(candidates: list[dict]) -> dict | None:
-    """从周边搜索结果里选第一个干净类型的 POI（过滤公交站等干扰）。"""
+    """从周边搜索结果里选最合适的 POI（两档制）。
+
+    ① 干净类型（type_flag ≥ 0，风景/文博等）优先——对齐场景的正解；
+    ② 否则排除**硬交通设施**后取第一个：「明天下午加个咖啡馆」的目标
+       本身就是餐饮 POI（type_flag 为负），一刀切 type_flag 会把合法目标
+       全滤掉；但公交/地铁/停车场在任何语境都不该进行程——
+       旧行为「全部干扰时兜底 candidates[0]」会把地铁站塞进行程（审查 A7）。
+    ③ 硬干扰也只剩 ⇒ None 走「没搜到」，绝不静默塞错的东西。"""
     for c in candidates:
         if type_flag(c.get("type_str", "")) >= 0:
             return c
-    return candidates[0] if candidates else None
+    for c in candidates:
+        t = str(c.get("type_str", ""))
+        if not any(b in t for b in _TRAVEL_BAD_TYPES):
+            return c
+    return None
 
 
 def make_spot(poi: dict, stay_min: int = 60) -> Spot:
@@ -661,4 +681,6 @@ def _llm(fast: bool = False):
         model = os.environ.get("LLM_MODEL_ID", "deepseek-chat")
     if not api_key or not base_url:
         raise RuntimeError("未配置 LLM_API_KEY")
-    return OpenAI(api_key=api_key, base_url=base_url, timeout=LLM_TIMEOUT_S), model
+    # max_retries=0：SDK 自带重试与调用点的 retry_call 相乘（审查 A5）
+    return OpenAI(api_key=api_key, base_url=base_url,
+                  timeout=LLM_TIMEOUT_S, max_retries=0), model

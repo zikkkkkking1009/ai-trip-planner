@@ -95,7 +95,9 @@ def summary(days: int = 7) -> dict[str, object]:
         lambda: {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0})
     total = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
     try:
-        raw = LEDGER_FILE.read_text(encoding="utf-8")
+        with _ledger_lock:
+            # 读也持锁：与 record 持锁内的轮转 os.replace 竞争会瞬时读到空文件（审查 Low#6）
+            raw = LEDGER_FILE.read_text(encoding="utf-8")
     except OSError as exc:
         # 文件不存在是常态（还没有任何调用）；其它读失败留痕后按空处理
         if not isinstance(exc, FileNotFoundError):

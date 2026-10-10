@@ -68,3 +68,13 @@
 1. 谁再改这四处效果：先看第 1 节的「上游出处」并在改动后更新行号；
 2. 想加新效果：先在 `<技能>\reference\50` 找现成实现 → 有构建就用 registry，无构建就按第 1 节的方式逐值移植 + 在此登记；
 3. **一行代码都查不到出处的「效果」，就是自创，删掉。**
+## 6. React Bits 动效层（2026-10-08 追加，用户点名 reactbits.dev）
+
+| 效果 | 上游出处 | 本页落点 | 性质与纪律 |
+| --- | --- | --- | --- |
+| **Click Spark**（发送迸花） | react-bits `Click Spark`：点击点迸出 8 粒一次性火花 | CSS `.click-spark` + `@keyframes spark-fly`；JS `clickSparks()`（约 15 行）挂在发送时按钮中心 | **一次性**（one-shot），不占「循环 ≤2」名额；reduce 下 `display:none` |
+| **Split Text**（标题逐字入场） | react-bits `Split Text`：逐字上浮 + blur-in，错峰 80ms | JS 把 `#pageTitle` 拆 `.ch` span；CSS `char-in .5s` | 一次性；reduce 下 `animation:none` |
+| **气泡入场**（Animated Content 同族） | react-bits `Fade/Animated Content`：上浮 + blur-in .32s | CSS `.msg { animation: msg-in }` | 一次性；每条消息各跑一遍自己的 |
+
+工程坑（check_frontend 抓的）：`--dx/--dy` 未在 `:root` 声明会让 `transform:translate(var(--dx),…)`
+**整条静默失效**——与 `--x/--y` 同款坑，已声明默认值、JS 逐粒内联覆盖。

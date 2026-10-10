@@ -18,6 +18,7 @@ API 要认证服务号（个人主体办不了），这条能力边界如实写�
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -53,6 +54,10 @@ def verify_signature(token: str, timestamp: str, nonce: str, signature: str) -> 
     """官方验签：sha1(字典序(token, timestamp, nonce))。恒定时间比较。"""
     if not (token and timestamp and nonce and signature):
         return False
+    # compare_digest 对非 ASCII str 抛 TypeError：signature 是用户可控的
+    # query 参数，塞中文会 500 而不是 403（审查 Low#1）
+    if not (signature.isascii() and timestamp.isascii() and nonce.isascii()):
+        return False
     raw = "".join(sorted([token, timestamp, nonce]))
     return compare_digest(hashlib.sha1(raw.encode("utf-8")).hexdigest(), signature)
 
@@ -65,7 +70,12 @@ def parse_callback(payload: bytes) -> dict[str, str]:
 
 
 def reply_xml(from_user: str, to_user: str, content: str) -> str:
-    """被动回复 XML（官方格式：收发人对调 + 时间戳 + 文本）。"""
+    """被动回复 XML（官方格式：收发人对调 + 时间戳 + 文本）。
+
+    ⚠️ CDATA 内**不做 escape**：XML 实体在 CDATA 里不解码，语料含 &/< 时
+    用户会看到 `&amp;` 字面量（审查 Low#2）。防 `]]>` 提前闭合的正确姿势
+    是官方的段拆分：`]]> → ]]]]><![CDATA[>`。标签属性侧的 escape 保留。"""
+    safe = content.replace("]]>", "]]]]><![CDATA[>")
     return (
         "<xml>"
         "<ToUserName><![CDATA[{to}]]></ToUserName>"
@@ -75,18 +85,21 @@ def reply_xml(from_user: str, to_user: str, content: str) -> str:
         "<Content><![CDATA[{content}]]></Content>"
         "</xml>"
     ).format(to=escape(to_user), frm=escape(from_user), ts=int(time.time()),
-             content=content)
+             content=safe)
 
 
-def _seen_before(msg_id: str) -> bool:
-    """True=重复消息（5s 重发窗口内）。顺手清理过期键。"""
+def _is_seen(msg_id: str) -> bool:
+    """True=重复消息（5s 重发窗口内）。只查不记——记账在处理成功之后。"""
     now = time.time()
     for k in [k for k, t in _msg_seen.items() if now - t > DEDUP_TTL_S]:
         _msg_seen.pop(k, None)
-    if msg_id in _msg_seen:
-        return True
-    _msg_seen[msg_id] = now
-    return False
+    return msg_id in _msg_seen
+
+
+def _mark_seen(msg_id: str) -> None:
+    """处理成功后才记账：提前记账的话，一次处理失败会让微信的重发
+    也被去重吞掉 ⇒ 用户永远收不到回复（审查 Medium#5）。"""
+    _msg_seen[msg_id] = time.time()
 
 
 def _session_id(openid: str) -> str:
@@ -114,7 +127,7 @@ def handle_message(payload: bytes, *, answer_fn: Callable = support.answer) -> s
         return reply_xml(msg.get("ToUserName", ""), openid,
                          "当前仅支持文字提问，请发送文字消息。")
     msg_id = msg.get("MsgId", "")
-    if msg_id and _seen_before(msg_id):
+    if msg_id and _is_seen(msg_id):
         log.info("微信重发消息已去重 msgid=%s", msg_id)
         return ""
     content = (msg.get("Content") or "").strip()
@@ -124,9 +137,13 @@ def handle_message(payload: bytes, *, answer_fn: Callable = support.answer) -> s
         out = answer_fn(_session_id(openid), content, channel="wechat_mp",
                         contact=openid, allow_generate=False)
     except ValueError as e:
-        # 超长/空白等输入问题：如实告知，不算服务故障
+        # 超长/空白等输入问题：如实告知并记账（重发同样非法消息没有意义）
         log.info("微信消息被拒： %s", e)
+        if msg_id:
+            _mark_seen(msg_id)
         return reply_xml(msg["ToUserName"], openid, f"这条消息没法处理：{e}")
+    if msg_id:
+        _mark_seen(msg_id)          # 成功才记账：失败留给微信重试（ Medium#5）
     return reply_xml(msg["ToUserName"], openid, out["reply"])
 
 
@@ -167,9 +184,17 @@ async def wechat_callback(request: Request,
     if encrypt_type:     # aes / compat 都不做：零依赖边界，明文模式是测试号默认
         log.warning("收到加密模式回调 encrypt_type=%s（仅支持明文）", encrypt_type)
         return PlainTextResponse("仅支持明文模式（测试号默认）", status_code=501)
+    # 匿名端点的请求体上限：Content-Length 超 64KB 直接 400（审查 Low#8）
+    try:
+        if int(request.headers.get("content-length") or 0) > 65536:
+            return PlainTextResponse("payload too large", status_code=400)
+    except ValueError:
+        return PlainTextResponse("bad content-length", status_code=400)
     payload = await request.body()
     try:
-        xml_out = handle_message(payload)
+        # handle_message 含 BM25 检索 + 会话/线索落盘（阻塞 IO）：跑线程池，
+        # 不占事件循环（全项目「阻塞 IO 一律 to_thread」纪律，审查 Medium#4）
+        xml_out = await asyncio.to_thread(handle_message, payload)
     except Exception:        # noqa: BLE001 —— 回调对微信必须 200，异常只留痕
         log.exception("公众号回调处理异常")
         xml_out = ""

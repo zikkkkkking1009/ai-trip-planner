@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-526%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-523%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
@@ -165,7 +165,7 @@ cp backend/.env.example backend/.env
 **Test and gate commands** (all run without an API key):
 
 ```bash
-cd backend && python -m pytest -q          # unit tests (526 passed; cases needing real keys skip in key-less environments)
+cd backend && python -m pytest -q          # unit tests (523 passed; cases needing real keys skip in key-less environments)
 cd .. && node tools/frontend_smoke.js      # frontend jsdom runtime smoke (18 assertions)
 node tools/hotel_smoke.js                  # hotel picker + long-image preview + map view jsdom smoke (30 assertions)
 python tools/check_frontend.py             # frontend static check (10 blocking gates)
@@ -179,7 +179,7 @@ python tools/check_backend_health.py       # backend five-dimension robustness a
 > broke CI 10 times in a row on 2026-09-28). CI pins jsdom to `30.1.1`; to reproduce the CI
 > environment run `npx -y node@20 tools/frontend_smoke.js`.
 
-- **Tests and CI**: **526 unit tests** all passing (526 passed without keys; alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather / hotel endpoints / integration / **RAG retrieval & generation / support three-tier decision & human handoff / WeChat callback / LLM usage ledger**), GitHub Actions green
+- **Tests and CI**: **523 unit tests** all passing (523 passed without keys; alignment / solving / checking / editor / task pipeline / robustness / preferences / media keys / city-mismatch guards / weather / hotel endpoints / integration / **RAG retrieval & generation / support three-tier decision & human handoff / WeChat callback / LLM usage ledger**), GitHub Actions green
 - **Nine CI gates**: unit tests + **frontend static check** (10 blocking gates: syntax / variable shadowing / hardcoded coordinates / attribute escaping / CSS self-reference / undefined CSS variables / document integrity) + **two-level contrast gates** (page-level token parsing + spec-level light/dark) + **backend five-dimension robustness audit** + **ruff lint** + **mypy type check** + **jsdom runtime smoke** (`frontend_smoke.js` 22 assertions + `hotel_smoke.js` 48 assertions) + a keyless solver demo
 - **Static-check strategy**: ruff enables only **bug-catching rules** (`E4/E7/E9/F`) rather than every style rule — turning everything on at once produces a wall of `# noqa` and the gate stops being read. `main.py`'s `E402` is an **intentional exemption** (`.env` must load before logging is initialised); the reason is recorded in `ruff.toml`. mypy runs **gradually** (bodies of unannotated functions are not checked by default), so genuine type errors in annotated code surface first — **zero `# type: ignore`**
 - **Caching and throttling**: three-tier commute cache (repeat solves issue **zero** API calls); AMap throttled at 0.35 s
@@ -217,7 +217,7 @@ backend/
   reliability.py          Unified timeouts and retries (shared by LLM and AMap)
   weather.py              Trip weather (open-meteo, keyless; admits "unavailable" rather than inventing data)
   logging_setup.py        Logging config and request-id context
-  tests/                  526 unit tests
+  tests/                  523 unit tests
 static/index.html         Planner page (single file, zero build, zero CDN)
 static/home.html          Home page (intro / quantified results / experiment charts)
 static/support.html       Support chat page (RAG three-tier + lead ops console)
