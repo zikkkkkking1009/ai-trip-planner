@@ -2,10 +2,67 @@
 
 [![CI](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zikkkkkking1009/ai-trip-planner/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Tests](https://img.shields.io/badge/tests-521%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-526%20passed-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [简体中文](README.md) | [English](README_en.md)
+
+---
+
+## 这是什么
+
+**把小红书/公众号上复制来的一整段攻略，变成一份「照着走就能成」的逐日行程。**
+
+你贴一段攻略，扔进去：
+
+> 「Day1 上午兵马俑，下午回酒店休息，晚上吃个泡馍。Day2 华清宫，然后……」
+
+它输出：**每天几点去哪、之间怎么走、总共花多少钱、哪条超预算了**，并且能在地图上点开看路线。
+
+## 解决的真问题
+
+现有的 AI 行程工具基本只做两件事：**把攻略总结一遍**，或者**让大模型自由发挥编一份**。
+前者没用（你还是得自己查），后者看着漂亮但**照着走会出事**——
+
+实测 50 组场景：让 LLM 直接排期，质量分甚至略高（**0.921 vs 0.915**），
+但**有 8 次预算违规、2% 的场景存在时间冲突**。
+
+也就是说你拿到一份「看起来很完整」的行程，点进去发现**钱超了、或者根本赶不上**。
+
+本项目的做法是反过来：
+
+> **LLM 只负责「理解」你写了什么，所有硬约束交给确定性算法。**
+
+- 抽取出景点候选 → 与高德 POI 实体对齐（避免「赛里木湖」匹配到同名民宿）
+- 交给 OPTW 求解器排程（贪心 + 2-opt + 跨日搬运）
+- **独立校验器**逐条检查预算 / 时间窗 / 通勤占比
+
+结果：**100% 合规、0 违规**。对比数据见 [docs/experiments.md](docs/experiments.md)。
+
+## 顺带做了的事
+
+| 能力 | 说明 |
+|---|---|
+| **对话式改行程** | 「第三天改成博物馆」「预算砍到 1500」——解析意图后确定性执行，不是重新生成 |
+| **RAG 客服 + 转人工** | 知识库答不了的**自动登记线索转人工**，不是硬编一个答案；含线索生命周期与成本台账 |
+| **公众号接入** | sha1 验签 + 明文被动回复 + MsgId 去重；**渠道永不烧 LLM**（被动回复 5s 时限） |
+| **地图可视化** | 路线绘制、逐日视图、高德 POI 对齐 |
+| **稳健性模拟** | 蒙特卡洛 N3：模拟天气/排队/延误，看这份行程「稳不稳」 |
+
+## 技术栈
+
+FastAPI + Pydantic + httpx · LLM（OpenAI 兼容，深Seek/智谱）· 高德 POI + 天气（open-meteo）·
+OR-Tools CP-SAT（对照实验）· 前端**单文件零构建零 CDN** · Docker / GitHub Actions
+
+## 适合谁看
+
+- 想抄一个**完整工程**的：约束求解 + LLM 分层 + 全链路门禁，每一步都有实测数字
+- 做**行程/路线规划**的：OPTW 建模、实体对齐、约束校验这套可直接搬
+- 想看**工程实践**的：反事实对照实验、失败集归因、门禁设计与反向验证，见下方「工程实践」
+
+---
+
+## 技术方案（一句话版）
 
 把一段旅行攻略文本，变成一份**约束可校验、可对话修改、地图可视**的逐日行程。
 
@@ -198,7 +255,7 @@ cp backend/.env.example backend/.env
 **测试与门禁命令**（均可无 Key 运行）：
 
 ```bash
-cd backend && python -m pytest -q          # 单元测试（521 passed + 1 skipped；依赖真实 Key 的个别用例在无 Key 环境自动跳过）
+cd backend && python -m pytest -q          # 单元测试（526 passed；依赖真实 Key 的个别用例在无 Key 环境自动跳过）
 cd .. && node tools/frontend_smoke.js      # 前端 jsdom 运行时冒烟（47 项）
 node tools/hotel_smoke.js                  # 酒店弹层 + 长图预览 + 主题切换 jsdom 冒烟（48 项）
 node tools/home_ask_smoke.js               # 首页检索问答演示框 jsdom 冒烟（50 项）
@@ -218,7 +275,7 @@ cd backend && mypy .                       # 类型检查（渐进式，当前 0
 > - `node tools/contrast_runtime.js static/index.html static/home.html --all` —— 对比度真渲染复核
 > - `node tools/hero_motion_check.js` —— 首页 hero 插画「动效是否肉眼可辨」（覆盖一个周期逐窗比像素，正常与 reduce 双环境均值均须 ≥4%）
 
-- **测试与 CI**：**521 个单元测试**全过（无 Key 环境 521 passed + 1 skipped；对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / 接口级集成 / **RAG 检索与生成 / 客服三档决策与转人工 / 公众号回调 / LLM 成本台账**），GitHub Actions 全绿
+- **测试与 CI**：**526 个单元测试**全过（无 Key 环境 526 passed；对齐 / 求解 / 校验 / 编辑器 / 任务流水线 / 稳健性 / 偏好 / 媒体 key / 城市错配守卫 / 天气 / 酒店接口 / 接口级集成 / **RAG 检索与生成 / 客服三档决策与转人工 / 公众号回调 / LLM 成本台账**），GitHub Actions 全绿
 - **九道 CI 门禁**：单元测试 + **前端静态检查**（10 项阻塞门禁：语法 / 变量遮蔽 / 硬编码坐标 / 属性转义 / CSS 自引用 / 未定义 CSS 变量 / 文档完整性 / 对比度达标 / 无容器级硬编码颜色）+ **两级对比度门禁**（页面级令牌解析 + 规范级明暗双主题）+ **后端五维健壮性审计**（超时 / 重试 / 状态 / 日志 / 成本）+ **ruff 静态检查** + **mypy 类型检查** + **jsdom 运行时冒烟**（`frontend_smoke.js` 47 项 + `hotel_smoke.js` 48 项 + `home_ask_smoke.js` 50 项）+ 无密钥的求解器 demo
 - **静态检查策略**：ruff 只开**能抓真 bug 的规则**（`E4/E7/E9/F`），不堆风格规则——一上来开全量只会产出满屏 `# noqa`，门禁就没人看了；`main.py` 的 `E402` 是**有意豁免**（必须先加载 .env 再初始化日志），理由写在 `ruff.toml` 里。mypy 走**渐进式**（默认不进未标注函数体），先把已标注部分的真类型错误抓干净，**0 处 `# type: ignore`**
 - **缓存与限频**：通勤矩阵三级缓存（重复求解 API 调用降为 0）；高德 0.35s 节流
@@ -272,7 +329,7 @@ python eval_gap.py --n 50 --seed 42 --limit 8      # 启发式 vs CP-SAT 最优�
 
 ```
 backend/
-  main.py                 FastAPI 入口与 26 个接口（25 HTTP + 1 WebSocket）
+  main.py                 FastAPI 入口与 42 个接口（41 HTTP + 1 WebSocket）
   models.py               Pydantic 领域模型（Spot / PlanRequest / DayPlan / Hotel）
   extractor.py            攻略文本 → 景点候选（LLM + 容错 JSON 解析 + 城市识别）
   aligner.py              实体对齐（高德 POI 检索 + 打分融合 + 类型过滤 + LLM 仲裁）
@@ -290,7 +347,7 @@ backend/
   media_cache.py          媒体缓存 key 规则（城市|景点名）与原子写
   reliability.py          统一超时与重试（LLM + 高德共用）
   logging_setup.py        日志配置与请求 ID 上下文
-  tests/                  521 个单元测试
+  tests/                  526 个单元测试
 static/index.html         路书前端（单文件，零构建，零 CDN）
 tools/                    检查与验证脚本（五维审计 / 前端静态检查 / 前端与酒店 jsdom 冒烟 / 多城市端到端）
 data/plans/               规划快照（软删除标记）
