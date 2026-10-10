@@ -1,6 +1,8 @@
 @echo off
 rem ai-trip-planner backend resident launcher (Oray tunnel maps to 127.0.0.1:8000)
-rem Started by scheduled task "ai-trip-backend" at logon; can also run manually.
+rem NOTE 2026-10-10: the scheduled task "ai-trip-backend" no longer exists on this
+rem machine (verified with Get-ScheduledTask), so this does NOT autostart at logon
+rem any more -- start it manually, or re-register the task (see 怎么启动.md sec 8).
 rem Skips when port 8000 is already listening (avoid stomping a live instance).
 rem NOTE: keep this file ASCII-only - cmd.exe parses .bat in ANSI/GBK, UTF-8
 rem Chinese comments get mangled into garbage commands (bitten 2026-10-04).
