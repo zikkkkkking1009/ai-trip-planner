@@ -347,12 +347,34 @@ backend/
   media_cache.py          媒体缓存 key 规则（城市|景点名）与原子写
   reliability.py          统一超时与重试（LLM + 高德共用）
   logging_setup.py        日志配置与请求 ID 上下文
+  # —— 国内化一期（RAG 客服 / 线索 / 成本台账 / 公众号）——
+  rag.py                   检索：BM25 + 向量混合召回、打分融合、gap 判定
+  rag_intent.py            意图理解（把「多少钱」「怎么去」映射到槽位）
+  support.py               客服三档决策（命中 / 部分答案 / 转人工）
+  leads.py                 线索落盘（锁 + 原子写，open/handoff/closed 三态生命周期）
+  llm_ledger.py            LLM 成本台账（各出口统一打点，按用途×模型聚合）
+  wechat_mp.py             公众号回调（sha1 验签 + 明文被动回复 + MsgId 去重）
+  corpus_fields.py         语料字段分层（text 检索用 / display 展示用）
+  spot_desc.py / food_seeds.py   景点简介与美食种子数据
+  evaluation.py            评价生成（行程总评 / 稳健性 N3 / 偏好）
+  eval_rag.py / eval_gap.py / eval_aligner.py / eval_cluster.py
+  eval_preference.py / eval_simulation.py      评测集与指标
+  bench_models.py          模型横评
+  fetch_spot_details.py    景点详情补全
+  run_demo.py / run_demo_amap.py / selftest.py   演示与自检入口
   tests/                  526 个单元测试
-static/index.html         路书前端（单文件，零构建，零 CDN）
-tools/                    检查与验证脚本（五维审计 / 前端静态检查 / 前端与酒店 jsdom 冒烟 / 多城市端到端）
+static/index.html         规划页（单文件，零构建，零 CDN）
+static/home.html          首页（项目介绍 / 量化结果 / 实验图表）
+static/support.html       客服会话页（RAG 三档 + 线索运营视图，液态玻璃风格）
+tools/                    检查与验证脚本（五维审计 / 前端静态检查 / 四支 jsdom 冒烟 /
+                          对比度门禁 / 排序评测 / 实时真机探针）
 data/plans/               规划快照（软删除标记）
+data/conversations/       客服会话留痕（每轮决策档位可审计）
+data/food/                美食语料
 docs/experiments.md       实验报告
+docs/frontend-study-method.md  学前端设计的方法（抓组件源码，别凭理解发明）
 ROADMAP.md                项目复盘与推进路线图
+COLLAB_LOG.md             协作过程与每次决策的依据（只追加）
 HANDOFF.md                新会话接上下文的第一份文件
 ```
 
