@@ -34,6 +34,15 @@ jobs:
       - name: Frontend static check (syntax + shadowing guard)
         run: python tools/check_frontend.py
 
+      # 死锚点门禁（零依赖，纯正则）。为什么必须进 CI：
+      # 2026-10-10 重做落地页时删了两个 section，导航栏和 hero 按钮仍指向它们
+      # ⇒ 用户点「量化结果」直接没反应。而 check_frontend 的 9 项全过
+      # （它查语法/转义/对比度/标签配平），check_contrast 也过
+      # —— **没有一项会查锚点对应的 id 还存不存在**。
+      # 属���：「删 section / 改 id」之后必须跑，否则等于发一个点了没反应的按钮。
+      - name: Dead anchor check (nav links must have targets)
+        run: node tools/check_anchors.js
+
       # 对比度门禁（静态解析，零依赖）。为什么必须进 CI：
       # 令牌一改就可能踩 WCAG 红线，而"看着还行"肉眼根本发现不了。
       # 只在开发机跑的是 tools/contrast_runtime.js —— 它要 playwright + 真实浏览器，
