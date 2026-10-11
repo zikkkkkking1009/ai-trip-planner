@@ -2042,3 +2042,12 @@ support.html 是无构建单文件页、装不了 `pnpm dlx shadcn add`，所以
 - **真 bug 三枚（冒烟/录制/目检各抓一枚）**：①`poll()` 的 onDone 形参死代码 ⇒ S.result 停旧值、天 tab 静默失效（workbuddy…不对，是 smoke 子代理抓的，一行修+双保险）；②进度条目是对象 ⇒ 叙事变「[object Object]」（story 对象安全化）；③Leaflet 默认 marker 图标 404（vendor 无图 ⇒ circleMarker）。录制器还踩了我自己的响应式规则（1440 下 mapbtn 应隐藏）。
 - **门禁（全量复跑）**：pytest **523+1skip** ｜ ruff 0 ｜ check_frontend 绿（planner2 已进 PAGES）｜ 五支冒烟 **47+48+50+78+71** ｜ 成片 `demo-app2.webm`+8 帧（真 LLM 抽取、真求解、真对话编辑、零 JS 错误）。另：index.html 遗留 A1（酒店搜索竞态守卫）+A10（日历 7 天钳制+行内提示）由子代理修复（+20/−2，四门禁绿）。
 - **给你的交接**：v2 的 P1（extract 抽 needs_booking 预约提醒、偏好记忆入库）与 P2（知识图谱/多城/解析链接）已登记 SPEC；旧 /app 未动。
+
+## 2026-10-12 | ZCode | Wave 1：/app 全量玻璃视觉重构（引擎零改动）+ 经典版存档 /app-classic
+
+- **背景**：用户看 /app 旧貌直接否决（「结构完全不对、还是丑、全部每个地方都要变」）。纠正我此前「另起 /app2 薄壳」的误读——重构对象就是 /app 本体。
+- **Wave 1（本批）**：v4 玻璃覆写层注入 index.html（`<style id="v4skin">`）：blob×3 色斑背景 + 网格 + 噪点、悬浮玻璃胶囊导航、面板全量玻璃化（.sheet/.wpanel/.pcard/.usection）、胶囊按钮/tab、结果区玻璃卡。**JS 与全部接口零改动**（功能即接口——回应「页面没有接口」）。hero 标题恢复白字（我的渐变字在暗极光上不可读）、hero chips 暗玻璃 78%（runtime contrast 2.83→达标）。
+- **回退入口**：`planner-classic.html` + `GET /app-classic`（重构前原样存档，鉴权白名单已登记）。
+- **Wave 2（已立项未开工）**：结构级重构——三步向导改单页工作台 IA（SPEC-规划页v2）、全模块移植、frontend/hotel 冒烟断言重写（现冒烟锁旧 DOM，重构必动）。**/app 在 Wave 2 落地前保持 Wave 1 形态**。
+- **门禁**：pytest 523+1skip ｜ check_frontend 绿 ｜ frontend_smoke 47/47 ｜ hotel 48/48 ｜ contrast_runtime index --all 绿（修复 hero chips 2.83:1）。
+- **未裹入**：`backend/spot_media.json`。

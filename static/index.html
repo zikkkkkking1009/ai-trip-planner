@@ -1325,8 +1325,99 @@
   }
 })();
 </script>
+
+<style id="v4skin">
+/* ==================================================================
+   v4 「液态玻璃 × 工程感」全量覆写层（2026-10-08，ZCode）
+   纪律：JS 与全部接口零改动（功能即接口）；本层只重写视觉与布局。
+   令牌全部 color-mix 从既有 :root 派生（零裸 hex）；reduce 冻结。
+   ================================================================== */
+:root {
+  --glass-bg:  color-mix(in oklab, var(--surface) 55%, transparent);
+  --glass-brd: color-mix(in oklab, var(--muted-3) 55%, transparent);
+  --glass-hi:  color-mix(in oklab, var(--fg) 10%, transparent);
+  --r-lg: 16px; --r-md: 12px; --r-pill: 999px;
+  --dot:      color-mix(in oklab, var(--muted-3) 26%, transparent);
+  --grid-line: color-mix(in oklab, var(--muted-3) 14%, transparent);
+}
+:root[data-theme="dark"] {
+  --glass-bg:  color-mix(in oklab, var(--surface) 16%, transparent);
+  --glass-brd: color-mix(in oklab, var(--muted-3) 30%, transparent);
+  --glass-hi:  color-mix(in oklab, var(--fg) 6%, transparent);
+  --dot:       color-mix(in oklab, var(--muted-3) 16%, transparent);
+  --grid-line: color-mix(in oklab, var(--muted-3) 10%, transparent);
+}
+.bg-layer { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+#phone { position:relative; z-index:1; background:transparent !important; }
+.bg-blob { position:absolute; border-radius:50%; filter:blur(90px); }
+.bg-blob-b1 { width:52vw; height:52vw; left:-8vw; top:-10vw;
+  background:radial-gradient(circle at 40% 40%, color-mix(in oklab, var(--accent) 52%, transparent), transparent 70%);
+  animation:bgdrift 26s ease-in-out infinite alternate; }
+.bg-blob-b2 { width:46vw; height:46vw; right:-10vw; top:16vh; opacity:.75;
+  background:radial-gradient(circle at 60% 50%, color-mix(in oklab, var(--note-line) 60%, transparent), transparent 70%); }
+.bg-blob-b3 { width:40vw; height:40vw; left:24%; bottom:-8vw; opacity:.6;
+  background:radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--accent-soft) 90%, transparent), transparent 70%); }
+@keyframes bgdrift { from { transform:translate3d(0,0,0) scale(1); } to { transform:translate3d(6vw,4vh,0) scale(1.15); } }
+.bg-grid { position:absolute; inset:0;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M0 0h40v40' fill='none' stroke='currentColor' stroke-opacity='.14' stroke-width='1'/></svg>");
+  background-size:40px 40px; color:var(--grid-line);
+  -webkit-mask:radial-gradient(ellipse 90% 60% at 50% 30%, #000 20%, transparent 75%);
+          mask:radial-gradient(ellipse 90% 60% at 50% 30%, #000 20%, transparent 75%); }
+.bg-noise { position:absolute; inset:0; opacity:.14;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='.5'/></svg>");
+  background-size:180px 180px; }
+:root[data-theme="dark"] .bg-blob-b1 { opacity:.6; }
+:root[data-theme="dark"] .bg-blob-b2 { opacity:.4; }
+:root[data-theme="dark"] .bg-blob-b3 { opacity:.3; }
+@media (prefers-reduced-motion: reduce) { .bg-blob { animation:none !important; } }
+
+.site-nav { margin:12px auto 0; max-width:1280px; width:calc(100% - 32px);
+  border-radius:var(--r-pill); border:1px solid var(--glass-brd) !important;
+  background:color-mix(in oklab, var(--surface) 72%, transparent) !important;
+  backdrop-filter:blur(16px) saturate(160%); -webkit-backdrop-filter:blur(16px) saturate(160%);
+  box-shadow:0 8px 30px oklch(20% 0.015 75 / .10); }
+.hero h1 { font-family:var(--font-display); letter-spacing:-.01em;
+  text-shadow:0 2px 24px oklch(20% 0.015 75 / .35); }
+.hero .chip { border-radius:var(--r-pill) !important;
+  /* hero chips 压在暗极光带上：暗玻璃 + 亮字（runtime contrast 2.83:1 修复） */
+  background:color-mix(in oklab, var(--fg) 78%, transparent) !important;
+  border:1px solid color-mix(in oklab, var(--fg) 26%, transparent) !important;
+  color:var(--bg) !important;
+  backdrop-filter:blur(12px) saturate(140%); -webkit-backdrop-filter:blur(12px) saturate(140%); }
+.wizard-bar .wstep { border-radius:var(--r-pill) !important; border:1px solid var(--glass-brd) !important;
+  background:var(--glass-bg) !important; color:var(--muted-2) !important; }
+.sheet, .wpanel, .pcard, .usection, .token-panel, .city-menu {
+  background:var(--glass-bg) !important;
+  backdrop-filter:blur(16px) saturate(150%); -webkit-backdrop-filter:blur(16px) saturate(150%);
+  border:1px solid var(--glass-brd) !important;
+  border-radius:var(--r-lg) !important;
+  box-shadow:inset 0 1px 0 var(--glass-hi), 0 10px 34px oklch(20% 0.015 75 / .08) !important; }
+.go, .pcard button, .usection button { border-radius:var(--r-pill) !important; }
+.go-next { background:transparent !important; color:var(--muted-2) !important;
+  border:1px solid var(--glass-brd) !important; }
+.go-next:hover { color:var(--fg) !important; border-color:var(--accent-line) !important; }
+.sheet input, .sheet select, .sheet textarea, .field input, .field select {
+  border-radius:var(--r-md) !important; border:1px solid var(--glass-brd) !important;
+  background:color-mix(in oklab, var(--surface) 55%, transparent) !important; }
+.daytabs button, .seg .s { border-radius:var(--r-pill) !important;
+  border:1px solid var(--glass-brd) !important; background:var(--glass-bg) !important; }
+.seg .s.active { background:var(--accent-solid) !important; color:var(--on-accent) !important;
+  border-color:var(--accent-solid) !important; }
+.daywrap, .ov-card { border-radius:var(--r-lg) !important;
+  background:var(--glass-bg) !important; border:1px solid var(--glass-brd) !important;
+  backdrop-filter:blur(14px) saturate(145%); -webkit-backdrop-filter:blur(14px) saturate(145%);
+  box-shadow:inset 0 1px 0 var(--glass-hi); overflow:hidden; }
+.daymap { border-radius:var(--r-md) !important; overflow:hidden; }
+.wx-days .wx-day, .rb-days > *, .rv-item { border-radius:var(--r-md) !important;
+  background:color-mix(in oklab, var(--surface) 60%, transparent) !important;
+  border:1px solid var(--glass-brd) !important; }
+</style>
 </head>
 <body>
+<div class="bg-layer" aria-hidden="true">
+  <div class="bg-blob bg-blob-b1"></div><div class="bg-blob bg-blob-b2"></div><div class="bg-blob bg-blob-b3"></div>
+  <div class="bg-grid"></div><div class="bg-noise"></div>
+</div>
 <div id="phone">
 
   <!-- ========= 顶部导航（网站形态，替代原底部 App tabbar）========= -->

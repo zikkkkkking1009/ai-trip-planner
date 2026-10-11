@@ -97,6 +97,7 @@ def test_all_write_endpoints_are_protected(with_token):
                   #    HTML 与 /、/app 同类；真正的写入走 /support/message
                   "/support/message", "/support/wechat", "/support",
                   "/app2",     # 行程工作台 v2（2026-10-08）：纯静态 HTML，与 /app 同类
+                  "/app-classic",  # 经典版存档（2026-10-08 重构前的 /app，回退入口）
                   # FastAPI 自带的接口文档：**刻意留开**，不是漏网。
                   # ① 首页 footer 有意链到 /docs（作品集要展示 Swagger UI）；
                   # ② 文档只暴露接口形状，不泄露任何 Key；

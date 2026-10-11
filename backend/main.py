@@ -501,6 +501,12 @@ def planner_page():
     return _serve_html("index.html")
 
 
+@app.get("/app-classic")
+def planner_classic_page():
+    """经典版规划器（重构前存档，`static/planner-classic.html`）——v2 对齐前的回退入口。"""
+    return _serve_html("planner-classic.html")
+
+
 @app.get("/app2")
 def planner2_page():
     """行程工作台 v2（`static/planner2.html`）：单页两泳道——自由文本输入流 +
