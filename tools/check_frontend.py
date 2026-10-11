@@ -34,7 +34,8 @@ ROOT = Path(__file__).resolve().parent.parent
 # （新增页面若漏进这份清单，就等于绕过了语法门与转义/坐标守卫）
 # 2026-10-07 加 support.html：它承载 reply/citations 等外部文本，
 # 是三页里转义风险最高的（内容来自 RAG 生成层与语料），最需要这道门。
-PAGES = ("static/index.html", "static/home.html", "static/support.html")
+# 2026-10-08 加 planner2.html：行程工作台 v2（同页承载 LLM 叙事/候选/行程等外部文本）
+PAGES = ("static/index.html", "static/home.html", "static/support.html", "static/planner2.html")
 
 # 设计稿：它们用**同一套令牌**渲染（"规范即样张"），所以配色规则也得守；
 # 但没有页面级 JS，不需要跑语法门/转义门，只跑第 10 项容器配色检查。

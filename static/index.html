@@ -1946,7 +1946,7 @@ function openCalendar() {
         border-radius:50%;width:30px;height:30px;cursor:pointer">${ICON_X}</button></div>
     <div class="cal-week">${['日','一','二','三','四','五','六'].map(w=>`<span>${w}</span>`).join('')}</div>
     <div class="cal-months" id="calMonths"></div>
-    <div class="cal-foot"><button id="calDone" onclick="calApply()"></button></div>
+    <div class="cal-foot"><div id="calHint" hidden style="font-size:12px;color:var(--warn-ink);margin-bottom:8px"></div><button id="calDone" onclick="calApply()"></button></div>
   </div>`;
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
   document.body.appendChild(ov);
@@ -1981,7 +1981,13 @@ function buildCal() {
   }
   updateCalFoot();
 }
+// 行内提示（跨度超上限等）：只在日历弹层开着时存在，随每次选择刷新
+function calHint(msg) {
+  const el = $('calHint'); if (!el) return;
+  el.textContent = msg; el.hidden = !msg;
+}
 function calPick(d) {
+  calHint('');                              // 新的选择先清掉上一条提示
   const ds = d.toDateString();
   if (calStart && calEnd) {
     // 已选完整区间：点出发日=全部取消；点结束日=只取消结束（保留出发日）
@@ -1991,7 +1997,15 @@ function calPick(d) {
   } else if (calStart) {
     // 只选了出发日：再点同一天=取消；点更晚=设为结束日；点更早=改为新出发日
     if (ds === calStart.toDateString()) { calStart = null; }
-    else if (d > calStart) { calEnd = d; }
+    else if (d > calStart) {
+      calEnd = d;
+      // 行程天数上限 7 天（PlanRequest.days le=7）：跨度超 6 晚就把结束日钳到
+      // 出发日+6，并明示——否则用户选 20 天会被静默排成 7 天
+      if (Math.round((calEnd - calStart)/86400000) > 6) {
+        calEnd = new Date(calStart); calEnd.setDate(calStart.getDate() + 6);
+        calHint('最多 7 天，已自动收尾');
+      }
+    }
     else { calStart = d; }
   } else {
     calStart = d;
@@ -3880,6 +3894,7 @@ function openHotelPicker() {
   let hotelLoading = false;     // 加载中：防重复点击
   let hotelMode = 'reco';       // 当前模式：reco=推荐列表 / search=关键词搜索
   let hotelLastQuery = '';      // search 模式下产生当前列表的关键词（翻页要用同一个）
+  let hotelSearchSeq = 0;       // 搜索序号：420ms 防抖自动搜 + 手动点搜连发时，慢响应不许覆盖新结果
   const currentHotelName = () =>
     (plan && plan.hotel && plan.hotel.name) || (pendingHotel && pendingHotel.name) || '';
 
@@ -4075,9 +4090,11 @@ function openHotelPicker() {
       setMoreLoading(true);
     }
     hotelLoading = true;
+    const mySeq = ++hotelSearchSeq;   // 每次发起都领号（与 searchPois 的 _pickSeq 同款守卫）
     fetch('/hotel/search', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({query: q, city: currentCity, page})})
       .then(r => r.json()).then(d => {
+        if (mySeq !== hotelSearchSeq) return;   // 过期响应：已有更新的搜索在途/已渲染，丢弃
         const got = d.results || [];
         hotelLast = page === 1 ? got : hotelLast.concat(got);
         hotelPage = page;
@@ -4085,6 +4102,7 @@ function openHotelPicker() {
         hotelLoading = false;
         renderHotelFilters(); renderHotelList();
       }).catch(() => {
+        if (mySeq !== hotelSearchSeq) return;   // 旧请求的失败也不许清掉新结果
         hotelLoading = false;
         if (page === 1) $('hotelResults').innerHTML = '<div class="uempty">搜索失败，请重试</div>';
         else setMoreLoading(false);

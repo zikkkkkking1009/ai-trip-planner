@@ -501,6 +501,14 @@ def planner_page():
     return _serve_html("index.html")
 
 
+@app.get("/app2")
+def planner2_page():
+    """行程工作台 v2（`static/planner2.html`）：单页两泳道——自由文本输入流 +
+    行程画布 + 常驻地图；轻编辑走 /plan/recheck、对话编辑走 /plan/edit。
+    旧 /app 保留至 v2 功能对齐（SPEC：规划页v2-工作台）。"""
+    return _serve_html("planner2.html")
+
+
 def _serve_html(filename: str):
     """直接把 static/ 下的单文件页面返回。
 

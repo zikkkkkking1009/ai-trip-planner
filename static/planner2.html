@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%232563eb'/%3E%3Cpath d='M9 21.5c4-1.2 6.5-3.8 7.5-9l3 1.5c-1.2 6.4-5 10.4-10.5 11.6z' fill='white' fill-opacity='.92'/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行程工作台 · 路书</title>
+<!-- 主题脚本：与 index/home/support 逐字同款（三页一套，不发明第四种） -->
+<script>
+(function () {
+  var KEY = 'theme';
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  var SUN = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.4v1.7M8 12.9v1.7M1.4 8h1.7M12.9 8h1.7M3.3 3.3l1.2 1.2M11.5 11.5l1.2 1.2M12.7 3.3l-1.2 1.2M4.5 11.5l-1.2 1.2"/></svg>';
+  var MOON = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.6 9.6A5.6 5.6 0 0 1 6.4 2.4a5.6 5.6 0 1 0 7.2 7.2z"/></svg>';
+  function saved() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  window.themeApply = function (s) {
+    var dark = s === 'dark' || (s !== 'light' && !!(mq && mq.matches));
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var b = document.getElementById('themeBtn');
+    if (b) {
+      b.innerHTML = dark ? MOON : SUN;
+      b.title = '主题：' + (s === 'dark' ? '暗色' : s === 'light' ? '亮色' : '跟随系统') + '（点击切换）';
+      b.dataset.mode = s || 'auto';
+    }
+  };
+  window.cycleTheme = function () {
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var next = dark ? 'light' : 'dark';
+    try { localStorage.setItem(KEY, next); } catch (e) {}
+    window.themeApply(next);
+  };
+  window.themeApply(saved());
+  if (mq && mq.addEventListener) {
+    mq.addEventListener('change', function () { if (!saved()) window.themeApply(null); });
+  }
+  document.addEventListener('DOMContentLoaded', function () { window.themeApply(saved()); });
+})();
+</script>
+<link rel="stylesheet" href="/static/vendor/leaflet.css">
+<style>
+  /* ===== 基础令牌（与全站共用同一套，逐字照抄）===== */
+  :root {
+    --bg:       oklch(98.5% 0.004 95);
+    --surface:  oklch(100% 0.002 95);
+    --fg:       oklch(20% 0.015 75);
+    --muted:    oklch(45% 0.012 75);
+    --muted-2:  oklch(37% 0.014 75);
+    --muted-3:  oklch(47% 0.015 80);
+    --border:   oklch(89% 0.006 90);
+    --fill:     oklch(96.5% 0.005 92);
+    --fill-2:   oklch(94% 0.007 92);
+    --accent:      oklch(50% 0.17 258);
+    --accent-deep: oklch(43% 0.17 260);
+    --accent-ink:  oklch(98.5% 0.004 95);
+    --accent-soft: oklch(95.5% 0.025 255);
+    --accent-line: oklch(62% 0.12 256);
+    --accent-solid: oklch(50% 0.17 258);
+    --on-accent:  oklch(98.5% 0.004 95);
+    --ok:        #00803a;   --ok-ink:  #2b6e34;  --ok-soft:  #eef6ee;  --ok-line: #cde8cf;
+    --warn:      #e8590c;   --warn-ink:#bc4c00;  --warn-soft:#fff4e6; --note-soft:#fff8e6;  --note-line:#ffe58f; --note-ink:#af5a00;
+    --bad:       #ce3531;   --bad-ink: #b42318;  --bad-soft: #fef2f2;  --bad-line:#fee4e2;
+    --font-display: Georgia, "Times New Roman", "Source Han Serif SC", "Noto Serif SC", "STZhongsong", "SimSun", serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    --font-mono:    "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
+    --sh-3: 0 12px 40px oklch(20% 0.015 75 / .14);
+    --e: cubic-bezier(.22,.61,.36,1);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e0e10;      --surface: #151619;
+    --fg: #dbdad6;      --muted: #8b8a84;   --muted-2: #a5a4a0;  --muted-3: #8d9197;
+    --border: #2a2b2f;  --fill: #1d1e21;    --fill-2: #26272a;
+    --accent: #99a8d5;  --accent-deep: #8695c6;  --accent-solid: #798abd;
+    --accent-ink: #0b0b0e;  --on-accent: #0b0b0e;
+    --accent-soft: #212532; --accent-line: #404a67;
+    --ok: #4ed589;      --ok-ink: #009f57;  --ok-soft: #0e2517;   --ok-line: #1c4430;
+    --warn: #f78955;    --warn-ink:#da672c;  --warn-soft:#2f190f; --note-soft:#2d1a0a;  --note-line:#5a3f14; --note-ink:#cc7200;
+    --bad: #fb6157;     --bad-ink: #e85854; --bad-soft: #301715;  --bad-line: #5b2724;
+  }
+  /* ===== 玻璃令牌层（v4 定稿，与 support.html 同源）===== */
+  :root {
+    --glass-bg:  color-mix(in oklab, var(--surface) 16%, transparent);
+    --glass-brd: color-mix(in oklab, var(--muted-3) 46%, transparent);
+    --glass-hi:  color-mix(in oklab, var(--fg) 12%, transparent);
+    --radius-lg: 16px;  --radius-md: 10px;  --radius-pill: 999px;
+    --dot:       color-mix(in oklab, var(--muted-3) 30%, transparent);
+    --grid-line: color-mix(in oklab, var(--muted-3) 16%, transparent);
+    --x: 50%;  --y: 50%;  --dx: 0px;  --dy: 0px;
+  }
+  :root[data-theme="dark"] {
+    --glass-bg:  color-mix(in oklab, var(--surface) 12%, transparent);
+    --glass-brd: color-mix(in oklab, var(--muted-3) 34%, transparent);
+    --glass-hi:  color-mix(in oklab, var(--fg) 7%, transparent);
+    --dot:       color-mix(in oklab, var(--muted-3) 18%, transparent);
+    --grid-line: color-mix(in oklab, var(--muted-3) 11%, transparent);
+    --glass-dim: color-mix(in oklab, var(--bg) 72%, transparent);
+  }
+
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body);
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased;
+         position:relative; isolation:isolate; }
+
+  /* 背景层：玻璃的可透内容（与 support.html 同配方：blob×3 + 网格 + 噪点） */
+  .bg-layer { position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; }
+  .bg-blob { position:absolute; border-radius:50%; filter:blur(90px); opacity:.5; }
+  .bg-blob.b1 { width:60vw; height:60vw; left:-14vw; top:-18vw;
+    background:radial-gradient(circle at 40% 40%, color-mix(in oklab, var(--accent) 55%, transparent), transparent 70%);
+    animation:drift1 24s ease-in-out infinite alternate; }
+  .bg-blob.b2 { width:55vw; height:55vw; right:-16vw; bottom:-20vw; opacity:.42;
+    background:radial-gradient(circle at 60% 50%, color-mix(in oklab, var(--note-line) 70%, transparent), transparent 70%); }
+  .bg-blob.b3 { width:38vw; height:38vw; left:34%; top:26%; opacity:.34;
+    background:radial-gradient(circle at 50% 50%, color-mix(in oklab, var(--ok-line) 45%, transparent), transparent 70%); }
+  @keyframes drift1 { from { transform:translate3d(0,0,0) scale(1); } to { transform:translate3d(8vw,6vh,0) scale(1.2); } }
+  .bg-grid { position:absolute; inset:0;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M0 0h40v40' fill='none' stroke='currentColor' stroke-opacity='.16' stroke-width='1'/></svg>");
+    background-size:40px 40px; color:var(--grid-line);
+    -webkit-mask:radial-gradient(ellipse 90% 70% at 50% 40%, #000 30%, transparent 78%);
+            mask:radial-gradient(ellipse 90% 70% at 50% 40%, #000 30%, transparent 78%); }
+  .bg-noise { position:absolute; inset:0; opacity:.16;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='.5'/></svg>");
+    background-size:180px 180px; }
+  :root[data-theme="dark"] .bg-blob.b1 { opacity:.30; }
+  :root[data-theme="dark"] .bg-blob.b2 { opacity:.26; }
+  :root[data-theme="dark"] .bg-blob.b3 { opacity:.18; }
+  :root[data-theme="dark"] { --glass-dim: color-mix(in oklab, var(--bg) 72%, transparent); }
+  @media (prefers-reduced-motion: reduce) { .bg-blob { animation:none; } }
+
+  /* ===== 布局：三泳道（输入 360 / 画布 1fr / 地图 340，<1024 单栏）===== */
+  .site-nav { position:sticky; top:0; z-index:500; display:flex; align-items:center; gap:10px;
+              padding:13px max(24px, calc((100vw - 1380px) / 2));
+              background:color-mix(in oklab, var(--bg) 78%, transparent);
+              backdrop-filter:saturate(180%) blur(14px); border-bottom:1px solid transparent; }
+  .site-nav .brand { font-weight:800; font-size:16px; display:flex; align-items:center; gap:9px;
+                     letter-spacing:.2px; text-decoration:none; color:inherit; }
+  .site-nav .brand i { width:22px; height:22px; border-radius:7px; display:inline-block;
+                       background:var(--accent-solid); }
+  .site-nav .links { display:flex; gap:2px; margin-left:14px; }
+  .site-nav .links a { font-size:14px; color:var(--muted-2); padding:7px 13px; border-radius:9px; text-decoration:none; }
+  .site-nav .links a:hover { background:var(--fill-2); }
+  .site-nav .spacer { flex:1; }
+  .navtheme { display:flex; align-items:center; justify-content:center; flex:none; width:34px; height:34px;
+              border-radius:10px; cursor:pointer; background:transparent; border:1px solid var(--border);
+              color:var(--muted-2); }
+  .navtheme:hover { background:var(--fill); color:var(--fg); }
+
+  .wrap-wide { max-width:1380px; margin:0 auto; padding:20px 20px 46px; }
+  .bench { display:grid; grid-template-columns:360px minmax(0,1fr); gap:16px; align-items:start; }
+  .mapcol { display:none; }
+  @media (min-width:1280px) {
+    .bench { grid-template-columns:360px minmax(0,1fr) 340px; }
+    .mapcol { display:block; position:sticky; top:70px; }
+    .mapbtn { display:none; }
+  }
+  @media (max-width:1023px) { .bench { grid-template-columns:1fr; } }
+
+  /* 卡片基型：实底 + 发丝线 + 大圆角 */
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+           padding:16px; }
+  .panel + .panel { margin-top:14px; }
+  .panel h2 { margin:0 0 10px; font-size:14px; font-weight:700; color:var(--fg);
+              display:flex; align-items:center; gap:8px; }
+  .panel h2 .tail { font-size:11.5px; font-weight:400; color:var(--muted-3); margin-left:auto;
+                    font-variant-numeric:tabular-nums; }
+
+  /* ---- 输入卡（玻璃 composer 风格）---- */
+  #p2-text { width:100%; min-height:120px; resize:vertical; padding:12px 14px;
+             border-radius:var(--radius-md); border:1px solid var(--glass-brd); background:var(--glass-bg);
+             color:var(--fg); font-family:inherit; font-size:14px; line-height:1.6;
+             backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%); }
+  #p2-text:focus { border-color:var(--accent-line); outline:none; }
+  .cityrow { display:flex; gap:8px; margin-top:10px; }
+  .cityrow input { flex:1; min-width:0; padding:9px 13px; border-radius:var(--radius-pill);
+                   border:1px solid var(--glass-brd); background:var(--glass-bg); color:var(--fg);
+                   font-family:inherit; font-size:14px;
+                   backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%); }
+  .cityrow input:focus { border-color:var(--accent-line); outline:none; }
+
+  /* 主按钮：shimmer 四层（magicui 逐值移植，同 support.html） */
+  .btn-primary { position:relative; z-index:0; overflow:hidden; flex:none; height:44px; padding:0 22px;
+                 border-radius:var(--radius-pill); cursor:pointer; border:1px solid transparent;
+                 font-family:inherit; font-size:14px; font-weight:600;
+                 background:var(--accent-solid); color:var(--on-accent);
+                 --spread:90deg; --shimmer-color:#ffffff; --speed:3s; --cut:.05em; }
+  .btn-primary .btn-sparkwrap { position:absolute; inset:0; overflow:visible; z-index:-3;
+                                filter:blur(2px); container-type:size; pointer-events:none; }
+  .btn-primary .btn-spark { position:absolute; inset:0; aspect-ratio:1; height:100cqh;
+                            animation:shimmer-slide var(--speed) ease-in-out infinite alternate; }
+  .btn-primary .btn-spark::before { content:''; position:absolute; inset:-100%; width:auto;
+    background:conic-gradient(from calc(270deg - (var(--spread) * .5)), transparent 0,
+                var(--shimmer-color) var(--spread), transparent var(--spread));
+    animation:spin-around calc(var(--speed) * 2) infinite linear; }
+  .btn-primary .btn-hi { position:absolute; inset:0; width:100%; height:100%; border-radius:inherit;
+    box-shadow:inset 0 -8px 10px #ffffff1f; transition:box-shadow 300ms ease-in-out; pointer-events:none; }
+  .btn-primary:not(:disabled):hover .btn-hi { box-shadow:inset 0 -6px 10px #ffffff3f; }
+  .btn-primary .btn-backdrop { position:absolute; inset:var(--cut); z-index:-2; border-radius:inherit;
+                               background:var(--accent-solid); pointer-events:none; }
+  .btn-primary:disabled { background:transparent; color:var(--muted-3); cursor:not-allowed;
+    outline:1px solid var(--glass-brd); outline-offset:-1px; }
+  .btn-primary:disabled .btn-sparkwrap, .btn-primary:disabled .btn-backdrop,
+  .btn-primary:disabled .btn-hi { display:none; }
+  @keyframes shimmer-slide { to { transform:translate(calc(100cqw - 100%), 0); } }
+  @keyframes spin-around { 0% { transform:translateZ(0) rotate(0); }
+    15%, 35% { transform:translateZ(0) rotate(90deg); }
+    65%, 85% { transform:translateZ(0) rotate(270deg); } 100% { transform:translateZ(0) rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-primary .btn-sparkwrap { display:none; }
+    .btn-primary .btn-spark, .btn-primary .btn-spark::before { animation:none; }
+  }
+
+  /* ---- 助理叙事：AI 进度前台化 ---- */
+  .story { margin-top:12px; display:flex; flex-direction:column; gap:6px; }
+  .story:empty { display:none; }
+  .storyline { font-size:12.5px; line-height:1.6; color:var(--muted-2); padding:7px 11px;
+               border-radius:var(--radius-md); background:var(--fill); border:1px solid var(--border);
+               animation:msg-in .32s var(--e) both; overflow-wrap:anywhere; }
+  .storyline.err { background:var(--bad-soft); border-color:var(--bad-line); color:var(--bad-ink); }
+  .storyline.ok { background:var(--ok-soft); border-color:var(--ok-line); color:var(--ok-ink); }
+  @keyframes msg-in { from { opacity:0; transform:translateY(10px); filter:blur(3px); }
+                      to { opacity:1; transform:translateY(0); filter:blur(0); } }
+  @media (prefers-reduced-motion: reduce) { .storyline { animation:none; } }
+
+  /* ---- 候选卡流 ---- */
+  .cands { margin-top:12px; display:flex; flex-direction:column; gap:8px; max-height:52vh; overflow-y:auto; }
+  .cand { position:relative; border:1px solid var(--border); border-radius:var(--radius-md);
+          background:var(--surface); padding:10px 12px; cursor:pointer; transition:opacity .18s var(--e); }
+  .cand:hover { border-color:var(--accent-line); }
+  .cand.off { opacity:.42; }
+  .cand .cname { font-weight:700; font-size:14px; color:var(--fg); }
+  .cand .cdesc { font-size:12.5px; color:var(--muted-2); margin-top:2px; overflow-wrap:anywhere; }
+  .cand .cmeta { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; font-size:11.5px; color:var(--muted-3); }
+  .cand .cmeta span { padding:1px 7px; border-radius:5px; background:var(--fill); border:1px solid var(--border); }
+  .cand .creview { background:var(--note-soft) !important; border-color:var(--note-line) !important;
+                   color:var(--note-ink) !important; font-weight:600; }
+  .cand .ck { position:absolute; top:9px; right:10px; font-size:11.5px; color:var(--muted-3); }
+  .cand.off .ck { color:var(--bad-ink); font-weight:600; }
+  .cands-tools { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .ghostbtn { font:inherit; font-size:12px; padding:3px 10px; border-radius:var(--radius-pill);
+              background:transparent; color:var(--muted-2); border:1px solid var(--border); cursor:pointer; }
+  .ghostbtn:hover { color:var(--fg); border-color:var(--accent-line); }
+
+  /* ---- 调节卡 ---- */
+  .adj-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .adj-item label { display:block; font-size:11.5px; color:var(--muted-2); margin-bottom:4px; }
+  .adj-item input, .adj-item select { width:100%; padding:8px 11px; border-radius:var(--radius-md);
+    border:1px solid var(--border); background:var(--fill); color:var(--fg); font-family:inherit; font-size:14px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { font:inherit; font-size:12.5px; padding:4px 11px; border-radius:var(--radius-pill); cursor:pointer;
+          background:var(--fill); border:1px solid var(--border); color:var(--muted-2); }
+  .chip.on { background:var(--accent-solid); border-color:var(--accent-solid); color:var(--on-accent); font-weight:600; }
+
+  /* ---- 行程画布 ---- */
+  #p2-result:empty::after { content:'候选确认后，点「生成行程」——时间线与地图会出现在这里。';
+    display:block; text-align:center; color:var(--muted-3); font-size:13px; padding:34px 10px; }
+  .daytabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .daytab { font:inherit; font-size:13px; padding:5px 14px; border-radius:var(--radius-pill); cursor:pointer;
+            background:var(--glass-bg); border:1px solid var(--glass-brd); color:var(--muted-2); }
+  .daytab.on { background:var(--accent-solid); border-color:var(--accent-solid); color:var(--on-accent); font-weight:600; }
+  .tl { display:flex; flex-direction:column; }
+  .tl-row { display:grid; grid-template-columns:88px minmax(0,1fr) auto; gap:0 12px; align-items:center;
+            padding:9px 10px; border-bottom:1px solid var(--border); min-height:52px; position:relative; }
+  .tl-row:hover { background:var(--fill); }
+  .tl-time { font-family:var(--font-mono); font-size:12px; color:var(--muted-2);
+             font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .tl-name { font-weight:700; font-size:14px; color:var(--fg); overflow-wrap:anywhere; }
+  .tl-desc { font-size:12px; color:var(--muted-2); overflow-wrap:anywhere; }
+  .tl-ticket { font-size:11.5px; color:var(--muted-3); white-space:nowrap; }
+  .tl-ticket.unknown { color:var(--note-ink); }
+  .tl-ops { display:flex; gap:4px; opacity:0; transition:opacity .18s var(--e); }
+  .tl-row:hover .tl-ops, .tl-row:focus-within .tl-ops { opacity:1; }
+  .tlop { font:inherit; font-size:11px; padding:2px 8px; border-radius:var(--radius-pill); cursor:pointer;
+          background:transparent; border:1px solid var(--border); color:var(--muted-2); white-space:nowrap; }
+  .tlop:hover { color:var(--fg); border-color:var(--accent-line); }
+  .tlop.danger:hover { color:var(--bad-ink); border-color:var(--bad-line); }
+  .tl-dayfoot { padding:8px 10px; font-size:12px; color:var(--muted-3);
+                font-variant-numeric:tabular-nums; }
+  .totals { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .totals span { font-size:12.5px; padding:4px 12px; border-radius:var(--radius-pill);
+                 background:var(--glass-bg); border:1px solid var(--glass-brd); color:var(--fg);
+                 font-variant-numeric:tabular-nums;
+                 backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%); }
+  .totals .warn { color:var(--note-ink); border-color:var(--note-line); background:var(--note-soft); }
+  .unplanned { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+  .unplanned span { font-size:11.5px; padding:2px 9px; border-radius:5px; background:var(--fill);
+                    border:1px solid var(--border); color:var(--muted-2); overflow-wrap:anywhere; }
+
+  /* ---- 对话改行程 ---- */
+  .editchat { display:flex; gap:8px; margin-top:14px; }
+  .editchat input { flex:1; min-width:0; padding:10px 16px; border-radius:var(--radius-pill);
+                    border:1px solid var(--glass-brd); background:var(--glass-bg); color:var(--fg);
+                    font-family:inherit; font-size:14px;
+                    backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%); }
+  .editchat input:focus { border-color:var(--accent-line); outline:none; }
+  .editchat .btn-primary { height:40px; padding:0 18px; }
+
+  /* ---- 地图 ---- */
+  .mapcol .panel { padding:10px; position:relative; }
+  #p2-map { height:calc(100vh - 190px); min-height:420px; border-radius:var(--radius-md); }
+  .mapbtn { position:fixed; right:18px; bottom:18px; z-index:800; height:48px; padding:0 20px;
+            border-radius:var(--radius-pill); border:none; cursor:pointer;
+            background:var(--accent-solid); color:var(--on-accent); font:inherit; font-size:14px; font-weight:600;
+            box-shadow:var(--sh-3); }
+  .mapdrawer { position:fixed; inset:0; z-index:900; background:var(--bg); display:none; }
+  .mapdrawer.open { display:block; }
+  .mapdrawer .md-head { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; }
+  .mapdrawer #p2-map-drawer { position:absolute; inset:56px 0 0 0; }
+  @media (min-width:1280px) { .mapdrawer { display:none !important; } .mapbtn { display:none !important; } }
+
+  /* ---- 令牌面板 / toast（同 support）---- */
+  .token-panel { position:fixed; top:54px; right:24px; z-index:600; width:264px;
+                 background:var(--surface); border:1px solid var(--border); border-radius:12px;
+                 padding:14px; box-shadow:var(--sh-3); }
+  .token-panel[hidden] { display:none; }
+  .token-label { display:block; font-size:12px; color:var(--muted-2); margin-bottom:6px; }
+  .token-input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+                 background:var(--bg); color:var(--fg); font-family:inherit; font-size:14px; }
+  .token-actions { display:flex; gap:8px; margin-top:10px; }
+  .token-actions button { flex:1; padding:8px; border-radius:8px; font-size:13px; font-weight:600;
+                          cursor:pointer; border:1px solid transparent; font-family:inherit; }
+  .token-save { background:var(--accent-solid); color:var(--on-accent); }
+  .token-clear { background:transparent; color:var(--muted-2); border-color:var(--border); }
+  .auth-toast { position:fixed; top:62px; left:50%; transform:translateX(-50%); z-index:700; max-width:340px;
+                background:var(--surface); border:1px solid var(--bad-line); border-radius:10px; padding:10px 14px;
+                box-shadow:var(--sh-3); font-size:13px; color:var(--fg); }
+  .auth-toast[hidden] { display:none; }
+
+  .page-foot { margin-top:26px; padding-top:14px; border-top:1px solid var(--border);
+               display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+               font-size:12px; color:var(--muted-3); }
+  .page-foot a { color:var(--muted-2); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<div class="bg-layer" aria-hidden="true">
+  <div class="bg-blob b1"></div><div class="bg-blob b2"></div><div class="bg-blob b3"></div>
+  <div class="bg-grid"></div><div class="bg-noise"></div>
+</div>
+
+<nav class="site-nav">
+  <a class="brand" href="/"><i aria-hidden="true"></i>路书</a>
+  <div class="links">
+    <a href="/">首页</a>
+    <a href="/app">经典版</a>
+    <a href="/support">咨询</a>
+  </div>
+  <span class="spacer"></span>
+  <button class="navtheme" id="themeBtn" onclick="cycleTheme()" aria-label="切换主题"></button>
+  <button class="navtheme" id="tokenBtn" aria-label="访问令牌" title="访问令牌（公网部署需要）"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.4" cy="5.4" r="3"/><path d="M7.6 7.6 13.6 13.6M11.1 11.1l1.5-1.5M9.4 9.4l1.4-1.4"/></svg></button>
+</nav>
+
+<div id="authToast" class="auth-toast" hidden></div>
+<div id="tokenPanel" class="token-panel" hidden>
+  <label class="token-label" for="tokenInput">访问令牌</label>
+  <input id="tokenInput" class="token-input" type="password" autocomplete="off" placeholder="粘贴访问令牌">
+  <div class="token-actions">
+    <button class="token-save" data-token="save">保存</button>
+    <button class="token-clear" data-token="clear">清除</button>
+  </div>
+</div>
+
+<div class="wrap-wide">
+  <div class="bench">
+
+    <!-- ═══ 左泳道：输入流 ═══ -->
+    <div class="col-input">
+      <div class="panel">
+        <h2>把攻略交给工作台</h2>
+        <textarea id="p2-text" maxlength="12000"
+          placeholder="贴整篇攻略，或一句话：&#10;「成都两天，带娃，想看熊猫」&#10;也可以直接写想吃想玩的东西"></textarea>
+        <div class="cityrow">
+          <input id="p2-city" list="p2CityList" placeholder="城市（多数时候自动识别）">
+          <datalist id="p2CityList"></datalist>
+          <button class="btn-primary" id="p2-go"><span class="btn-sparkwrap" aria-hidden="true"><span class="btn-spark"></span></span><span class="btn-hi" aria-hidden="true"></span><span class="btn-backdrop" aria-hidden="true"></span>识别景点</button>
+        </div>
+        <div class="story" id="p2-story"></div>
+        <div class="cands-tools" id="p2-candtools" hidden>
+          <button class="ghostbtn" data-cands="all">全部保留</button>
+          <button class="ghostbtn" data-cands="none">全部移除</button>
+          <button class="ghostbtn" data-cands="lib">从预置库补充</button>
+        </div>
+        <div class="cands" id="p2-cands" hidden></div>
+        <details id="p2-lib" class="panel" style="margin-top:12px; padding:12px;" hidden>
+          <summary style="cursor:pointer; font-size:13px; color:var(--muted-2);">预置库补充（38 城 375 景）</summary>
+          <div class="chips" id="p2-libchips" style="margin-top:10px;"></div>
+        </details>
+      </div>
+
+      <div class="panel">
+        <h2>生成 <span class="tail" id="p2-keptcount">候选 0</span></h2>
+        <button class="btn-primary" id="p2-plan" disabled style="width:100%;"><span class="btn-sparkwrap" aria-hidden="true"><span class="btn-spark"></span></span><span class="btn-hi" aria-hidden="true"></span><span class="btn-backdrop" aria-hidden="true"></span>生成行程</button>
+        <details id="p2-adj" style="margin-top:12px;">
+          <summary style="cursor:pointer; font-size:12.5px; color:var(--muted-2); list-style:none;" id="p2-adjsum">行程调节 · 均衡 · 2 天</summary>
+          <div class="adj-grid" style="margin-top:10px;">
+          <div class="adj-item"><label for="p2-days">天数（1–7）</label>
+            <input id="p2-days" type="number" min="1" max="7" value="2"></div>
+          <div class="adj-item"><label for="p2-budget">预算（元，可空）</label>
+            <input id="p2-budget" type="number" min="0" placeholder="不限"></div>
+          <div class="adj-item"><label for="p2-date">出发日期（可空，给了就连天气）</label>
+            <input id="p2-date" type="date"></div>
+          <div class="adj-item"><label for="p2-start">每天开始</label>
+            <input id="p2-start" type="time" value="09:00"></div>
+          <div class="adj-item"><label for="p2-end">每天结束</label>
+            <input id="p2-end" type="time" value="18:00"></div>
+        </div>
+        <div class="adj-item" style="margin-top:10px;"><label>偏好</label>
+          <div class="chips" id="p2-pref">
+            <button class="chip on" data-pref="balanced" type="button">均衡</button>
+            <button class="chip" data-pref="less_walk" type="button">少走路</button>
+            <button class="chip" data-pref="save_money" type="button">省钱</button>
+            <button class="chip" data-pref="more_spots" type="button">多玩</button>
+          </div>
+        </div>
+        <div class="adj-item" style="margin-top:10px;"><label>稳妥度</label>
+          <div class="chips" id="p2-rob">
+            <button class="chip on" data-rob="0" type="button">不要求</button>
+            <button class="chip" data-rob="0.7" type="button">70%</button>
+            <button class="chip" data-rob="0.85" type="button">85%</button>
+          </div>
+        </div>
+        </details>
+        <div class="story" id="p2-progress"></div>
+      </div>
+    </div>
+
+    <!-- ═══ 中泳道：行程画布 ═══ -->
+    <div class="col-canvas">
+      <div class="panel">
+        <h2>行程画布</h2>
+        <div id="p2-result"></div>
+        <div class="editchat" id="p2-editchat" hidden>
+          <input id="p2-editinput" maxlength="500"
+                 placeholder="对话改行程：把博物馆换掉 / 加个大雁塔 / 第三天轻松点">
+          <button class="btn-primary" id="p2-editsend"><span class="btn-sparkwrap" aria-hidden="true"><span class="btn-spark"></span></span><span class="btn-hi" aria-hidden="true"></span><span class="btn-backdrop" aria-hidden="true"></span>改</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 右泳道：地图（桌面常驻 / 移动抽屉）═══ -->
+    <div class="mapcol">
+      <div class="panel">
+        <div id="p2-map" aria-label="行程地图"></div>
+        <div id="p2-maphint" style="position:absolute; inset:10px; display:flex; align-items:center;
+             justify-content:center; text-align:center; color:var(--muted-3); font-size:13px;
+             border-radius:var(--radius-md); background:var(--fill);">生成行程后，地图会按天画出路线</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="mapbtn" id="p2-mapbtn">🗺 看地图</button>
+  <div class="mapdrawer" id="p2-mapdrawer">
+    <div class="md-head">
+      <strong>行程地图</strong>
+      <button class="ghostbtn" id="p2-mapclose">关闭</button>
+    </div>
+    <div id="p2-map-drawer"></div>
+  </div>
+
+  <footer class="page-foot">
+    <span>© 路书 · 行程工作台 v2 · LLM 负责理解，求解器负责合规</span>
+    <span><a href="/">首页</a> · <a href="/app">经典版</a> · <a href="/support">咨询</a></span>
+  </footer>
+</div>
+
+<script src="/static/vendor/leaflet.js"></script>
+<script>
+/* 访问令牌：与全站共用 localStorage('appToken')（support 同款面板） */
+(function () {
+  var KEY = 'appToken';
+  var btn = document.getElementById('tokenBtn');
+  var panel = document.getElementById('tokenPanel');
+  var input = document.getElementById('tokenInput');
+  if (!btn || !panel) return;
+  function openIt() {
+    if (input) { try { input.value = localStorage.getItem(KEY) || ''; } catch (e) {} }
+    panel.hidden = false;
+    if (input && !input.value && input.focus) input.focus();
+  }
+  btn.addEventListener('click', function () { if (panel.hidden) openIt(); else panel.hidden = true; });
+  document.addEventListener('click', function (e) {
+    if (panel.hidden || panel.contains(e.target) || btn.contains(e.target)) return;
+    panel.hidden = true;
+  });
+  var save = panel.querySelector('[data-token="save"]');
+  var clear = panel.querySelector('[data-token="clear"]');
+  if (save) save.addEventListener('click', function () {
+    var v = input ? String(input.value || '').trim() : '';
+    try { v ? localStorage.setItem(KEY, v) : localStorage.removeItem(KEY); } catch (e) {}
+    panel.hidden = true;
+  });
+  if (clear) clear.addEventListener('click', function () {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    if (input) input.value = '';
+  });
+})();
+
+/* 转义唯一出口 */
+function esc(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* fetch 包装：同源注入 X-App-Token；Headers 实例先展开（审查 Low#7 同修） */
+(function () {
+  var orig = window.fetch ? window.fetch.bind(window) : null;
+  if (!orig) return;
+  window.fetch = function (input, init) {
+    var tok = '';
+    try { tok = localStorage.getItem('appToken') || ''; } catch (e) {}
+    if (!tok) return orig(input, init);
+    var url = typeof input === 'string' ? input : ((input && input.url) || String(input || ''));
+    var same;
+    try { same = new URL(url, location.href).origin === location.origin; } catch (e) { same = false; }
+    if (!same) return orig(input, init);
+    var h = (init && init.headers) || {};
+    var o = {}, has = false, k;
+    if (typeof Headers !== 'undefined' && h instanceof Headers) {
+      h.forEach(function (v, k2) { o[k2] = v; });
+    } else { for (k in h) { o[k] = h[k]; } }
+    for (k in o) { if (k.toLowerCase() === 'x-app-token') has = true; }
+    if (!has) o['X-App-Token'] = tok;
+    return orig(input, { ...(init || {}), headers: o });
+  };
+})();
+
+var authToastTimer = null, rateNoted = false;
+function toastOnce(kind, msg) {
+  if (kind === '429') { if (rateNoted) return; rateNoted = true; }
+  var t = document.getElementById('authToast');
+  if (!t) return;
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(authToastTimer);
+  authToastTimer = setTimeout(function () { t.hidden = true; }, 4200);
+}
+function story(target, text, cls) {
+  var box = document.getElementById(target);
+  if (!box) return;
+  var d = document.createElement('div');
+  d.className = 'storyline' + (cls ? ' ' + cls : '');
+  d.textContent = (typeof text === 'string') ? text : JSON.stringify(text);
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+function storyClear(target) {
+  var box = document.getElementById(target);
+  if (box) box.textContent = '';
+}
+function hhmm(h) {
+  var v = Number(h);
+  if (!isFinite(v)) return '—';
+  var hh = Math.floor(v), mm = Math.round((v - hh) * 60);
+  return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+}
+
+/* ===== 全局状态 ===== */
+var S = {
+  city: '', detected: '', spots: [], kept: [],      // kept: 与 S.spots 同索引的布尔
+  taskId: null, result: null, days: [],             // days: [{name, stay_min|null}]（当前编排）
+  activeDay: 1, pref: 'balanced', rob: '0',
+  map: null, mapDrawer: null, tileCfg: null, busy: false
+};
+var $ = function (id) { return document.getElementById(id); };
+
+/* ===== 启动：城市表 ===== */
+fetch('/cities').then(function (r) { return r.json(); }).then(function (d) {
+  var dl = $('p2CityList');
+  if (!dl || !d || !Array.isArray(d.cities)) return;
+  d.cities.forEach(function (c) {
+    var o = document.createElement('option'); o.value = c; dl.appendChild(o);
+  });
+}).catch(function () {});
+
+/* ===== 抽取：自由文本统一入口 ===== */
+async function doExtract() {
+  if (S.busy) return;
+  var text = ($('p2-text') && $('p2-text').value || '').trim();
+  if (!text) { story('p2-story', '先贴攻略或写一句话，比如「成都两天带娃」。', 'err'); return; }
+  S.busy = true;
+  var go = $('p2-go'); if (go) go.disabled = true;
+  storyClear('p2-story');
+  story('p2-story', '正在读你的文本，抽景点、对齐高德坐标…');
+  try {
+    var r = await fetch('/extract', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text, city: S.city || '' })
+    });
+    if (r.status === 429) { toastOnce('429', '请求过于频繁，请稍后再试'); return; }
+    if (r.status === 401) { toastOnce('401', '访问令牌无效，请在右上角填入'); return; }
+    var d = await r.json();
+    if (!r.ok) throw new Error((d && d.detail) || ('HTTP ' + r.status));
+    S.spots = Array.isArray(d.spots) ? d.spots : [];
+    S.kept = S.spots.map(function () { return true; });
+    storyClear('p2-story');
+    /* needs_city 时 resp.city 是兜底默认城市——绝不能吞进 S.city（旧版静默错误源） */
+    if (d.needs_city) {
+      story('p2-story', '没能确定城市——请在城市框里补一个（对齐高德必须显式城市，绝不瞎猜）。', 'err');
+    } else {
+      S.city = d.city || d.detected_city || S.city;
+      if ($('p2-city') && S.city && !$('p2-city').value) $('p2-city').value = S.city;
+    }
+    var nReview = d.needs_review_count || 0;
+    if (S.spots.length) {
+      story('p2-story', '读到 ' + S.spots.length + ' 个候选' +
+        (nReview ? '，其中 ' + nReview + ' 个拿不准（标了「待确认」，点击卡片可移除）' : '') +
+        '。不想去的点一下卡片移除。', 'ok');
+    } else {
+      story('p2-story', '这段文本里没抽到具体景点——已打开预置库，从 ' + (S.city || '目的地') + ' 的景点里勾几个，或再贴一段攻略。');
+    }
+    renderCands();
+    updateKept();
+    if (S.spots.length < 2) openLibrary(S.city || S.detected || '');
+  } catch (e) {
+    if (e && (e.message === 'rate' || e.message === 'auth')) return;
+    story('p2-story', '抽取失败：' + (e && e.message ? e.message : '网络异常'), 'err');
+  } finally {
+    S.busy = false; if (go) go.disabled = false;
+  }
+}
+
+/* ===== 候选渲染与挑选 ===== */
+function renderCands() {
+  var box = $('p2-cands'), tools = $('p2-candtools');
+  if (!box) return;
+  box.textContent = '';
+  box.hidden = !S.spots.length;
+  if (tools) tools.hidden = !S.spots.length;
+  S.spots.forEach(function (sp, i) {
+    var c = document.createElement('div');
+    c.className = 'cand' + (S.kept[i] ? '' : ' off');
+    c.dataset.i = i;
+    var name = document.createElement('div');
+    name.className = 'cname';
+    name.textContent = sp.name;
+    c.appendChild(name);
+    if (sp.desc) {
+      var de = document.createElement('div');
+      de.className = 'cdesc'; de.textContent = sp.desc;
+      c.appendChild(de);
+    }
+    var meta = document.createElement('div');
+    meta.className = 'cmeta';
+    function m(t, cls) { var s = document.createElement('span'); s.textContent = t; if (cls) s.className = cls; meta.appendChild(s); }
+    if (sp.stay_min) m('停留 ' + sp.stay_min + ' 分钟');
+    if (sp.ticket_known && sp.ticket > 0) m('门票 ¥' + sp.ticket);
+    else if (sp.ticket_known === false) m('票价待查');
+    if (typeof sp.confidence === 'number') m('置信 ' + sp.confidence.toFixed(2));
+    if (sp.needs_review) m('待确认', 'creview');
+    c.appendChild(meta);
+    var ck = document.createElement('span');
+    ck.className = 'ck';
+    ck.textContent = S.kept[i] ? '✓ 保留' : '✕ 已移除';
+    c.appendChild(ck);
+    box.appendChild(c);
+  });
+  updateKept();
+}
+function updateKept() {
+  var n = S.kept.filter(Boolean).length;
+  var el = $('p2-keptcount');
+  if (el) el.textContent = '候选 ' + n;
+  var go = $('p2-plan');
+  if (go) go.disabled = !(n > 0 && S.city);
+  /* 折叠摘要（PiTravel 模式：默认极简，参数藏起来） */
+  var sum = $('p2-adjsum');
+  if (sum) {
+    var days = parseInt(($('p2-days') && $('p2-days').value) || '2', 10) || 2;
+    var prefNames = { balanced: '均衡', less_walk: '少走路', save_money: '省钱', more_spots: '多玩' };
+    sum.textContent = '行程调节 · ' + (prefNames[S.pref] || S.pref) + ' · ' + days + ' 天 · 稳妥度 ' +
+      (S.rob === '0' ? '不要求' : S.rob);
+  }
+}
+document.addEventListener('click', function (e) {
+  var card = e.target && e.target.closest ? e.target.closest('.cand') : null;
+  if (card) {
+    var i = Number(card.dataset.i);
+    S.kept[i] = !S.kept[i];
+    card.classList.toggle('off', !S.kept[i]);
+    var ck = card.querySelector('.ck');
+    if (ck) ck.textContent = S.kept[i] ? '✓ 保留' : '✕ 已移除';
+    updateKept();
+    return;
+  }
+  var tool = e.target && e.target.closest ? e.target.closest('[data-cands]') : null;
+  if (tool) {
+    var mode = tool.dataset.cands;
+    if (mode === 'all') S.kept = S.spots.map(function () { return true; });
+    else if (mode === 'none') S.kept = S.spots.map(function () { return false; });
+    else if (mode === 'lib') { openLibrary(S.city); return; }
+    renderCands();
+  }
+});
+
+/* ===== 预置库补充 ===== */
+function openLibrary(city) {
+  var det = $('p2-lib');
+  if (!det || !city) return;
+  det.hidden = false;
+  det.open = true;
+  var chips = $('p2-libchips');
+  if (!chips) return;
+  chips.textContent = '加载 ' + city + ' 的预置景点…';
+  fetch('/demo/spots?city=' + encodeURIComponent(city)).then(function (r) { return r.json(); })
+    .then(function (d) {
+      chips.textContent = '';
+      var spots = Array.isArray(d.spots) ? d.spots : [];
+      if (!spots.length) { chips.textContent = '该城市暂无预置数据，可换一个城市或贴攻略。'; return; }
+      spots.forEach(function (sp) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'chip'; b.textContent = sp.name;
+        b.title = (sp.desc || sp.intro || '') + (sp.stay_min ? '（建议 ' + sp.stay_min + ' 分钟）' : '');
+        b.dataset.libname = sp.name;
+        b.dataset.libspot = JSON.stringify(sp);
+        chips.appendChild(b);
+      });
+    }).catch(function () { chips.textContent = '预置库加载失败。'; });
+}
+document.addEventListener('click', function (e) {
+  var b = e.target && e.target.closest ? e.target.closest('[data-libspot]') : null;
+  if (!b) return;
+  var sp;
+  try { sp = JSON.parse(b.dataset.libspot); } catch (err) { return; }
+  // 预置库点与抽取候选去重：同名不重复入列
+  if (S.spots.some(function (x) { return x.name === sp.name; })) return;
+  S.spots.push(sp);
+  S.kept.push(true);
+  renderCands();
+  b.disabled = true; b.style.opacity = '.45';
+});
+
+/* ===== 生成行程 ===== */
+function doPlan() {
+  if (S.busy) return;
+  var city = ($('p2-city') && $('p2-city').value || '').trim();
+  var kept = S.spots.filter(function (s, i) { return S.kept[i]; });
+  if (!city) { story('p2-progress', '先填城市——对齐高德必须显式城市。', 'err'); return; }
+  if (!kept.length) { story('p2-progress', '至少保留一个候选点。', 'err'); return; }
+  S.city = city;
+  var days = parseInt(($('p2-days') && $('p2-days').value) || '2', 10);
+  days = Math.max(1, Math.min(7, days || 2));
+  var budget = ($('p2-budget') && $('p2-budget').value || '').trim();
+  var t = ($('p2-start') && $('p2-start').value || '09:00').split(':');
+  var te = ($('p2-end') && $('p2-end').value || '18:00').split(':');
+  S.date = ($('p2-date') && $('p2-date').value) || '';
+  var req = {
+    city: city, days: days,
+    daily_start_h: (parseInt(t[0], 10) || 9) + (parseInt(t[1], 10) || 0) / 60,
+    daily_end_h: (parseInt(te[0], 10) || 18) + (parseInt(te[1], 10) || 0) / 60,
+    spots: kept.map(function (s) {
+      return { source_id: s.source_id, name: s.name, lat: s.lat, lon: s.lon,
+               stay_min: s.stay_min || 60, score: s.score || 5,
+               ticket: s.ticket || 0, ticket_known: s.ticket_known !== false,
+               open_h: s.open_h || 8.0, close_h: s.close_h || 18.0, desc: s.desc || '' };
+    }),
+    preference: S.pref, robustness: parseFloat(S.rob) || 0
+  };
+  if (budget) req.budget = parseFloat(budget) || undefined;
+  S.busy = true;
+  var btn = $('p2-plan'); if (btn) btn.disabled = true;
+  storyClear('p2-progress');
+  story('p2-progress', '求解器接管：时间窗 / 预算 / 通勤全由确定性算法保证——');
+  fetch('/plan/async', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req)
+  }).then(function (r) {
+    if (r.status === 429) { toastOnce('429', '请求过于频繁，请稍后再试'); throw new Error('rate'); }
+    if (r.status === 401) { toastOnce('401', '访问令牌无效，请在右上角填入'); throw new Error('auth'); }
+    return r.json().then(function (d) {
+      if (!r.ok) throw new Error((d && d.detail) || ('HTTP ' + r.status));
+      return d;
+    });
+  }).then(function (d) {
+    S.taskId = d.task_id;
+    return poll(d.task_id, 'p2-progress', function (snap) { S.result = snap.result; });
+  }).then(function (snap) {
+    if (!snap || !snap.result) { story('p2-progress', '任务失败：' + (snap && snap.error ? snap.error : '未知') + '。可调整候选后重试。', 'err'); return; }
+    S.days = snap.result.days.map(function (day) {
+      return day.spots.map(function (s) { return { name: s.name, stay_min: null }; });
+    });
+    S.activeDay = 1;
+    renderResult(snap.result);
+    story('p2-progress', '行程已生成。点时间线卡片上的按钮微调，或在下方对话框里用一句话改。', 'ok');
+    if (S.date) weatherTool(S.date, days);   // 天气工具：有日期就自动调用（agent 工具层）
+  }).catch(function (e) {
+    if (e && (e.message === 'rate' || e.message === 'auth')) return;
+    story('p2-progress', '排期失败：' + (e && e.message ? e.message : '网络异常'), 'err');
+  }).then(function () {
+    S.busy = false; if (btn) btn.disabled = false;
+  });
+}
+
+/* ===== 轮询（900ms，进度进叙事）===== */
+function poll(taskId, storyId, onDone) {
+  var n = 0;
+  return new Promise(function (resolve, reject) {
+    function tick() {
+      fetch('/task/' + encodeURIComponent(taskId)).then(function (r) { return r.json(); })
+        .then(function (snap) {
+          if (storyId) {
+            var box = $(storyId);
+            if (box && Array.isArray(snap.progress) && snap.progress.length) {
+              var last = snap.progress[snap.progress.length - 1];
+              if (box.dataset.last !== last) { box.dataset.last = last; story(storyId, last); }
+            }
+          }
+          if (snap.status === 'completed' || snap.status === 'failed') {
+            if (onDone) onDone(snap);        // 结果交还调用方（planner2_smoke 抓的真 bug：
+            resolve(snap); return;           //  形参死代码 ⇒ S.result 停旧值，天 tab 静默失效）
+          }
+          if (++n > 150) { resolve({ status: 'failed', error: '超时' }); return; }
+          setTimeout(tick, 900);
+        }).catch(reject);
+    }
+    tick();
+  });
+}
+
+/* ===== 结果渲染 ===== */
+function renderResult(result) {
+  var box = $('p2-result');
+  if (!box || !result) return;
+  box.textContent = '';
+  var chat = $('p2-editchat'); if (chat) chat.hidden = false;
+
+  /* 天 tab：每天 + 全部 */
+  var tabs = document.createElement('div');
+  tabs.className = 'daytabs';
+  var labels = result.days.map(function (d) { return '第 ' + d.day + ' 天'; });
+  labels.push('全部');
+  labels.forEach(function (lab, idx) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    var on = (idx === labels.length - 1) ? S.activeDay === 0 : (idx + 1) === S.activeDay;
+    b.className = 'daytab' + (on ? ' on' : '');
+    b.dataset.day = (idx === labels.length - 1) ? '0' : String(idx + 1);
+    b.textContent = lab;
+    tabs.appendChild(b);
+  });
+  box.appendChild(tabs);
+
+  /* 时间线（活动天） */
+  var day = result.days.filter(function (d) { return d.day === S.activeDay; })[0];
+  var tl = document.createElement('div');
+  tl.className = 'tl';
+  if (day) {
+    day.spots.forEach(function (s, i) {
+      var row = document.createElement('div');
+      row.className = 'tl-row';
+      var tm = document.createElement('span');
+      tm.className = 'tl-time';
+      tm.textContent = hhmm(s.arrive_h) + '–' + hhmm(s.depart_h);
+      row.appendChild(tm);
+      var mid = document.createElement('div');
+      var nm = document.createElement('div');
+      nm.className = 'tl-name'; nm.textContent = (i + 1) + '. ' + s.name;
+      mid.appendChild(nm);
+      if (s.desc) { var de = document.createElement('div'); de.className = 'tl-desc'; de.textContent = s.desc; mid.appendChild(de); }
+      row.appendChild(mid);
+      var right = document.createElement('div');
+      right.style.textAlign = 'right';
+      var tk = document.createElement('div');
+      tk.className = 'tl-ticket' + (s.ticket_known ? '' : ' unknown');
+      tk.textContent = s.ticket_known ? (s.ticket > 0 ? '¥' + s.ticket : '免费') : '票价待查';
+      right.appendChild(tk);
+      /* 编辑钮：移除 / ±15 / 移到（全编辑=结构化 recheck） */
+      var ops = document.createElement('div');
+      ops.className = 'tl-ops';
+      function op(t, act, cls) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'tlop' + (cls ? ' ' + cls : '');
+        b.dataset.act = act; b.dataset.name = s.name; b.textContent = t;
+        return b;
+      }
+      ops.appendChild(op('✕ 移除', 'remove', 'danger'));
+      ops.appendChild(op('−15', 'stay-15'));
+      ops.appendChild(op('+15', 'stay+15'));
+      for (var d2 = 1; d2 <= result.days.length; d2++) {
+        if (d2 !== S.activeDay) ops.appendChild(op('→ 第' + d2 + '天', 'move:' + d2));
+      }
+      right.appendChild(ops);
+      row.appendChild(right);
+      tl.appendChild(row);
+    });
+    var foot = document.createElement('div');
+    foot.className = 'tl-dayfoot';
+    foot.textContent = '第 ' + day.day + ' 天 · 通勤 ' + Math.round(day.commute_min) + ' 分钟 · 门票 ¥' +
+      Math.round(day.cost) + ' · 游玩 ' + Math.round(day.active_min) + ' 分钟';
+    tl.appendChild(foot);
+  }
+  box.appendChild(tl);
+
+  /* 总览条 */
+  var totals = document.createElement('div');
+  totals.className = 'totals';
+  function chip(t, cls) { var s = document.createElement('span'); if (cls) s.className = cls; s.textContent = t; totals.appendChild(s); }
+  chip('总门票 ¥' + Math.round(result.total_cost) + (result.cost_known ? '' : '（已知部分之和）'),
+       result.cost_known ? '' : 'warn');
+  chip('行程分 ' + Number(result.total_score).toFixed(2));
+  chip('共 ' + result.days.length + ' 天');
+  if (result.unplanned && result.unplanned.length) chip('未能排入 ' + result.unplanned.length, 'warn');
+  var st = result.check_report && result.check_report.stats;
+  if (st && typeof st.spots_planned === 'number') chip('校验通过 · 已排 ' + st.spots_planned);
+  box.appendChild(totals);
+
+  /* 未排入（原因透明） */
+  if (result.unplanned && result.unplanned.length) {
+    var up = document.createElement('div');
+    up.className = 'unplanned';
+    result.unplanned.forEach(function (u) {
+      var s = document.createElement('span');
+      s.textContent = u.name + '：' + u.reason;
+      up.appendChild(s);
+    });
+    box.appendChild(up);
+  }
+
+  /* 天 tab 事件 + 地图 */
+  bindDayTabs(box);
+  drawMap();
+}
+
+function bindDayTabs(box) {
+  var tabs = box.querySelectorAll('.daytab');
+  Array.prototype.forEach.call(tabs, function (b) {
+    b.addEventListener('click', function () {
+      S.activeDay = Number(b.dataset.day) || 0;
+      renderResult(S.result);
+    });
+  });
+}
+
+/* ===== 天气工具（2026 agent 层）：行程日期确定 → 自动调用 /weather ===== */
+function weatherTool(startDate, days) {
+  var d0 = new Date(startDate + 'T00:00:00');
+  var d1 = new Date(d0.getTime() + (days - 1) * 86400000);
+  var isoDate = function (d) { return d.toISOString().slice(0, 10); };
+  fetch('/weather?city=' + encodeURIComponent(S.city) + '&start=' + isoDate(d0) + '&end=' + isoDate(d1))
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok || !res.d || res.d.available === false) {
+        story('p2-progress', '天气没拿到' + (res.d && res.d.reason ? '（' + res.d.reason + '）' : '') + '——不影响行程。');
+        return;
+      }
+      var daysArr = Array.isArray(res.d.days) ? res.d.days : [];
+      if (!daysArr.length) return;
+      var box = $('p2-result');
+      if (!box) return;
+      var w = document.createElement('div');
+      w.className = 'totals';
+      daysArr.forEach(function (wd) {
+        var s = document.createElement('span');
+        s.textContent = (wd.date || '') + ' ' + (wd.temp || '') + ' ' + (wd.desc || wd.weather || '');
+        w.appendChild(s);
+      });
+      box.insertBefore(w, box.firstChild.nextSibling);   // 天 tab 之后
+    }).catch(function () { /* 天气是注脚：失败不影响行程 */ });
+}
+
+/* ===== 结构化编辑（/plan/recheck：服务端全量重算）===== */
+function applyEdit(name, act) {
+  if (!S.days.length || S.busy) return;
+  if (act === 'remove') {
+    S.days = S.days.map(function (day) {
+      return day.filter(function (r) { return r.name !== name; });
+    }).filter(function (day) { return day.length > 0; });
+    if (!S.days.length) { story('p2-progress', '全部移除等于重开——先用候选区挑点。', 'err'); return; }
+  } else if (act === 'stay+15' || act === 'stay-15') {
+    var delta = act === 'stay+15' ? 15 : -15;
+    var origStay = 60;
+    S.spots.forEach(function (x) { if (x.name === name && x.stay_min) origStay = x.stay_min; });
+    S.days = S.days.map(function (day) {
+      return day.map(function (r) {
+        if (r.name !== name) return r;
+        /* 基准 = 用户已改的值，否则取**原始候选**的 stay_min
+           （VisitedSpot 没有停留字段，从 result 里取是错的） */
+        var cur = (typeof r.stay_min === 'number') ? r.stay_min : origStay;
+        return { name: r.name, stay_min: Math.max(30, Math.min(480, cur + delta)) };
+      });
+    });
+  } else if (act.indexOf('move:') === 0) {
+    var target = parseInt(act.slice(5), 10);
+    var moved = null;
+    S.days = S.days.map(function (day, idx) {
+      if (idx + 1 === S.activeDay) {
+        moved = day.filter(function (r) { return r.name === name; })[0] || null;
+        return day.filter(function (r) { return r.name !== name; });
+      }
+      return day;
+    });
+    if (moved && S.days[target - 1]) S.days[target - 1].push(moved);
+  }
+  recheck();
+}
+function flattenSpots() {
+  var out = [];
+  (S.result ? S.result.days : []).forEach(function (d) {
+    d.spots.forEach(function (s) { out.push(s); });
+  });
+  return out;
+}
+function recheck() {
+  if (!S.taskId) return;
+  var day_specs = S.days.map(function (day) {
+    return { spots: day.map(function (r) {
+      var row = { name: r.name };
+      if (typeof r.stay_min === 'number') row.stay_min = r.stay_min;
+      return row;
+    }) };
+  }).filter(function (day) { return day.spots.length > 0; });
+  if (!day_specs.length) { story('p2-progress', '全部移除等于重开——先用候选区挑点。', 'err'); return; }
+  S.busy = true;
+  fetch('/plan/recheck', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task_id: S.taskId, days: day_specs })
+  }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) { story('p2-progress', '重排失败：' + ((res.d && res.d.detail) || '未知'), 'err'); return; }
+      var snap = res.d;
+      if (snap.result) {
+        S.result = snap.result;
+        S.days = snap.result.days.map(function (day) {
+          return day.spots.map(function (s) { return { name: s.name, stay_min: null }; });
+        });
+        if (S.activeDay > snap.result.days.length) S.activeDay = snap.result.days.length;
+        renderResult(S.result);
+      }
+    }).catch(function (e) {
+      story('p2-progress', '重排失败：' + (e && e.message ? e.message : '网络异常'), 'err');
+    }).then(function () { S.busy = false; });
+}
+
+/* ===== 对话改行程（/plan/edit：LLM 解析 → 确定性执行）===== */
+function doEditChat() {
+  if (S.busy || !S.taskId) return;
+  var inp = $('p2-editinput');
+  var text = (inp && inp.value || '').trim();
+  if (!text) return;
+  S.busy = true;
+  var btn = $('p2-editsend'); if (btn) btn.disabled = true;
+  if (inp) inp.value = '';
+  story('p2-progress', '对话编辑：「' + text + '」——LLM 解析意图，确定性执行…');
+  fetch('/plan/edit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task_id: S.taskId, instruction: text, memory: [] })
+  }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) { story('p2-progress', '对话编辑不可用：' + ((res.d && res.d.detail) || '未知'), 'err'); return; }
+      return poll(res.d.task_id, 'p2-progress', function (snap) { S.result = snap.result; })
+        .then(function (snap) {
+          if (snap.status !== 'completed' || !snap.result) {
+            story('p2-progress', '对话编辑失败：' + (snap.error || '未知'), 'err'); return;
+          }
+          S.taskId = res.d.task_id;
+          S.result = snap.result;
+          S.days = snap.result.days.map(function (day) {
+            return day.spots.map(function (s) { return { name: s.name, stay_min: null }; });
+          });
+          if (S.activeDay > snap.result.days.length) S.activeDay = snap.result.days.length;
+          renderResult(S.result);
+          story('p2-progress', '改好了。继续微调或换天都可以。', 'ok');
+        });
+    }).catch(function (e) {
+      story('p2-progress', '对话编辑失败：' + (e && e.message ? e.message : '网络异常'), 'err');
+    }).then(function () { S.busy = false; if (btn) btn.disabled = false; });
+}
+
+/* ===== 地图（桌面常驻 / 移动抽屉；Leaflet + 高德瓦片）===== */
+function ensureMap(containerId) {
+  if (!window.L) return null;                       // jsdom/无 vendor 环境：守卫不报错
+  var el = document.getElementById(containerId);
+  if (!el) return null;
+  var key = containerId;
+  if (!S.map) S.map = {};
+  if (S.map[key]) { setTimeout(function () { S.map[key].invalidateSize(); }, 60); return S.map[key]; }
+  var m = L.map(el, { attributionControl: false });
+  if (!S.tileCfg) S.tileCfg = null;
+  var cfg = S.tileCfg;
+  if (!cfg) {
+    // 同步拿不到就先垫 OSM（vendor 页面本就零 CDN——这里只在 /demo/config 未达时兜底）
+    cfg = { tile_url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: 'abc' };
+  }
+  L.tileLayer(cfg.tile_url, { subdomains: cfg.subdomains || 'abc', maxZoom: 18 }).addTo(m);
+  S.map[key] = m;
+  return m;
+}
+function drawMap() {
+  if (!window.L) return;
+  fetch('/demo/config').then(function (r) { return r.json(); }).then(function (cfg) {
+    S.tileCfg = cfg;
+    var m = ensureMap('p2-map');
+    if (m) fillMap(m);
+    if ($('p2-mapdrawer') && $('p2-mapdrawer').classList.contains('open')) {
+      var dm = ensureMap('p2-map-drawer');
+      if (dm) fillMap(dm);
+    }
+  }).catch(function () {});
+}
+function fillMap(m) {
+  if (!window.L || !S.result) return;
+  m.eachLayer(function (l) { if (l instanceof L.Marker || l instanceof L.Polyline) m.removeLayer(l); });
+  var pts = [];
+  var byName = {};
+  S.spots.forEach(function (s) { byName[s.name] = s; });
+  S.result.days.forEach(function (day) {
+    if (S.activeDay !== 0 && day.day !== S.activeDay) return;
+    var line = [];
+    day.spots.forEach(function (s) {
+      var sp = byName[s.name];
+      if (!sp || typeof sp.lat !== 'number') return;
+      line.push([sp.lat, sp.lon]);
+      /* circleMarker 而非默认 icon：vendor 未带 marker 图片，默认图标会 404 成占位块 */
+      L.circleMarker([sp.lat, sp.lon], {
+        radius: 7, color: '#2563eb', weight: 2,
+        fillColor: '#ffffff', fillOpacity: .9
+      }).addTo(m)
+        .bindPopup('<b>' + esc(s.name) + '</b><br>' + hhmm(s.arrive_h) + '–' + hhmm(s.depart_h));
+    });
+    if (line.length > 1) L.polyline(line, { color: '#2563eb', weight: 3, opacity: .7 }).addTo(m);
+    pts = pts.concat(line);
+  });
+  if (pts.length) {
+    var hint = document.getElementById('p2-maphint');
+    if (hint) hint.remove();
+  }
+  if (pts.length > 1) m.fitBounds(L.latLngBounds(pts).pad(0.15));
+  else if (pts.length === 1) m.setView(pts[0], 13);
+}
+$('p2-mapbtn') && $('p2-mapbtn').addEventListener('click', function () {
+  var d = $('p2-mapdrawer');
+  if (!d) return;
+  d.classList.add('open');
+  var m = ensureMap('p2-map-drawer');
+  if (m && S.result) { fillMap(m); setTimeout(function () { m.invalidateSize(); }, 80); }
+});
+$('p2-mapclose') && $('p2-mapclose').addEventListener('click', function () {
+  var d = $('p2-mapdrawer'); if (d) d.classList.remove('open');
+});
+
+/* ===== 事件绑定 ===== */
+$('p2-go') && $('p2-go').addEventListener('click', doExtract);
+$('p2-plan') && $('p2-plan').addEventListener('click', doPlan);
+$('p2-editsend') && $('p2-editsend').addEventListener('click', doEditChat);
+$('p2-editinput') && $('p2-editinput').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); doEditChat(); }
+});
+$('p2-city') && $('p2-city').addEventListener('change', function () {
+  S.city = ($('p2-city').value || '').trim();
+  updateKept();
+});
+document.addEventListener('click', function (e) {
+  var chip = e.target && e.target.closest ? e.target.closest('.chip') : null;
+  if (!chip) return;
+  if (chip.dataset.pref) {
+    S.pref = chip.dataset.pref;
+    document.querySelectorAll('#p2-pref .chip').forEach(function (c) { c.classList.toggle('on', c === chip); });
+  } else if (chip.dataset.rob) {
+    S.rob = chip.dataset.rob;
+    document.querySelectorAll('#p2-rob .chip').forEach(function (c) { c.classList.toggle('on', c === chip); });
+  }
+});
+/* 时间线编辑钮（事件委托） */
+document.addEventListener('click', function (e) {
+  var b = e.target && e.target.closest ? e.target.closest('.tlop[data-act]') : null;
+  if (!b) return;
+  applyEdit(b.dataset.name, b.dataset.act);
+});
+window.addEventListener('resize', function () {
+  if (S.map) Object.keys(S.map).forEach(function (k) { S.map[k].invalidateSize(); });
+});
+</script>
+</body>
+</html>

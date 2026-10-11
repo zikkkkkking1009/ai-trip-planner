@@ -2022,3 +2022,23 @@ support.html 是无构建单文件页、装不了 `pnpm dlx shadcn add`，所以
 - **Tier 2 维持有意不做**：liquid-glass-react 真折射需 React+SVG displacement，Tier 1 的「动态背景层」方案让玻璃有了真透底（这是 workbuddy 比 v4 简报走得更远的正解）。
 - **门禁（本批全量复跑）**：pytest 523+1skip ｜ ruff 0 ｜ mypy 0（10 文件）｜ 五维 0/0 ｜ 前端静态绿 ｜ 对比度页面级+运行时绿 ｜ 47+48+50+78 冒烟 ｜ 七档 21/21 ｜ verify-demo PASS。
 - **未裹入**：`backend/spot_media.json`。
+## 2026-10-12 | ZCode | planner2 冒烟测试落地：tools/planner2_smoke.js（71 断言 70 绿，抓到页面真 bug 1 根因 2 症状）
+
+- **新增** `tools/planner2_smoke.js`（jsdom 运行时冒烟，风格照抄 support_smoke.js）：9 组断言覆盖 启动/extract/挑卡/plan+轮询/recheck/对话编辑/401/reduce/全程零未捕获；请求体做形状级校验（/extract、/plan/async、/plan/recheck、/plan/edit 四处精确到 JSON 形状），并带「零意外外呼」守卫（未知 URL 计数必须为 0）。零真实网络：页面 fetch 全部在 beforeParse 注入的 stub 里按 URL 分发。运行：`node tools/planner2_smoke.js`（jsdom 从 tools/node_modules 自动解析）。
+- **结果 70/71，唯一红 = 组⑥「对话编辑成功后渲染出现大雁塔」——页面真 bug，未动页面一个字节**：
+  根因：`poll()`（static/planner2.html:792）声明 onDone 形参但函数体从不调用，:773（doPlan）与 :1055（doEditChat）传入的 `function(snap){ S.result = snap.result; }` 是死代码 ⇒ 异步任务完成后 S.result 永不更新（保持 null，直到某次 recheck 赋值）。
+  症状A（组⑥红）：对话编辑成功（叙事「改好了」、S.days 已换新）但画布不更新——doEditChat :1055 `renderResult(S.result)` 渲染编辑前旧快照/null。
+  症状B（一次性探针证实，未入断言）：新计划完成后点天 tab 静默失效——bindDayTabs :924 `renderResult(S.result=null)` 早退；做过任一次 recheck（S.result 被赋值）后恢复。
+  修法方向（页面侧一行）：poll 在 resolve 前 `if (onDone) onDone(snap);`（可同时修 A/B），或 doEditChat 改 `renderResult(snap.result)`（只修 A）。修复后组⑥自动转绿，测试无需改。
+- **未提交**：工作区有在途批次（static/planner2.html 未跟踪 + backend/main.py、static/index.html、tools/check_frontend.py、backend/spot_media.json 已改，均非本会话产物）；单独提交冒烟会因页面未入库而 CI 红，随下一批一起走。
+
+
+## 2026-10-12 | ZCode | 完结条目：规划页 v2「行程工作台」落地（/app2）——画布工作台 + 全编辑 + 天气工具 + React Bits；深度学习 TripStar/竞品/reactbits
+
+- **背景**：用户三连指令：①规划页「一直不满意，全部推翻可以」；②参考 2024 CSDN「完全体」文章做到 2026 agent 水平；③「别弄这么快，每一个按钮和代码都去读人家的」——三句话决定打法：先深读再动手。
+- **深度学习（产出 `Zcode room/sessions/…/STUDY-TripStar-竞品-reactbits.md`）**：①**TripStar 源码级读**（github.com/1sdv/TripStar，GPL-2.0——只读不抄）：并发三 Agent 聚合、知识图谱、偏好记忆（遗忘+TOP-K）、双地图引擎、五级容错 JSON、预约提醒；其局限=最终行程 LLM 生成无约束求解、无 RAG 反幻觉、无测试；②**文章竞品对比全文提取**（TripStar vs 圆周旅迹 vs 飞猪AI问一问，漏掉的那段补上了）+ 我们的第四列位置：独占「约束可证 + RAG 反幻觉 + 评测文化」；③**react-bits 原件源码核对**：ClickSpark 官方是 canvas 线状火花 400ms（我初版凭理解写成圆点 450ms——方法论 §3 又一次应验），已逐值对齐（线状 10×2px、t*(2-t) 等价贝塞尔、count 8、半径 15+26 随机）；SplitText 官方是 GSAP（50ms 错峰/1.25s/power3.out），CSS 等价对齐+偏离登记进 provenance §6。
+- **UX 采纳（PiTravel/TripStar/飞猪三站截图+竞品表）**：调节卡折叠成**活摘要**（默认极简首屏，PiTravel 模式）；「解析链接」记 P2（SSRF 安全面）；小红书集成**不采纳**（合规风险，诚实纪律是差异化）。
+- **交付**：`static/planner2.html`（约 950 行，单文件零构建）+ `GET /app2` 路由。画布工作台：自由文本统一入口（整篇攻略/一句话）→ /extract 候选卡（待确认标、预置库补充、needs_city 不吞默认城市）→ /plan/async 轮询（进度叙事）→ 行程画布（天 tab+时间线+总览口径+未排入原因）→ **全编辑**（移除/±15/移天走 /plan/recheck 服务端重算 + 对话改行程走 /plan/edit）→ 常驻地图（Leaflet+高德瓦片，**circleMarker** 因 vendor 无 marker 图标）→ 天气工具（有日期自动调 /weather，诚实降级）→ 移动端地图抽屉。React Bits 动效进页。
+- **真 bug 三枚（冒烟/录制/目检各抓一枚）**：①`poll()` 的 onDone 形参死代码 ⇒ S.result 停旧值、天 tab 静默失效（workbuddy…不对，是 smoke 子代理抓的，一行修+双保险）；②进度条目是对象 ⇒ 叙事变「[object Object]」（story 对象安全化）；③Leaflet 默认 marker 图标 404（vendor 无图 ⇒ circleMarker）。录制器还踩了我自己的响应式规则（1440 下 mapbtn 应隐藏）。
+- **门禁（全量复跑）**：pytest **523+1skip** ｜ ruff 0 ｜ check_frontend 绿（planner2 已进 PAGES）｜ 五支冒烟 **47+48+50+78+71** ｜ 成片 `demo-app2.webm`+8 帧（真 LLM 抽取、真求解、真对话编辑、零 JS 错误）。另：index.html 遗留 A1（酒店搜索竞态守卫）+A10（日历 7 天钳制+行内提示）由子代理修复（+20/−2，四门禁绿）。
+- **给你的交接**：v2 的 P1（extract 抽 needs_booking 预约提醒、偏好记忆入库）与 P2（知识图谱/多城/解析链接）已登记 SPEC；旧 /app 未动。
